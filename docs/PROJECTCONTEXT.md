@@ -245,7 +245,7 @@ Plus één taak: "Handleiding webbeheer" (SVWW). De Notion-workspace "Freelance 
 ## Openstaande punten
 
 ### Nu
-- [ ] Op de Mac `node -v` controleren (moet 22 of hoger zijn), dan `npm run local` en het klantdossier invullen
+- [ ] Op de Mac `node -v` controleren (moet 22 of hoger zijn), dan `npm run local` en het klantdossier en de afspraken per klant invullen
 - [ ] DNS-record `os.marclonsain.nl` → `179.67.202.123`
 - [ ] Installatiescript draaien op de VPS
 - [ ] MCP-koppeling toevoegen in Claude
