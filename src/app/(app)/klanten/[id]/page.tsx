@@ -7,8 +7,9 @@ import { NoteTypeSelect } from "@/components/forms";
 import { NoteList } from "@/components/note-list";
 import { QuickAddTask } from "@/components/quick-add";
 import { TaskList } from "@/components/task-row";
-import { clientHours, getClientDossierFull, listLeads, listNotes, listProjects, listTasks, recentDescriptions } from "@/lib/data";
+import { clientFilings, clientHours, getClientDossierFull, listLeads, listNotes, listProjects, listTasks, recentDescriptions } from "@/lib/data";
 import { LeadLine } from "@/components/pipeline-parts";
+import { FilingRows, NewFilingForm, ScheduleList } from "@/components/filing-parts";
 import { BillingQueue, ManualTimeForm, RecentEntries, StartTimerForm } from "@/components/time-parts";
 import { formatDuration, formatHours } from "@/lib/duration";
 import { formatEuro } from "@/lib/money";
@@ -24,7 +25,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   const { client, contacts, websites, documents, agreements, installments, mrrCents } = dossier;
   const primary = contacts.find((c) => c.isPrimary) ?? contacts[0];
 
-  const [tasks, projectsRows, notesRows, options, hours, descriptions, leadRows] = await Promise.all([
+  const [tasks, projectsRows, notesRows, options, hours, descriptions, leadRows, filingData] = await Promise.all([
     listTasks({ clientId: id, view: "open" }),
     listProjects({ clientId: id, includeClosed: true }),
     listNotes({ clientId: id, excludeInbox: true }),
@@ -32,7 +33,27 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     clientHours(id),
     recentDescriptions(),
     listLeads({ clientId: id }),
+    clientFilings(id),
   ]);
+  const bookkeeping = agreements.filter((a) => a.kind === "bookkeeping");
+  const showFilings = bookkeeping.length > 0 || filingData.schedules.length > 0 || filingData.open.length > 0 || filingData.closed.length > 0;
+  const filingsBlock = (
+    <div className="space-y-3">
+      <ScheduleList clientId={id} schedules={filingData.schedules} agreements={bookkeeping.map((a) => ({ id: a.id, name: a.label }))} />
+      {(filingData.open.length > 0 || filingData.closed.length > 0) && (
+        <div className="card">
+          <FilingRows rows={filingData.open} showClient={false} empty="Geen open aangiftes." />
+          {filingData.closed.length > 0 && (
+            <details className="border-t border-lijn">
+              <summary className="cursor-pointer px-3 py-2 text-xs text-steen hover:text-nacht">Laatst ingediend en afgerond ({filingData.closed.length})</summary>
+              <FilingRows rows={filingData.closed} showClient={false} />
+            </details>
+          )}
+        </div>
+      )}
+      <NewFilingForm clients={[]} clientId={id} />
+    </div>
+  );
   const t = today();
   const clientProjects = options.projects.filter((p) => p.clientId === id);
 
@@ -80,6 +101,18 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           budgets={hours.budgets}
         />
       </section>
+
+      {showFilings ? (
+        <section id="aangiftes" className="scroll-mt-8">
+          <SectionTitle aside={<Link href="/aangiftes" className="text-xs text-steen hover:text-nacht">Alle aangiftes</Link>}>Aangiftes</SectionTitle>
+          {filingsBlock}
+        </section>
+      ) : (
+        <details id="aangiftes" className="card p-4">
+          <summary className="cursor-pointer text-sm font-medium">Aangiftes (geen boekhoudafspraak)</summary>
+          <div className="mt-3">{filingsBlock}</div>
+        </details>
+      )}
 
       <section className="space-y-2">
         <SectionTitle aside={<Link href="/pipeline" className="text-xs text-steen hover:text-nacht">Pipeline</Link>}>Leads en offertes</SectionTitle>

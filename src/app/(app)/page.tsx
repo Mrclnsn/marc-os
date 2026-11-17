@@ -2,7 +2,7 @@ import Link from "next/link";
 import { PageHeader, SectionTitle } from "@/components/brand";
 import { TaskList } from "@/components/task-row";
 import { CaptureBar, QuickAddTask } from "@/components/quick-add";
-import { expiringDomains, hourlyBudgets, listTasks, inboxCount, listReviews, pipelineSignals, revenueSignals, weekHours } from "@/lib/data";
+import { expiringDomains, filingSignals, hourlyBudgets, listTasks, inboxCount, listReviews, pipelineSignals, revenueSignals, weekHours } from "@/lib/data";
 import { formatDuration } from "@/lib/duration";
 import { formatEuro, formatEuroRound } from "@/lib/money";
 import { domainState } from "@/components/client-parts";
@@ -39,7 +39,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const t = today();
   const tomorrow = addDaysIso(t, 1);
 
-  const [todayTasks, upcoming, inbox, options, cal, lastDay, domains, money, hours, budgets, pipeline] = await Promise.all([
+  const [todayTasks, upcoming, inbox, options, cal, lastDay, domains, money, hours, budgets, pipeline, filingSig] = await Promise.all([
     listTasks({ view: "today", area }),
     listTasks({ view: "upcoming", days: 7, area }),
     inboxCount(),
@@ -51,7 +51,17 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     weekHours(t),
     area === "prive" ? Promise.resolve([]) : hourlyBudgets({ onlyWarnings: true }),
     area === "prive" ? Promise.resolve(null) : pipelineSignals(),
+    area === "prive" ? Promise.resolve(null) : filingSignals(),
   ]);
+  // Aangiftes: eerst deadlines binnen 14 dagen, dan ontbrekende stukken (zonder dubbelingen)
+  const filingAlerts = filingSig
+    ? [
+        ...[...filingSig.overdue, ...filingSig.dueSoon].map((f) => ({ f, why: f.state === "overdue" ? `te laat, deadline ${formatDate(f.deadline)}` : `deadline ${formatDate(f.deadline)}` })),
+        ...filingSig.docsMissing
+          .filter((f) => f.state !== "overdue" && f.state !== "due_soon")
+          .map((f) => ({ f, why: `stukken ${f.docsRequestedAt ? "opgevraagd, nog niet binnen" : "nog niet opgevraagd"} (uiterlijk ${formatDate(f.docsDueDate)})` })),
+      ]
+    : [];
 
   const overdue = todayTasks.filter((x) => (x.planDate ?? x.dueDate)! < t);
   const now = todayTasks.filter((x) => (x.planDate ?? x.dueDate)! >= t);
@@ -161,6 +171,22 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
                     <Link href={`/pipeline/offertes/${q.id}`} className="block border-l-[3px] border-nacht pl-3 hover:bg-parel">
                       <span className="block text-[15px] font-bold text-nacht">{q.companyName} · {q.number}</span>
                       <span className="block text-xs text-steen">Offerte geldig tot {formatDate(q.validUntil)}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {filingAlerts.length > 0 && (
+            <div className="mt-10">
+              <SectionTitle aside={<Link href="/aangiftes" className="text-xs text-steen hover:text-nacht">Aangiftes</Link>}>Aangiftes</SectionTitle>
+              <ul className="space-y-2">
+                {filingAlerts.map(({ f, why }) => (
+                  <li key={f.id}>
+                    <Link href={`/aangiftes/${f.id}`} className="block border-l-[3px] border-nacht pl-3 hover:bg-parel">
+                      <span className="block text-[15px] font-bold text-nacht">{f.clientName} · {f.title}</span>
+                      <span className="block text-xs text-steen">{why}</span>
                     </Link>
                   </li>
                 ))}

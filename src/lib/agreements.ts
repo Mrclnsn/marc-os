@@ -7,6 +7,7 @@ import { agreements, clients, installments, projects, timeEntries, websites, typ
 import { addDaysIso, today } from "./dates";
 import { AGREEMENT_WARNING_DAYS, SERVICE_DEFAULTS, SERVICE_KIND, type ServiceKind } from "./labels";
 import { perMonth } from "./money";
+import { createDefaultSchedules } from "./filings";
 
 /* ------------------------------------------------------------------ */
 /* Invoerschema's                                                      */
@@ -242,6 +243,8 @@ export async function createAgreement(input: AgreementInput, opts: { createProje
     }
   }
   if (row.websiteId) await syncWebsiteServices(row.websiteId);
+  // Boekhouding: standaard aangiftecyclus (btw per kwartaal, IB of Vpb) als de klant er nog geen heeft
+  if (row.kind === "bookkeeping") await createDefaultSchedules(row);
   return row;
 }
 
@@ -285,6 +288,7 @@ export async function updateAgreement(id: string, patch: Partial<Omit<AgreementI
   }
 
   for (const w of new Set([current.websiteId, row.websiteId])) if (w) await syncWebsiteServices(w);
+  if (row.kind === "bookkeeping" && current.kind !== "bookkeeping") await createDefaultSchedules(row);
   return row;
 }
 

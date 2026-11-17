@@ -14,6 +14,7 @@ const items = [
   { href: "/websites", label: "Websites" },
   { href: "/uren", label: "Uren" },
   { href: "/afspraken", label: "Afspraken" },
+  { href: "/aangiftes", label: "Aangiftes" },
   { href: "/notities", label: "Notities" },
   { href: "/reviews", label: "Reviews" },
 ];
@@ -66,6 +67,7 @@ export function Nav({ inbox, logout }: { inbox: number; logout: React.ReactNode 
           <Link href="/pipeline" className={active("/pipeline") ? "font-bold text-white" : ""}>Pipeline</Link>
           <Link href="/uren" className={active("/uren") ? "font-bold text-white" : ""}>Uren</Link>
           <Link href="/afspraken" className={active("/afspraken") ? "font-bold text-white" : ""}>Afspraken</Link>
+          <Link href="/aangiftes" className={active("/aangiftes") ? "font-bold text-white" : ""}>Aangiftes</Link>
           <Link href="/notities" className={active("/notities") ? "font-bold text-white" : ""}>Notities</Link>
           <Link href="/reviews" className={active("/reviews") ? "font-bold text-white" : ""}>Reviews</Link>
         </div>

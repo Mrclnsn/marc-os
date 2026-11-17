@@ -173,3 +173,51 @@ export const QUOTE_VALID_DAYS = 30;
 export const QUOTE_WARNING_DAYS = 7;
 /** Standaard kans per status van een lead (bij wijzigen van de status, als je de kans niet zelf aanpast). */
 export const LEAD_DEFAULT_PROBABILITY: Record<LeadStatus, number> = { new: 20, contact: 40, quoted: 60, won: 100, lost: 0 };
+
+/* ---------------- Aangiftecyclus ---------------- */
+
+export const FILING_KIND = {
+  vat: "Btw-aangifte",
+  income_tax: "Aangifte IB",
+  corporate_tax: "Aangifte Vpb",
+  icp: "ICP-opgaaf",
+  payroll: "Loonheffingen",
+  other: "Overig",
+} as const;
+export type FilingKind = keyof typeof FILING_KIND;
+
+/** Welke frequenties per soort aangifte mogelijk zijn (eerste = standaard). */
+export const FILING_FREQUENCIES: Record<FilingKind, BillingPeriod[]> = {
+  vat: ["quarter", "month", "year"],
+  income_tax: ["year"],
+  corporate_tax: ["year"],
+  icp: ["quarter", "month"],
+  payroll: ["month", "quarter", "year"],
+  other: ["quarter", "month", "year"],
+};
+
+export const FILING_FREQUENCY = { month: "Per maand", quarter: "Per kwartaal", year: "Per jaar" } as const;
+
+export const FILING_EXTENSION = {
+  none: "Standaard termijn",
+  individual: "Uitstel aangevraagd",
+  becon: "Becon-uitstel",
+} as const;
+export type FilingExtension = keyof typeof FILING_EXTENSION;
+
+export const FILING_STATUS = {
+  todo: "Te doen",
+  waiting_docs: "Wacht op stukken",
+  in_progress: "In behandeling",
+  review: "Klaar voor controle",
+  filed: "Ingediend",
+  done: "Afgerond",
+} as const;
+export type FilingStatus = keyof typeof FILING_STATUS;
+/** Statussen waarin de aangifte nog niet is ingediend. */
+export const OPEN_FILING_STATUSES = ["todo", "waiting_docs", "in_progress", "review"] as const;
+
+/** Signaal als de deadline binnen zoveel dagen valt. */
+export const FILING_WARNING_DAYS = 14;
+/** Standaard: stukken binnen zoveel dagen na het einde van de periode. */
+export const FILING_DOCS_DAYS: Record<BillingPeriod, number> = { month: 10, quarter: 10, year: 59 };

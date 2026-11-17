@@ -116,6 +116,7 @@ const INSTRUCTIONS = `Dit is Marc OS: Marc's centrale systeem voor taken, projec
 - Termijnen zijn te factureren regels. Een eenmalige website-afspraak maakt zelf 2 termijnen van 50% (bij akkoord, bij oplevering). Facturen maakt Marc zelf in Moneybird; zet een termijn alleen op een andere status als Marc dat vraagt.
 - Uren: alles mag uren krijgen (klantwerk, bedrijf algemeen, privé, leren). Er loopt hooguit één timer; start_timer stopt een lopende timer. Voor achteraf schrijven gebruik log_time ("2 uur aan Vobis, SEO-analyse" → client "Vobis", duration "2u", description "SEO-analyse"). Declarabel gaat automatisch als de uren onder een afspraak met uurtarief vallen. get_hours geeft het weekoverzicht, te factureren uren, budgetten (waarschuwing vanaf 80%) en het effectief uurtarief per klant.
 - Pipeline: een lead is een kans (nieuw bedrijf of bestaande klant) met status new/contact/quoted/won/lost, kans in procenten en een volgende stap. Een offerte hoort altijd bij een lead en heeft regels per dienst (zelfde velden als een afspraak). accept_quote verwerkt een akkoord met één aanroep: klant aanmaken of activeren, websites per domein, elke regel een actieve afspraak, websiteproject en termijnen (eerste termijn klaar om te factureren), lead gewonnen. Doe accept_quote, set_quote_status en delete-acties alleen als Marc daarom vraagt.
+- Aangiftecyclus: per boekhoudklant staat ingesteld welke aangiftes Marc doet (btw per maand/kwartaal/jaar, IB, Vpb, ICP, loonheffingen, overig) met eventueel uitstel (individueel of becon). Daaruit ontstaat per periode automatisch een aangifte-item met wettelijke deadline, datum waarop de stukken binnen moeten zijn en (na afloop van de periode) een taak. Statussen: todo, waiting_docs (wacht op stukken), in_progress, review (klaar voor controle), filed (ingediend), done (afgerond: betaald of ontvangen). list_filings en get_overview tonen signalen (deadline binnen 14 dagen, te laat, stukken ontbreken). draft_docs_reminder geeft een conceptmail om stukken op te vragen; verstuur nooit zelf, Marc verstuurt na akkoord. Wijzig statussen of instellingen alleen als Marc daarom vraagt.
 - Inbox-items zijn notities van het type "inbox" (braindump). Verwerk ze met inbox_to_task of update_note.
 - Begin een briefing altijd met get_overview. Sla briefings en samenvattingen op met save_review zodat Marc ze in de app ziet.
 - Tijdzone: Europe/Amsterdam. Schrijf in het Nederlands.`;
@@ -127,7 +128,7 @@ export function buildServer() {
     "get_overview",
     {
       title: "Dagoverzicht",
-      description: "Alles voor een briefing: agenda, pipeline (volgende stappen van leads en offertes die bijna verlopen), taken van vandaag, achterstallig, komende 7 dagen, inbox, lopende projecten, domeinen die binnen 30 dagen verlopen, MRR, termijnen klaar om te factureren, afspraken die binnen 30 dagen aflopen en wat gisteren is afgerond.",
+      description: "Alles voor een briefing: agenda, pipeline (volgende stappen van leads en offertes die bijna verlopen), taken van vandaag, achterstallig, komende 7 dagen, inbox, lopende projecten, domeinen die binnen 30 dagen verlopen, MRR, termijnen klaar om te factureren, afspraken die binnen 30 dagen aflopen, aangiftes (te laat, deadline binnen 14 dagen, stukken ontbreken) en wat gisteren is afgerond.",
       inputSchema: { date: isoDate.optional().describe("Standaard vandaag") },
       annotations: { readOnlyHint: true },
     },
@@ -142,7 +143,7 @@ export function buildServer() {
         calendarConfigured() ? getEvents(t, addDaysIso(t, 1)) : Promise.resolve(null),
         data.listReviews(undefined, 3),
       ]);
-      const [domains, money, revenue, hours, timer, budgets, pipeline] = await Promise.all([
+      const [domains, money, revenue, hours, timer, budgets, pipeline, filingSig] = await Promise.all([
         data.expiringDomains(),
         data.revenueSignals(),
         data.revenueOverview(3),
@@ -150,6 +151,7 @@ export function buildServer() {
         data.getRunningTimer(),
         data.hourlyBudgets({ onlyWarnings: true }),
         data.pipelineSignals(),
+        data.filingSignals(),
       ]);
       return json({
         date: t,
@@ -171,6 +173,12 @@ export function buildServer() {
           openQuotes: pipeline.openQuotes,
           nextStepsDue: pipeline.nextSteps.map((l) => ({ leadId: l.id, company: l.clientName ?? l.companyName, title: l.title, nextStep: l.nextStep, nextStepDate: l.nextStepDate })),
           quotesExpiringSoon: pipeline.expiringQuotes.map((q) => ({ quoteId: q.id, number: q.number, company: q.companyName, validUntil: q.validUntil })),
+        },
+        filings: {
+          overdue: filingSig.overdue.map(data.slimFiling),
+          deadlineWithin14d: filingSig.dueSoon.map(data.slimFiling),
+          docsMissing: filingSig.docsMissing.map(data.slimFiling),
+          filedAwaitingPayment: filingSig.awaitingPayment.length,
         },
         recentReviews: lastReviews,
       });
@@ -1059,6 +1067,157 @@ export function buildServer() {
       if (client !== undefined) patch.clientId = await resolveClient(client);
       return json(await data.updateProject(id, patch));
     },
+  );
+
+  /* ---- Aangiftecyclus ---- */
+
+  const filingKind = z
+    .enum(["vat", "income_tax", "corporate_tax", "icp", "payroll", "other"])
+    .describe("vat = btw, income_tax = IB, corporate_tax = Vpb, icp = ICP-opgaaf, payroll = loonheffingen, other = overig");
+  const filingStatus = z.enum(["todo", "waiting_docs", "in_progress", "review", "filed", "done"]);
+
+  server.registerTool(
+    "list_filings",
+    {
+      title: "Aangiftes",
+      description:
+        "Aangifte-items van boekhoudklanten met deadline, status en signaal (state: overdue, due_soon, docs_missing, running = periode loopt nog, ok, closed). Standaard alle open items, gesorteerd op deadline.",
+      inputSchema: {
+        client: z.string().optional().describe("Klant-id of klantnaam"),
+        status: z.array(filingStatus).optional(),
+        open: z.boolean().optional().describe("Alleen nog niet ingediend (standaard true als status leeg is)"),
+        kind: filingKind.optional(),
+        year: z.number().int().optional().describe("Jaar waarin de periode begint"),
+        deadlineBefore: isoDate.optional(),
+        includeRunning: z.boolean().optional().describe("Ook perioden die nog lopen (standaard true)"),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ client, status, open, ...rest }) => {
+      const rows = await data.listFilings({ ...rest, clientId: (await resolveClient(client)) ?? undefined, status, open: open ?? !status?.length });
+      return json(rows.map(data.slimFiling));
+    },
+  );
+
+  server.registerTool(
+    "get_filing",
+    { title: "Aangifte", description: "Eén aangifte-item met alle datums, uitkomst en gekoppelde taak.", inputSchema: { id: z.string().uuid() }, annotations: { readOnlyHint: true } },
+    async ({ id }) => {
+      const f = await data.getFiling(id);
+      if (!f) throw new Error("Aangifte niet gevonden");
+      return json({ ...data.slimFiling(f), deadlineManual: f.deadlineManual, scheduleId: f.scheduleId });
+    },
+  );
+
+  server.registerTool(
+    "update_filing",
+    {
+      title: "Aangifte bijwerken",
+      description:
+        "Status, datums, uitkomst of notitie van een aangifte. Ingediend/afgerond vult de datum met vandaag en rondt de taak af. docsRequestedAt zet 'te doen' op 'wacht op stukken'; docsReceivedAt zet 'wacht op stukken' terug op 'te doen'. Een gewijzigde deadline blijft staan. Alleen op verzoek van Marc.",
+      inputSchema: {
+        id: z.string().uuid(),
+        status: filingStatus.optional(),
+        deadline: isoDate.optional(),
+        docsDueDate: isoDate.nullable().optional(),
+        docsRequestedAt: isoDate.nullable().optional(),
+        docsReceivedAt: isoDate.nullable().optional(),
+        filedAt: isoDate.nullable().optional(),
+        doneAt: isoDate.nullable().optional(),
+        amountCents: z.number().int().nullable().optional().describe("Uitkomst in centen: positief = te betalen, negatief = terug"),
+        reference: optText,
+        notes: optText,
+      },
+    },
+    async ({ id, ...patch }) => json(data.slimFiling(await data.updateFiling(id, patch))),
+  );
+
+  server.registerTool(
+    "create_filing",
+    {
+      title: "Losse aangifte",
+      description: "Aangifte buiten de vaste cyclus (bijv. suppletie of een ouder jaar), met taak. Deadline leeg = wettelijke deadline.",
+      inputSchema: {
+        client: z.string().describe("Klant-id of klantnaam"),
+        kind: filingKind,
+        label: optText.describe("Eigen naam, bijv. Suppletie btw"),
+        periodStart: isoDate.describe("Een datum in de periode"),
+        frequency: z.enum(["month", "quarter", "year"]).optional(),
+        deadline: isoDate.optional(),
+        notes: optText,
+      },
+    },
+    async ({ client, ...rest }) => {
+      const clientId = await resolveClient(client);
+      if (!clientId) throw new Error("Klant ontbreekt");
+      return json(data.slimFiling(await data.createFiling({ ...rest, clientId })));
+    },
+  );
+
+  server.registerTool(
+    "draft_docs_reminder",
+    {
+      title: "Conceptmail stukken opvragen",
+      description:
+        "Conceptmail (onderwerp, tekst, ontvanger) om de stukken voor een aangifte op te vragen, in de toon van MLC. Verstuurt niets. Leg na versturen door Marc vast met update_filing (docsRequestedAt).",
+      inputSchema: { id: z.string().uuid() },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ id }) => {
+      const r = await data.filingReminder(id);
+      return json({ to: r.to, contactName: r.contactName, client: r.client, subject: r.subject, body: r.body });
+    },
+  );
+
+  server.registerTool(
+    "list_filing_schedules",
+    {
+      title: "Aangifte-instellingen",
+      description: "Welke aangiftes per klant zijn ingesteld (soort, frequentie, uitstel, vanaf/tot, actief).",
+      inputSchema: { client: z.string().optional() },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ client }) => json(await data.listSchedules({ clientId: (await resolveClient(client)) ?? undefined })),
+  );
+
+  const scheduleFields = {
+    kind: filingKind.optional(),
+    label: optText,
+    frequency: z.enum(["month", "quarter", "year"]).optional().describe("IB en Vpb altijd per jaar"),
+    extension: z.enum(["none", "individual", "becon"]).optional().describe("Alleen IB/Vpb: individual = uitstel aangevraagd, becon = becon-uitstel"),
+    startDate: isoDate.optional().describe("Eerste periode = de periode waarin deze datum valt; standaard de huidige"),
+    endDate: isoDate.nullable().optional(),
+    docsDueDays: z.number().int().min(0).nullable().optional().describe("Stukken binnen X dagen na einde periode; leeg = standaard (10, bij jaar 59)"),
+    agreementId: z.string().uuid().nullable().optional(),
+    createTasks: z.boolean().optional(),
+    active: z.boolean().optional(),
+    notes: optText,
+  };
+
+  server.registerTool(
+    "set_filing_schedule",
+    {
+      title: "Aangifte instellen of wijzigen",
+      description:
+        "Zonder id: nieuwe instelling voor een klant (client en kind verplicht). Met id: wijzigen. Andere soort/frequentie bouwt niet-aangeraakte items opnieuw op; ander uitstel herberekent deadlines. Alleen op verzoek van Marc.",
+      inputSchema: { id: z.string().uuid().optional(), client: z.string().optional().describe("Verplicht bij een nieuwe instelling"), ...scheduleFields },
+    },
+    async ({ id, client, ...rest }) => {
+      if (id) return json(await data.updateSchedule(id, rest));
+      const clientId = await resolveClient(client);
+      if (!clientId || !rest.kind) throw new Error("Geef client en kind op voor een nieuwe instelling.");
+      return json(await data.createSchedule({ ...rest, kind: rest.kind, clientId }));
+    },
+  );
+
+  server.registerTool(
+    "delete_filing_schedule",
+    {
+      title: "Aangifte-instelling verwijderen",
+      description: "Verwijdert een instelling. Items waar nog niets aan gedaan is gaan mee; de rest blijft bewaard. Alleen op verzoek van Marc.",
+      inputSchema: { id: z.string().uuid() },
+    },
+    async ({ id }) => json(await data.deleteSchedule(id)),
   );
 
   /* ---- Agenda en reviews ---- */

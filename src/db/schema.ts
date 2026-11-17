@@ -8,6 +8,7 @@ import {
   boolean,
   pgEnum,
   index,
+  uniqueIndex,
   numeric,
 } from "drizzle-orm/pg-core";
 
@@ -476,6 +477,92 @@ export const quoteLines = pgTable(
   (t) => [index("quote_lines_quote_idx").on(t.quoteId)],
 );
 
+/* ---------------- Aangiftecyclus (boekhoudklanten) ---------------- */
+
+export const filingKindEnum = pgEnum("filing_kind", [
+  "vat", // btw (omzetbelasting)
+  "income_tax", // inkomstenbelasting (IB)
+  "corporate_tax", // vennootschapsbelasting (Vpb)
+  "icp", // opgaaf intracommunautaire prestaties
+  "payroll", // loonheffingen
+  "other", // overig (eigen naam)
+]);
+
+export const filingExtensionEnum = pgEnum("filing_extension", [
+  "none", // standaard termijn
+  "individual", // uitstel aangevraagd (IB 4 maanden, Vpb 5 maanden)
+  "becon", // becon-uitstel via fiscaal dienstverlener
+]);
+
+export const filingStatusEnum = pgEnum("filing_status", [
+  "todo", // te doen
+  "waiting_docs", // wacht op stukken van klant
+  "in_progress", // in behandeling
+  "review", // klaar voor controle
+  "filed", // ingediend
+  "done", // afgerond (betaald of ontvangen)
+]);
+
+/** Welke aangiftes Marc voor een klant doet, en hoe vaak. Hieruit ontstaan per periode aangifte-items. */
+export const filingSchedules = pgTable(
+  "filing_schedules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    agreementId: uuid("agreement_id").references(() => agreements.id, { onDelete: "set null" }), // boekhoudafspraak; concept = nog geen items
+    kind: filingKindEnum("kind").notNull(),
+    label: text("label"), // eigen naam, vooral bij "overig"
+    frequency: billingPeriodEnum("frequency").notNull(), // maand / kwartaal / jaar
+    extension: filingExtensionEnum("extension").notNull().default("none"),
+    startDate: date("start_date").notNull(), // eerste periode = de periode waarin deze datum valt
+    endDate: date("end_date"), // laatste periode = de periode waarin deze datum valt
+    docsDueDays: integer("docs_due_days"), // stukken binnen X dagen na einde periode (leeg = standaard)
+    createTasks: boolean("create_tasks").notNull().default(true),
+    active: boolean("active").notNull().default(true),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [index("filing_schedules_client_idx").on(t.clientId)],
+);
+
+/** Eén aangifte over één periode, met deadline en status. */
+export const filings = pgTable(
+  "filings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    scheduleId: uuid("schedule_id").references(() => filingSchedules.id, { onDelete: "set null" }),
+    kind: filingKindEnum("kind").notNull(),
+    label: text("label"),
+    periodStart: date("period_start").notNull(),
+    periodEnd: date("period_end").notNull(),
+    deadline: date("deadline").notNull(),
+    deadlineManual: boolean("deadline_manual").notNull().default(false), // zelf aangepast: niet meer herberekenen
+    docsDueDate: date("docs_due_date"), // stukken van de klant graag binnen op
+    docsRequestedAt: date("docs_requested_at"), // stukken opgevraagd op
+    docsReceivedAt: date("docs_received_at"),
+    status: filingStatusEnum("status").notNull().default("todo"),
+    filedAt: date("filed_at"),
+    doneAt: date("done_at"),
+    amountCents: integer("amount_cents"), // uitkomst: positief = te betalen, negatief = terug te ontvangen
+    reference: text("reference"), // betalingskenmerk of kenmerk aangifte
+    taskId: uuid("task_id").references(() => tasks.id, { onDelete: "set null" }),
+    taskCreated: boolean("task_created").notNull().default(false), // taak is ooit aangemaakt (ook als die later is verwijderd)
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [
+    index("filings_client_idx").on(t.clientId),
+    index("filings_deadline_idx").on(t.deadline),
+    index("filings_status_idx").on(t.status),
+    uniqueIndex("filings_schedule_period_uq").on(t.scheduleId, t.periodStart),
+  ],
+);
+
 export const reviews = pgTable("reviews", {
   id: uuid("id").primaryKey().defaultRandom(),
   kind: reviewKindEnum("kind").notNull(),
@@ -498,3 +585,5 @@ export type TimeEntry = typeof timeEntries.$inferSelect;
 export type Lead = typeof leads.$inferSelect;
 export type Quote = typeof quotes.$inferSelect;
 export type QuoteLine = typeof quoteLines.$inferSelect;
+export type FilingSchedule = typeof filingSchedules.$inferSelect;
+export type Filing = typeof filings.$inferSelect;

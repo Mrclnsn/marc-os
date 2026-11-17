@@ -8,6 +8,7 @@ import * as data from "@/lib/data";
 import { SESSION_COOKIE } from "@/lib/session";
 import { parseEuro } from "@/lib/money";
 import { parseDuration } from "@/lib/duration";
+import { today } from "@/lib/dates";
 
 /* Hulpjes om FormData om te zetten */
 function s(fd: FormData, key: string): string | null {
@@ -663,6 +664,117 @@ export async function deleteQuoteAction(id: string, leadId: string) {
   await data.deleteQuote(id);
   refresh();
   redirect(`/pipeline/${leadId}`);
+}
+
+/* ---------------- Aangiftecyclus ---------------- */
+
+function scheduleFromForm(fd: FormData) {
+  const out: Partial<data.ScheduleInput> = {};
+  if (has(fd, "kind")) out.kind = s(fd, "kind") as data.ScheduleInput["kind"];
+  if (has(fd, "label")) out.label = s(fd, "label");
+  if (has(fd, "frequency")) out.frequency = (s(fd, "frequency") ?? undefined) as data.ScheduleInput["frequency"];
+  if (has(fd, "extension")) out.extension = (s(fd, "extension") ?? "none") as data.ScheduleInput["extension"];
+  if (has(fd, "startDate")) out.startDate = s(fd, "startDate") ?? undefined;
+  if (has(fd, "endDate")) out.endDate = s(fd, "endDate");
+  if (has(fd, "docsDueDays")) out.docsDueDays = n(fd, "docsDueDays");
+  if (has(fd, "agreementId")) out.agreementId = s(fd, "agreementId");
+  if (has(fd, "notes")) out.notes = s(fd, "notes");
+  // Selectievakjes: alleen meenemen als het formulier ze toont
+  if (has(fd, "_flags")) {
+    out.createTasks = has(fd, "createTasks");
+    out.active = has(fd, "active");
+  }
+  return out;
+}
+
+export async function createScheduleAction(clientId: string, fd: FormData) {
+  await requireSession();
+  const input = scheduleFromForm(fd);
+  if (!input.kind) return;
+  await data.createSchedule({ ...input, clientId } as data.ScheduleInput);
+  refresh();
+}
+
+export async function updateScheduleAction(id: string, fd: FormData) {
+  await requireSession();
+  await data.updateSchedule(id, scheduleFromForm(fd));
+  refresh();
+}
+
+export async function deleteScheduleAction(id: string) {
+  await requireSession();
+  await data.deleteSchedule(id);
+  refresh();
+}
+
+function filingFromForm(fd: FormData) {
+  const out: data.FilingPatch = {};
+  if (has(fd, "status")) out.status = s(fd, "status") as data.FilingPatch["status"];
+  if (has(fd, "deadline") && s(fd, "deadline")) out.deadline = s(fd, "deadline")!;
+  for (const k of ["docsDueDate", "docsRequestedAt", "docsReceivedAt", "filedAt", "doneAt"] as const) if (has(fd, k)) out[k] = s(fd, k);
+  if (has(fd, "amount")) {
+    const raw = s(fd, "amount");
+    const c = parseEuro(raw?.replace(/^\+/, "") ?? null);
+    // "terug" of een minteken = terug te ontvangen
+    out.amountCents = c == null ? null : has(fd, "refund") ? -Math.abs(c) : c;
+  }
+  if (has(fd, "reference")) out.reference = s(fd, "reference");
+  if (has(fd, "notes")) out.notes = s(fd, "notes");
+  return out;
+}
+
+export async function updateFilingAction(id: string, fd: FormData) {
+  await requireSession();
+  const patch = filingFromForm(fd);
+  // Deadline alleen als hij echt anders is (anders telt hij als met de hand aangepast)
+  const current = await data.getFiling(id);
+  if (current && patch.deadline === current.deadline) delete patch.deadline;
+  await data.updateFiling(id, patch);
+  refresh();
+}
+
+export async function setFilingStatusAction(id: string, status: data.FilingPatch["status"]) {
+  await requireSession();
+  await data.updateFiling(id, { status });
+  refresh();
+}
+
+export async function filingDocsRequestedAction(id: string) {
+  await requireSession();
+  await data.updateFiling(id, { docsRequestedAt: today() });
+  refresh();
+}
+
+export async function filingDocsReceivedAction(id: string) {
+  await requireSession();
+  await data.updateFiling(id, { docsReceivedAt: today() });
+  refresh();
+}
+
+export async function createFilingAction(fd: FormData) {
+  await requireSession();
+  const clientId = s(fd, "clientId");
+  const kind = s(fd, "kind") as data.ScheduleInput["kind"] | null;
+  const periodStart = s(fd, "periodStart");
+  if (!clientId || !kind || !periodStart) return;
+  const row = await data.createFiling({
+    clientId,
+    kind,
+    label: s(fd, "label"),
+    periodStart,
+    frequency: (s(fd, "frequency") ?? undefined) as data.ScheduleInput["frequency"],
+    deadline: s(fd, "deadline"),
+    notes: s(fd, "notes"),
+  });
+  refresh();
+  redirect(`/aangiftes/${row.id}`);
+}
+
+export async function deleteFilingAction(id: string, back: string) {
+  await requireSession();
+  await data.deleteFiling(id);
+  refresh();
+  redirect(back);
 }
 
 export async function logoutAction() {

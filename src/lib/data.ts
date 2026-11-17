@@ -5,10 +5,12 @@ import { db } from "@/db";
 import { clientContacts, clientDocuments, clients, notes, projects, reviews, tasks, websites, type Task } from "@/db/schema";
 import { addDaysIso, nextOccurrence, today, type Recurrence } from "./dates";
 import { listAgreements, listInstallments, markProjectDelivered } from "./agreements";
+import { onTaskCompleted, onTaskReopened } from "./filings";
 
 export * from "./agreements";
 export * from "./time";
 export * from "./pipeline";
+export * from "./filings";
 
 /* ------------------------------------------------------------------ */
 /* Invoerschema's (gedeeld door formulieren en de MCP-server)          */
@@ -262,6 +264,7 @@ export async function updateTask(id: string, patch: Partial<TaskInput>) {
   if (data.status === "done") return completeTask(id);
   if (data.status && row.completedAt) {
     await db.update(tasks).set({ completedAt: null }).where(eq(tasks.id, id));
+    await onTaskReopened(id);
   }
   return row;
 }
@@ -277,6 +280,7 @@ export async function completeTask(id: string) {
     .where(eq(tasks.id, id))
     .returning();
   if (!row) throw new Error("Taak niet gevonden");
+  await onTaskCompleted(row.id);
 
   let next = null;
   if (row.recurrence !== "none") {
@@ -314,6 +318,7 @@ export async function reopenTask(id: string) {
     .set({ status: "todo", completedAt: null })
     .where(eq(tasks.id, id))
     .returning();
+  await onTaskReopened(id);
   return row;
 }
 
