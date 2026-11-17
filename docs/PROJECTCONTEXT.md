@@ -1,6 +1,6 @@
 # Marc OS: projectcontext
 
-*Stand van zaken: 17 november 2026, na gesprek 5 (aangiftecyclus boekhoudklanten)*
+*Stand van zaken: 17 november 2026, na gesprek 6 (cockpit en modules aan/uit)*
 
 ## Doel
 
@@ -65,6 +65,15 @@ Uitgangspunt: Marc werkt vanaf december 2026 fulltime voor zijn eigen bedrijf. H
 | Taken | Na afloop van de periode één taak per aangifte (deadline = aangiftedeadline, plannen op = stukken-datum als die nog komt). Taak afronden zet de aangifte op ingediend; aangifte ingediend of afgerond rondt de taak af; heropenen werkt beide kanten op. Een verwijderde taak komt niet terug | Aangiftes verschijnen vanzelf in Vandaag en de takenlijst |
 | Signalen | Deadline binnen 14 dagen, te laat, stukken ontbreken. Op Vandaag, op de pagina Aangiftes en in get_overview | Volgens ontwerp |
 | Instelling wijzigen | Andere soort of frequentie: items waar nog niets aan gedaan is worden opnieuw opgebouwd. Andere start/eind: zulke items buiten het bereik vervallen. Ander uitstel of stukken-termijn: deadlines en stukken-datums van open items schuiven mee. Verwijderen: items waar al aan gewerkt is blijven bewaard. Dezelfde soort twee keer bij één klant kan niet | Geen spookitems, geen verlies van werk |
+| Modules aan/uit | Zes modules apart te schakelen op **Instellingen → Modules**: uitgebreid dossier, websites, afspraken en termijnen, uren, pipeline, aangiftes. Opgeslagen in de tabel `settings` (sleutel `modules`). Zonder opgeslagen waarde staan ze **uit** (MVP-stand). Uit = verbergen, niet verwijderen | MVP rustig houden; alles blijft bewaard en is per module terug te zetten |
+| Wat "uit" doet | Weg uit navigatie (Mac en telefoon), Vandaag (KPI's en signalen), klantdossier, klantenlijst (tags, plaats, websites) en `get_overview`. MCP-tools van die module worden niet aangeboden en de MCP-instructies noemen welke modules uit staan. Direct adres naar een pagina (ook onderliggende) toont een melding met link naar Instellingen | Claude en straks Hermes werken niet met wat uit staat |
+| Automatische processen | Aangiftes uit: geen nieuwe aangifte-items en taken (instellingen worden wel bewaard en bij een nieuwe boekhoudafspraak nog aangemaakt). Afspraken uit: geen websiteproject en termijnen bij een nieuwe afspraak, geen termijnen klaarzetten bij oplevering, geen automatisch beëindigen of termijnen op datum. Weer aan: alles wordt bij het eerstvolgende overzicht aangevuld (bij Aangiftes: items en taken voor alle intussen afgelopen perioden) | Volgens werkplan |
+| Klant (basis) | Met het uitgebreide dossier uit: kop met contactpersoon en status, contactpersonen, vaste informatie (met formulier voor naam, status en vaste informatie), projecten, taken, notities. `get_client` geeft dan alleen naam, status, vaste informatie en de verwijzing naar de wachtwoordmanager | Volgens werkplan |
+| Thema | Licht, donker of volg systeem; per apparaat in een cookie (`marc-os-thema`), zodat de kleuren direct goed staan. Wisselen via het knopje onder in de zijbalk of op Instellingen | Mac en telefoon kunnen elk hun eigen keuze hebben |
+| Donkere modus | Kleuren als rollen (CSS-variabelen): `nacht` = sterkste tekst en lijnen, `vlak` = kaarten, `op-nacht` = tekst op een Nacht-vlak, `zijbalk`/`balk` blijven altijd donker. Donker: achtergrond Nacht, panelen Grafiet, tekst Parel en Steen | Dezelfde klassen werken in beide modi; geen dubbele opmaak |
+| Cockpit | Vandaag in panelen met één korte accentlijn. KPI-tegels (vandaag, achterstallig, inbox, agenda; met modules aan ook uren, MRR, te factureren, openstaande offertes, aangiftes binnen 14 dagen), per tegel aan/uit op Instellingen (verborgen tegels worden opgeslagen, dus nieuwe tegels verschijnen vanzelf). Signalen in één blok, met voorrang bovenaan. Tijdlijn: hele-dag-items, agenda met "nu"-markering, nog vrij tot het einde van de werkdag, inschatting van de taken voor vandaag | Volgens ontwerp |
+| Werkdag | Voorlopig vast 09:00 tot 17:30 (`WORKDAY` in `src/lib/cockpit.ts`), voor "nog vrij". Wordt in gesprek 8 vervangen door de dagritme-sjablonen | Eenvoudig tot het dagritme er is |
+| Plekken voor later | `GoalBar` (gesprek 10), `HabitsPanel` (gesprek 8) en `HermesPanel` (nu de briefing; gesprek 12/13 akkoordwachtrij en routinestatus) in `src/components/cockpit.tsx`. Ze tonen niets zolang er geen gegevens zijn | Cockpit hoeft later niet om te bouwen |
 | Stukken opvragen | Conceptmail in MLC-toon (je, voornaam, direct) per soort aangifte met een lijst van stukken, aan de primaire contactpersoon (anders het factuuradres). "Open in mail" opent hem in je mailprogramma; Marc verstuurt zelf. Later kan Hermes dezelfde tekst voorbereiden (draft_docs_reminder) | Alles wat de deur uitgaat, gaat via Marc |
 
 ## Huidige status
@@ -80,6 +89,7 @@ Uitgangspunt: Marc werkt vanaf december 2026 fulltime voor zijn eigen bedrijf. H
 | Gesprek 3: urenregistratie | Klaar (commit `a4cf0b6`) |
 | Gesprek 4: pipeline | Klaar (commit `d10ca90`) |
 | Gesprek 5: aangiftecyclus | Klaar (commit `3cde210`) |
+| Gesprek 6: cockpit en modules aan/uit | Klaar (commit `3992447`). Geavanceerde modules staan standaard uit |
 | VPS | Besteld en draait, nog niet geïnstalleerd |
 | Domein `os.marclonsain.nl` | Nog geen DNS-record |
 | Verhuizing `marclonsain.nl` naar Hostinger | Besloten, nog niet gestart |
@@ -124,7 +134,8 @@ Tip: zet het `os`-record nu al bij de huidige provider, zodat de installatie nie
 
 | Pagina | Inhoud |
 |---|---|
-| **Vandaag** | Begroeting, kerncijfers (vandaag, achterstallig, afspraken, inbox, uren deze week met declarabel), braindump-balk, briefing van de AI, achterstallige taken, taken voor vandaag, komende 7 dagen, agenda, signalen (pipeline: volgende stappen en offertes die binnen 7 dagen verlopen, te factureren, budget maatwerk vanaf 80%, afspraken die aflopen, aangiftes (deadline binnen 14 dagen, te laat, stukken ontbreken), domeinen). Filter: Alles / Zakelijk / Privé |
+| **Vandaag** (cockpit) | Begroeting met datum en weeknummer, filter Alles / Zakelijk / Privé, plek voor de doelbalk, KPI-tegels, braindump-balk, briefing van de AI (Hermes-paneel), signalen in één blok (achterstallige taken, deadlines vandaag en morgen, agenda die niet laadt, volle inbox; met modules aan ook aangiftes, pipeline, offertes, te factureren, aflopende afspraken, budget maatwerk en domeinen), achterstallig, paneel Vandaag met tijdlijn (agenda, nu-markering, nog vrij, inschatting) en de taken voor vandaag, komende 7 dagen. Op de telefoon staan de signalen boven de taken |
+| **Instellingen** | Thema (systeem/licht/donker), modules aan/uit, KPI-tegels op Vandaag, uitleg agenda-koppeling |
 | **Inbox** | Braindump-items omzetten naar taak of notitie, of weggooien |
 | **Taken** | Weergaven: alle open, vandaag, komende 14 dagen, zonder datum, afgerond. Filters: klantwerk, bedrijf algemeen, privé, per klant, zoeken |
 | **Projecten** | Gegroepeerd in Klanten / Bedrijf algemeen / Privé, met voortgang |
@@ -160,6 +171,7 @@ Verder: een **timerbalk** op elke pagina zolang er een timer loopt (telefoon: bo
 | Taak (`tasks`) | titel, gebied, klant, project, status (te doen/bezig/wacht op/klaar), plannen op, deadline, prioriteit (1-3), inschatting, herhaling, notities |
 | Notitie (`notes`) | titel, inhoud (markdown), soort (incl. `inbox`), gebied, klant, project, datum |
 | Review (`reviews`) | soort (dag/week/maand), periode, tekst |
+| Instelling (`settings`) | sleutel, waarde (jsonb), bijgewerkt. Nu: `modules` (welke modules aan staan) en `hidden_kpis` (verborgen KPI-tegels) |
 
 Begrippen:
 - **Gebied**: `zakelijk` of `prive`. Zakelijk zonder klant = algemeen bedrijfswerk.
@@ -192,7 +204,11 @@ src/lib/filing-rules.ts  perioden, wettelijke deadlines en de conceptmail voor s
 src/lib/time.ts       uren: timer, registraties, weekoverzicht, te factureren, budget, effectief uurtarief (via data.ts geëxporteerd)
 src/lib/duration.ts   tijdsduren: invoer "1:30"/"1,5"/"90m", notatie
 src/lib/money.ts      bedragen: centen, euro-notatie, invoer "1.250,50"
-src/lib/mcp.ts        MCP-tools
+src/lib/mcp.ts        MCP-tools (TOOL_MODULE: welke tool bij welke module hoort)
+src/lib/modules.ts    modules, KPI-tegels en thema's (beschrijvingen, ook in de browser te gebruiken)
+src/lib/settings.ts   instellingen lezen en schrijven (modules aan/uit, verborgen tegels)
+src/lib/cockpit.ts    alles voor Vandaag: KPI's, signalen, tijdlijn
+src/components/cockpit.tsx  panelen, tegels, signalen, tijdlijn en de plekken voor doelbalk, gewoontes en Hermes
 src/lib/calendar.ts   ICS-agenda's
 src/components/       interface-onderdelen, incl. brand.tsx (beeldmerk, paginakop, sectiekop)
 scripts/              setup-server.sh, update.sh, migrate, seed, local, hash-password
@@ -246,7 +262,9 @@ Open http://localhost:3000, wachtwoord `marc-os`. Data staat in `.local-pg`. Sto
 
 Na installatie: in Claude → Instellingen → Connectors → Custom connector, met URL `https://os.marclonsain.nl/api/mcp/<MCP_TOKEN>`.
 
-Beschikbare tools: `get_overview` (inclusief aangiftes: te laat, deadline binnen 14 dagen, stukken ontbreken; pipeline-signalen, domeinen die binnen 30 dagen verlopen, MRR, te factureren termijnen, aflopende afspraken, uren deze week, lopende timer en budgetwaarschuwingen), `list_tasks`, `create_task`, `update_task`, `complete_task`, `delete_task`, `completed_tasks`, `capture`, `inbox_to_task`, `list_notes`, `get_note`, `create_note`, `update_note`, `list_clients` (filter op status en tag), `get_client` (volledig dossier, inclusief afspraken, termijnen en MRR), `create_client` (met optioneel primaire contactpersoon), `update_client`, `add_contact`, `update_contact`, `delete_contact`, `list_websites` (met `expiringWithinDays`), `add_website`, `update_website`, `delete_website`, `add_document`, `delete_document`, `list_projects`, `get_project`, `create_project`, `update_project`, `list_agreements`, `create_agreement`, `update_agreement`, `deliver_agreement`, `delete_agreement`, `list_installments`, `add_installment`, `update_installment`, `delete_installment`, `get_revenue` (MRR, per dienst/klant, verwachte omzet), `get_timer`, `start_timer`, `stop_timer`, `log_time` (duur als tekst, bijv. "2u"), `list_time_entries`, `update_time_entry`, `delete_time_entry`, `get_hours` (weekoverzicht, te factureren uren, budgetten, effectief uurtarief), `invoice_hours`, `get_pipeline`, `list_leads`, `get_lead`, `create_lead`, `update_lead`, `delete_lead`, `list_quotes`, `get_quote`, `create_quote` (maakt zo nodig eerst een lead), `update_quote`, `add_quote_line`, `update_quote_line`, `delete_quote_line`, `set_quote_status`, `accept_quote`, `list_filings` (open aangiftes met signaal), `get_filing`, `update_filing`, `create_filing` (losse aangifte), `draft_docs_reminder` (conceptmail, verstuurt niets), `list_filing_schedules`, `set_filing_schedule`, `delete_filing_schedule`, `get_calendar`, `save_review` (met `append` om onder een bestaande review toe te voegen), `list_reviews`.
+Let op: tools van uitgeschakelde modules worden niet aangeboden. Na het aan- of uitzetten van een module in Claude de connector opnieuw laden (of een nieuw gesprek starten) zodat de toollijst klopt.
+
+Beschikbare tools (alle modules aan): `get_overview` (inclusief aangiftes: te laat, deadline binnen 14 dagen, stukken ontbreken; pipeline-signalen, domeinen die binnen 30 dagen verlopen, MRR, te factureren termijnen, aflopende afspraken, uren deze week, lopende timer en budgetwaarschuwingen), `list_tasks`, `create_task`, `update_task`, `complete_task`, `delete_task`, `completed_tasks`, `capture`, `inbox_to_task`, `list_notes`, `get_note`, `create_note`, `update_note`, `list_clients` (filter op status en tag), `get_client` (volledig dossier, inclusief afspraken, termijnen en MRR), `create_client` (met optioneel primaire contactpersoon), `update_client`, `add_contact`, `update_contact`, `delete_contact`, `list_websites` (met `expiringWithinDays`), `add_website`, `update_website`, `delete_website`, `add_document`, `delete_document`, `list_projects`, `get_project`, `create_project`, `update_project`, `list_agreements`, `create_agreement`, `update_agreement`, `deliver_agreement`, `delete_agreement`, `list_installments`, `add_installment`, `update_installment`, `delete_installment`, `get_revenue` (MRR, per dienst/klant, verwachte omzet), `get_timer`, `start_timer`, `stop_timer`, `log_time` (duur als tekst, bijv. "2u"), `list_time_entries`, `update_time_entry`, `delete_time_entry`, `get_hours` (weekoverzicht, te factureren uren, budgetten, effectief uurtarief), `invoice_hours`, `get_pipeline`, `list_leads`, `get_lead`, `create_lead`, `update_lead`, `delete_lead`, `list_quotes`, `get_quote`, `create_quote` (maakt zo nodig eerst een lead), `update_quote`, `add_quote_line`, `update_quote_line`, `delete_quote_line`, `set_quote_status`, `accept_quote`, `list_filings` (open aangiftes met signaal), `get_filing`, `update_filing`, `create_filing` (losse aangifte), `draft_docs_reminder` (conceptmail, verstuurt niets), `list_filing_schedules`, `set_filing_schedule`, `delete_filing_schedule`, `get_calendar`, `save_review` (met `append` om onder een bestaande review toe te voegen), `list_reviews`.
 
 ### Vaste taken om in te plannen
 
@@ -291,6 +309,7 @@ Plus één taak: "Handleiding webbeheer" (SVWW). De Notion-workspace "Freelance 
 ## Openstaande punten
 
 ### Nu
+- [ ] Lokale map `marc-os` op de Mac bijwerken (`git pull`, stond nog op gesprek 4) en `npm run local`: migratie 0007 (instellingen) draait vanzelf, daarna staan de geavanceerde modules uit
 - [ ] Op de Mac `node -v` controleren (moet 22 of hoger zijn), dan `npm run local` en het klantdossier en de afspraken per klant invullen
 - [ ] DNS-record `os.marclonsain.nl` → `179.67.202.123`
 - [ ] Installatiescript draaien op de VPS
