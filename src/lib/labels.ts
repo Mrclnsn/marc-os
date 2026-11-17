@@ -76,3 +76,66 @@ export const CLIENT_SOURCES = ["Netwerk", "Doorverwijzing", "Website", "LinkedIn
 
 /** Dagen vóór verlopen waarop een domein een signaal geeft. */
 export const DOMAIN_WARNING_DAYS = 30;
+
+/* ---------------- Afspraken en termijnen ---------------- */
+
+export const SERVICE_KIND = {
+  bookkeeping: "Boekhouding",
+  website: "Website",
+  hosting: "Hosting",
+  maintenance: "Beheer",
+  sparring: "Sparringpartner",
+  custom: "Maatwerk",
+} as const;
+export type ServiceKind = keyof typeof SERVICE_KIND;
+
+export const PRICING = {
+  recurring: "Vast bedrag per periode",
+  one_off: "Eenmalig",
+  hourly: "Uurtarief",
+} as const;
+export type Pricing = keyof typeof PRICING;
+
+export const PERIOD = { month: "Per maand", quarter: "Per kwartaal", year: "Per jaar" } as const;
+export const PERIOD_SHORT = { month: "mnd", quarter: "kwartaal", year: "jaar" } as const;
+export type BillingPeriod = keyof typeof PERIOD;
+
+export const AGREEMENT_STATUS = {
+  draft: "Concept",
+  active: "Actief",
+  cancelled: "Opgezegd",
+  ended: "Beëindigd",
+} as const;
+export type AgreementStatus = keyof typeof AGREEMENT_STATUS;
+
+export const INSTALLMENT_TRIGGER = {
+  date: "Op datum",
+  acceptance: "Bij akkoord",
+  delivery: "Bij oplevering",
+} as const;
+export type InstallmentTrigger = keyof typeof INSTALLMENT_TRIGGER;
+
+export const INSTALLMENT_STATUS = {
+  planned: "Gepland",
+  ready: "Klaar om te factureren",
+  draft: "Concept in Moneybird",
+  sent: "Verzonden",
+  paid: "Betaald",
+} as const;
+export type InstallmentStatus = keyof typeof INSTALLMENT_STATUS;
+
+/** Standaardinstellingen per soort dienst (bij nieuwe afspraak). Bedragen in centen. */
+export const SERVICE_DEFAULTS: Record<ServiceKind, { pricing: Pricing; period: BillingPeriod | null; amountCents?: number }> = {
+  bookkeeping: { pricing: "recurring", period: "month" },
+  website: { pricing: "one_off", period: null },
+  hosting: { pricing: "recurring", period: "month" },
+  maintenance: { pricing: "recurring", period: "month" },
+  sparring: { pricing: "recurring", period: "month", amountCents: 12500 },
+  custom: { pricing: "hourly", period: null },
+};
+
+/** Dagen vóór de einddatum waarop een afspraak een signaal geeft. */
+export const AGREEMENT_WARNING_DAYS = 30;
+
+/** Waarschuwing bij maatwerk: percentage van het budget (uren volgen in gesprek 3). */
+export const BUDGET_WARNING_PCT = 80;

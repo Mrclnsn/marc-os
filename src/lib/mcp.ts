@@ -75,7 +75,9 @@ const taskFields = {
 const INSTRUCTIONS = `Dit is Marc OS: Marc's centrale systeem voor taken, projecten, klanten, notities en reviews.
 - Taken hebben een gebied (zakelijk/prive), optioneel een klant en project. Zakelijk zonder klant = algemeen bedrijfswerk.
 - planDate = wanneer Marc het wil doen; dueDate = deadline.
-- Klanten hebben een dossier (get_client) met meerdere contactpersonen, websites en documentlinks. Sla nooit wachtwoorden op; vaultRef is alleen een verwijzing.
+- Klanten hebben een dossier (get_client) met meerdere contactpersonen, websites, documentlinks, afspraken en termijnen. Sla nooit wachtwoorden op; vaultRef is alleen een verwijzing.
+- Afspraken zijn diensten per klant (boekhouding, website, hosting, beheer, sparringpartner, maatwerk). Bedragen zijn in centen en exclusief btw. MRR = som van lopende vaste afspraken omgerekend naar per maand (get_revenue).
+- Termijnen zijn te factureren regels. Een eenmalige website-afspraak maakt zelf 2 termijnen van 50% (bij akkoord, bij oplevering). Facturen maakt Marc zelf in Moneybird; zet een termijn alleen op een andere status als Marc dat vraagt.
 - Inbox-items zijn notities van het type "inbox" (braindump). Verwerk ze met inbox_to_task of update_note.
 - Begin een briefing altijd met get_overview. Sla briefings en samenvattingen op met save_review zodat Marc ze in de app ziet.
 - Tijdzone: Europe/Amsterdam. Schrijf in het Nederlands.`;
@@ -87,7 +89,7 @@ export function buildServer() {
     "get_overview",
     {
       title: "Dagoverzicht",
-      description: "Alles voor een briefing: agenda, taken van vandaag, achterstallig, komende 7 dagen, inbox, lopende projecten, domeinen die binnen 30 dagen verlopen en wat gisteren is afgerond.",
+      description: "Alles voor een briefing: agenda, taken van vandaag, achterstallig, komende 7 dagen, inbox, lopende projecten, domeinen die binnen 30 dagen verlopen, MRR, termijnen klaar om te factureren, afspraken die binnen 30 dagen aflopen en wat gisteren is afgerond.",
       inputSchema: { date: isoDate.optional().describe("Standaard vandaag") },
       annotations: { readOnlyHint: true },
     },
@@ -102,7 +104,7 @@ export function buildServer() {
         calendarConfigured() ? getEvents(t, addDaysIso(t, 1)) : Promise.resolve(null),
         data.listReviews(undefined, 3),
       ]);
-      const domains = await data.expiringDomains();
+      const [domains, money, revenue] = await Promise.all([data.expiringDomains(), data.revenueSignals(), data.revenueOverview(3)]);
       return json({
         date: t,
         calendar: cal ? { events: cal.events, errors: cal.errors } : "Geen agenda gekoppeld",
@@ -113,6 +115,9 @@ export function buildServer() {
         activeProjects: projects.map((p) => ({ id: p.project.id, name: p.project.name, client: p.clientName, area: p.project.area, status: p.project.status, dueDate: p.project.dueDate, openTasks: p.openTasks })),
         completedYesterday: doneYesterday.map((x) => ({ title: x.title, client: x.clientName })),
         expiringDomains: domains.map((r) => ({ domain: r.website.domain, client: r.clientName, expiresAt: r.website.domainExpiresAt })),
+        revenue: { mrrCents: revenue.mrrCents, readyToInvoice: revenue.ready, invoicedUnpaid: revenue.invoicedOpen },
+        readyToInvoice: money.ready.map((i) => ({ id: i.id, client: i.clientName, description: i.description, amountCents: i.amountCents })),
+        agreementsEnding: money.ending.map((a) => ({ id: a.id, client: a.clientName, agreement: a.label, endDate: a.endDate })),
         recentReviews: lastReviews,
       });
     },
@@ -322,14 +327,14 @@ export function buildServer() {
     "get_client",
     {
       title: "Klantdossier",
-      description: "Volledig klantdossier: alle klantgegevens, contactpersonen, websites, documenten, projecten, open taken en recente notities.",
+      description: "Volledig klantdossier: alle klantgegevens, contactpersonen, websites, documenten, afspraken, termijnen, MRR van de klant, projecten, open taken en recente notities.",
       inputSchema: { client: z.string().describe("Id of naam") },
       annotations: { readOnlyHint: true },
     },
     async ({ client }) => {
       const id = (await resolveClient(client))!;
       const [dossier, projects, tasks, notes] = await Promise.all([
-        data.getClientDossier(id),
+        data.getClientDossierFull(id),
         data.listProjects({ clientId: id, includeClosed: true }),
         data.listTasks({ clientId: id, view: "open" }),
         data.listNotes({ clientId: id, excludeInbox: true, limit: 20 }),
@@ -463,6 +468,125 @@ export function buildServer() {
     "delete_website",
     { title: "Website verwijderen", description: "Verwijder een website.", inputSchema: { id: z.string().uuid() }, annotations: { destructiveHint: true } },
     async ({ id }) => json(await data.deleteWebsite(id)),
+  );
+
+  /* ---- Afspraken, termijnen en omzet ---- */
+
+  const kind = z.enum(["bookkeeping", "website", "hosting", "maintenance", "sparring", "custom"]);
+  const agreementStatus = z.enum(["draft", "active", "cancelled", "ended"]);
+  const installmentStatus = z.enum(["planned", "ready", "draft", "sent", "paid"]);
+  const agreementFields = {
+    title: optText.describe("Optionele omschrijving"),
+    websiteId: z.string().uuid().nullable().optional().describe("Website (bij hosting, beheer of website)"),
+    projectId: z.string().uuid().nullable().optional(),
+    amountCents: z.number().int().min(0).optional().describe("Bedrag in centen excl. btw: per periode, eenmalig of per uur. Leeg bij sparringpartner = 12500"),
+    pricing: z.enum(["recurring", "one_off", "hourly"]).optional().describe("Leeg = standaard voor de soort (boekhouding/hosting/beheer/sparring: recurring, website: one_off, maatwerk: hourly)"),
+    period: z.enum(["month", "quarter", "year"]).nullable().optional().describe("Alleen bij recurring"),
+    budgetCents: z.number().int().min(0).nullable().optional().describe("Maatwerk: plafond"),
+    sessionsPerMonth: z.number().int().min(0).nullable().optional(),
+    startDate: isoDate.nullable().optional(),
+    endDate: isoDate.nullable().optional(),
+    noticeMonths: z.number().int().min(0).max(36).nullable().optional().describe("Opzegtermijn in maanden"),
+    indexationPct: z.number().min(0).max(100).nullable().optional().describe("Jaarlijkse indexatie in procenten"),
+    status: agreementStatus.optional().describe("draft=concept, active=actief, cancelled=opgezegd (loopt tot einddatum), ended=beëindigd"),
+    notes: optText,
+  };
+
+  server.registerTool(
+    "list_agreements",
+    {
+      title: "Afspraken",
+      description: "Afspraken (diensten) van alle klanten of één klant, met maandbedrag (monthlyCents) en of ze nu meetellen in de MRR (running).",
+      inputSchema: { client: z.string().optional(), status: z.array(agreementStatus).optional(), kind: kind.optional() },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ client, status, kind }) => json(await data.listAgreements({ clientId: (await resolveClient(client)) ?? undefined, status, kind })),
+  );
+
+  server.registerTool(
+    "create_agreement",
+    {
+      title: "Afspraak aanmaken",
+      description: "Nieuwe afspraak (dienst) bij een klant. Eenmalige website maakt automatisch 2 termijnen van 50% en een websiteproject als projectId leeg is; overig eenmalig werk 1 termijn bij oplevering.",
+      inputSchema: { client: z.string().describe("Klant-id of naam"), kind, ...agreementFields, createProject: z.boolean().optional().describe("Standaard true bij website") },
+    },
+    async ({ client, createProject, ...rest }) => json(await data.createAgreement({ ...rest, clientId: (await resolveClient(client))! }, { createProject })),
+  );
+
+  server.registerTool(
+    "update_agreement",
+    {
+      title: "Afspraak wijzigen",
+      description: "Wijzig een afspraak. Status naar active zet termijnen 'bij akkoord' klaar om te factureren. Opzeggen zonder einddatum: einde maand na de opzegtermijn.",
+      inputSchema: { id: z.string().uuid(), kind: kind.optional(), ...agreementFields },
+    },
+    async ({ id, ...rest }) => json(await data.updateAgreement(id, rest)),
+  );
+
+  server.registerTool(
+    "deliver_agreement",
+    { title: "Opgeleverd", description: "Eenmalig werk opgeleverd: termijnen 'bij oplevering' worden klaar om te factureren en het gekoppelde project wordt afgerond.", inputSchema: { id: z.string().uuid() } },
+    async ({ id }) => json(await data.deliverAgreement(id)),
+  );
+
+  server.registerTool(
+    "delete_agreement",
+    { title: "Afspraak verwijderen", description: "Verwijder een afspraak. Gefactureerde en betaalde termijnen blijven bewaard.", inputSchema: { id: z.string().uuid() }, annotations: { destructiveHint: true } },
+    async ({ id }) => json(await data.deleteAgreement(id)),
+  );
+
+  server.registerTool(
+    "list_installments",
+    {
+      title: "Termijnen",
+      description: "Te factureren regels. Filter op klant, afspraak of status (planned, ready = klaar om te factureren, draft = concept in Moneybird, sent, paid).",
+      inputSchema: { client: z.string().optional(), agreementId: z.string().uuid().optional(), status: z.array(installmentStatus).optional(), open: z.boolean().optional().describe("Alles behalve betaald") },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ client, ...rest }) => json(await data.listInstallments({ ...rest, clientId: (await resolveClient(client)) ?? undefined })),
+  );
+
+  const installmentFields = {
+    agreementId: z.string().uuid().nullable().optional(),
+    projectId: z.string().uuid().nullable().optional(),
+    trigger: z.enum(["date", "acceptance", "delivery"]).optional().describe("Op datum, bij akkoord of bij oplevering"),
+    dueDate: isoDate.nullable().optional(),
+    status: installmentStatus.optional(),
+    moneybirdInvoiceId: optText,
+    notes: optText,
+  };
+
+  server.registerTool(
+    "add_installment",
+    { title: "Termijn toevoegen", description: "Losse te factureren regel bij een klant, eventueel bij een afspraak.", inputSchema: { client: z.string(), description: z.string().min(1), amountCents: z.number().int(), ...installmentFields } },
+    async ({ client, ...rest }) => json(await data.createInstallment({ ...rest, clientId: (await resolveClient(client))! })),
+  );
+
+  server.registerTool(
+    "update_installment",
+    {
+      title: "Termijn wijzigen",
+      description: "Wijzig een termijn, bijvoorbeeld de status (datums voor gefactureerd en betaald worden automatisch ingevuld).",
+      inputSchema: { id: z.string().uuid(), description: z.string().min(1).optional(), amountCents: z.number().int().optional(), invoicedAt: isoDate.nullable().optional(), paidAt: isoDate.nullable().optional(), ...installmentFields },
+    },
+    async ({ id, ...rest }) => json(await data.updateInstallment(id, rest)),
+  );
+
+  server.registerTool(
+    "delete_installment",
+    { title: "Termijn verwijderen", description: "Verwijder een termijn.", inputSchema: { id: z.string().uuid() }, annotations: { destructiveHint: true } },
+    async ({ id }) => json(await data.deleteInstallment(id)),
+  );
+
+  server.registerTool(
+    "get_revenue",
+    {
+      title: "Omzetoverzicht",
+      description: "MRR, jaaromzet vast (MRR x 12), MRR per dienst en per klant, verwachte omzet per maand (wat er gefactureerd wordt), termijnen klaar om te factureren, gefactureerd maar onbetaald en afspraken die binnen 30 dagen eindigen. Bedragen in centen excl. btw.",
+      inputSchema: { months: z.number().int().min(1).max(24).optional().describe("Aantal maanden vooruit, standaard 12") },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ months }) => json(await data.revenueOverview(months ?? 12)),
   );
 
   /* ---- Documenten ---- */

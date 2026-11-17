@@ -1,6 +1,6 @@
 # Marc OS: projectcontext
 
-*Stand van zaken: 17 november 2026, na gesprek 1 (klant uitgebreid, contactpersonen, websites)*
+*Stand van zaken: 17 november 2026, na gesprek 2 (afspraken, termijnen en MRR)*
 
 ## Doel
 
@@ -32,6 +32,15 @@ Uitgangspunt: Marc werkt vanaf december 2026 fulltime voor zijn eigen bedrijf. H
 | Documenten | Alleen links (OneDrive, Drive, Moneybird) | Geen bestandsopslag op de VPS nodig; upload staat op "Later" |
 | Adres | Gestructureerd: straat, postcode, plaats, land | Sluit aan op de Moneybird-contactvelden (gesprek 8) |
 | Wachtwoorden | Nooit in het dossier, alleen een verwijzing (`vaultRef`) | Staan in de wachtwoordmanager |
+| Bedragen | In centen (integer), altijd exclusief btw | Geen afrondingsfouten; btw regelt Moneybird |
+| MRR | Som van lopende vaste afspraken (actief, of opgezegd tot de einddatum), omgerekend naar per maand (kwartaal / 3, jaar / 12). Eenmalig en uurtarief tellen niet mee | Zuivere maatstaf voor vaste maandomzet |
+| Verwachte omzet | Per maand wat er gefactureerd wordt: maandafspraken elke maand, kwartaalafspraken in jan/apr/jul/okt, jaarafspraken in de startmaand (anders januari), plus termijnen met een datum | Kasstroombeeld; MRR is het gladde beeld |
+| Termijnen voor vaste afspraken | Niet als termijnen aangemaakt; die lopen straks via terugkerende facturen in Moneybird (gesprek 8) | Geen dubbele administratie |
+| Eenmalig werk | Website: 2 termijnen van 50% (bij akkoord, bij oplevering) en automatisch een websiteproject. Overig eenmalig: 1 termijn bij oplevering | Volgens ontwerp; overig eenmalig is zelf te splitsen |
+| Oplevering | Project op "afgerond" of knop "Opgeleverd" bij de afspraak zet termijnen "bij oplevering" op klaar om te factureren | Eén handeling, geen dubbel werk |
+| Opzeggen | Zonder einddatum: einde van de maand na de opzegtermijn. Na de einddatum wordt de afspraak automatisch beëindigd | Opgezegd telt mee in de MRR tot de einddatum |
+| Hosting/beheer bij website | Volgt automatisch uit de afspraken als er voor die website een hosting- of beheerafspraak bestaat | Eén bron van waarheid |
+| Indexatie | Alleen vastgelegd (percentage), nog niet automatisch toegepast | Zie Later |
 
 ## Huidige status
 
@@ -42,6 +51,7 @@ Uitgangspunt: Marc werkt vanaf december 2026 fulltime voor zijn eigen bedrijf. H
 | GitHub-repo | `Mrclnsn/marc-os` (private), Claude heeft push-toegang via de Claude GitHub-app |
 | Lokaal draaien | Werkt met `npm run local` op Node 22 (getest 17 november, ook een verse installatie). Op de Mac zelf nog `node -v` controleren |
 | Gesprek 1: klantdossier | Klaar (commit `4b4e09a`) |
+| Gesprek 2: afspraken, termijnen, MRR | Klaar |
 | VPS | Besteld en draait, nog niet geïnstalleerd |
 | Domein `os.marclonsain.nl` | Nog geen DNS-record |
 | Verhuizing `marclonsain.nl` naar Hostinger | Besloten, nog niet gestart |
@@ -86,12 +96,13 @@ Tip: zet het `os`-record nu al bij de huidige provider, zodat de installatie nie
 
 | Pagina | Inhoud |
 |---|---|
-| **Vandaag** | Begroeting, kerncijfers (vandaag, achterstallig, afspraken, inbox), braindump-balk, briefing van de AI, achterstallige taken, taken voor vandaag, komende 7 dagen, agenda. Filter: Alles / Zakelijk / Privé |
+| **Vandaag** | Begroeting, kerncijfers (vandaag, achterstallig, afspraken, inbox), braindump-balk, briefing van de AI, achterstallige taken, taken voor vandaag, komende 7 dagen, agenda, signalen (te factureren, afspraken die aflopen, domeinen). Filter: Alles / Zakelijk / Privé |
 | **Inbox** | Braindump-items omzetten naar taak of notitie, of weggooien |
 | **Taken** | Weergaven: alle open, vandaag, komende 14 dagen, zonder datum, afgerond. Filters: klantwerk, bedrijf algemeen, privé, per klant, zoeken |
 | **Projecten** | Gegroepeerd in Klanten / Bedrijf algemeen / Privé, met voortgang |
-| **Klanten** | Dossier per klant: gegevens (basis, registratie, adressen, facturatie, compliance, overig), contactpersonen, websites, documenten, vaste informatie, projecten, taken, notities. Lijst met filter op status en tag |
+| **Klanten** | Dossier per klant: gegevens (basis, registratie, adressen, facturatie, compliance, overig), contactpersonen, websites, afspraken en termijnen (met MRR van de klant), documenten, vaste informatie, projecten, taken, notities. Lijst met filter op status en tag |
 | **Websites** | Alle websites van alle klanten, filter op hosting/beheer afgenomen, bovenaan domeinen die binnen 30 dagen verlopen |
+| **Afspraken** | KPI's (MRR, jaaromzet vast, klaar om te factureren, gefactureerd open), te factureren termijnen, afspraken die binnen 30 dagen eindigen, verwachte omzet 12 maanden, MRR per dienst en per klant, alle afspraken (lopend/concept/beëindigd/alle), gefactureerde en geplande termijnen |
 | **Notities** | Soorten: notitie, meeting, telefoon, e-mail, besluit, info, idee. Te koppelen aan klant, project, gebied |
 | **Reviews** | Briefings, dagafsluitingen, weekreviews en maandreviews van de AI |
 
@@ -104,6 +115,8 @@ Verder: terugkerende taken (bij afronden wordt de volgende automatisch aangemaak
 | Klant (`clients`) | naam (bedrijf), rechtsvorm, status (lead/actief/on hold/oud-klant), klant sinds, bron, KvK, btw, adres/postcode/plaats/land, factuuradres (alleen als afwijkend), factuur-e-mail, betaaltermijn (dagen, standaard 14), Moneybird-contact-ID, verwerkersovereenkomst (n.v.t./nodig/verstuurd/getekend) + datum, verwerkte persoonsgegevens, verwijzing wachtwoordmanager, tags, info |
 | Contactpersoon (`client_contacts`) | klant, naam, rol, e-mail, telefoon, primair ja/nee, notitie. Precies één primair per klant (wordt automatisch bewaakt) |
 | Website (`websites`) | klant, domein (opgeschoond: zonder https/www/pad), registrar, verloopdatum domein, hostinglocatie, CMS, livegang, hosting afgenomen, beheer afgenomen, notities |
+| Afspraak (`agreements`) | klant, soort (boekhouding/website/hosting/beheer/sparringpartner/maatwerk), omschrijving, website, project, bedrag (centen excl. btw; bij uurtarief per uur), prijsvorm (vast per periode/eenmalig/uurtarief), periode (maand/kwartaal/jaar), budget, sessies per maand, start, einde, opzegtermijn (maanden), indexatie %, status (concept/actief/opgezegd/beëindigd), notitie |
+| Termijn (`installments`) | klant, afspraak, project, omschrijving, bedrag (centen excl. btw), moment (op datum/bij akkoord/bij oplevering), datum, status (gepland/klaar om te factureren/concept in Moneybird/verzonden/betaald), klaar sinds, gefactureerd op, betaald op, Moneybird-factuurnummer, volgorde, notitie |
 | Document (`client_documents`) | klant, soort (offerte/overeenkomst/verwerkersovereenkomst/overig), titel, link, datum, notitie |
 | Project (`projects`) | naam, gebied, klant, status (idee/gepland/actief/wacht/afgerond/gearchiveerd), start, deadline, omschrijving |
 | Taak (`tasks`) | titel, gebied, klant, project, status (te doen/bezig/wacht op/klaar), plannen op, deadline, prioriteit (1-3), inschatting, herhaling, notities |
@@ -134,6 +147,8 @@ src/app/actions.ts    server actions voor formulieren
 src/db/schema.ts      datamodel
 src/db/connect.ts     databaseverbinding
 src/lib/data.ts       alle data-logica (gedeeld door app en MCP)
+src/lib/agreements.ts afspraken, termijnen, MRR en verwachte omzet (via data.ts geëxporteerd)
+src/lib/money.ts      bedragen: centen, euro-notatie, invoer "1.250,50"
 src/lib/mcp.ts        MCP-tools
 src/lib/calendar.ts   ICS-agenda's
 src/components/       interface-onderdelen, incl. brand.tsx (beeldmerk, paginakop, sectiekop)
@@ -188,7 +203,7 @@ Open http://localhost:3000, wachtwoord `marc-os`. Data staat in `.local-pg`. Sto
 
 Na installatie: in Claude → Instellingen → Connectors → Custom connector, met URL `https://os.marclonsain.nl/api/mcp/<MCP_TOKEN>`.
 
-Beschikbare tools: `get_overview` (inclusief domeinen die binnen 30 dagen verlopen), `list_tasks`, `create_task`, `update_task`, `complete_task`, `delete_task`, `completed_tasks`, `capture`, `inbox_to_task`, `list_notes`, `get_note`, `create_note`, `update_note`, `list_clients` (filter op status en tag), `get_client` (volledig dossier), `create_client` (met optioneel primaire contactpersoon), `update_client`, `add_contact`, `update_contact`, `delete_contact`, `list_websites` (met `expiringWithinDays`), `add_website`, `update_website`, `delete_website`, `add_document`, `delete_document`, `list_projects`, `get_project`, `create_project`, `update_project`, `get_calendar`, `save_review` (met `append` om onder een bestaande review toe te voegen), `list_reviews`.
+Beschikbare tools: `get_overview` (inclusief domeinen die binnen 30 dagen verlopen, MRR, te factureren termijnen en aflopende afspraken), `list_tasks`, `create_task`, `update_task`, `complete_task`, `delete_task`, `completed_tasks`, `capture`, `inbox_to_task`, `list_notes`, `get_note`, `create_note`, `update_note`, `list_clients` (filter op status en tag), `get_client` (volledig dossier, inclusief afspraken, termijnen en MRR), `create_client` (met optioneel primaire contactpersoon), `update_client`, `add_contact`, `update_contact`, `delete_contact`, `list_websites` (met `expiringWithinDays`), `add_website`, `update_website`, `delete_website`, `add_document`, `delete_document`, `list_projects`, `get_project`, `create_project`, `update_project`, `list_agreements`, `create_agreement`, `update_agreement`, `deliver_agreement`, `delete_agreement`, `list_installments`, `add_installment`, `update_installment`, `delete_installment`, `get_revenue` (MRR, per dienst/klant, verwachte omzet), `get_calendar`, `save_review` (met `append` om onder een bestaande review toe te voegen), `list_reviews`.
 
 ### Vaste taken om in te plannen
 

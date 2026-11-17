@@ -8,6 +8,7 @@ import {
   boolean,
   pgEnum,
   index,
+  numeric,
 } from "drizzle-orm/pg-core";
 
 export const areaEnum = pgEnum("area", ["zakelijk", "prive"]);
@@ -248,6 +249,106 @@ export const notes = pgTable(
   ],
 );
 
+/* ---------------- Afspraken (diensten per klant) en termijnen ---------------- */
+
+export const serviceKindEnum = pgEnum("service_kind", [
+  "bookkeeping", // boekhouding
+  "website", // websiteproject (eenmalig)
+  "hosting",
+  "maintenance", // beheer
+  "sparring", // sparringpartner
+  "custom", // maatwerk
+]);
+
+export const pricingEnum = pgEnum("pricing", [
+  "recurring", // vast bedrag per periode
+  "one_off", // eenmalig
+  "hourly", // uurtarief
+]);
+
+export const billingPeriodEnum = pgEnum("billing_period", ["month", "quarter", "year"]);
+
+export const agreementStatusEnum = pgEnum("agreement_status", [
+  "draft", // concept
+  "active", // actief
+  "cancelled", // opgezegd (loopt tot de einddatum)
+  "ended", // beëindigd
+]);
+
+export const installmentTriggerEnum = pgEnum("installment_trigger", [
+  "date", // op een datum
+  "acceptance", // bij akkoord
+  "delivery", // bij oplevering
+]);
+
+export const installmentStatusEnum = pgEnum("installment_status", [
+  "planned", // gepland
+  "ready", // klaar om te factureren
+  "draft", // concept in Moneybird
+  "sent", // verzonden
+  "paid", // betaald
+]);
+
+export const agreements = pgTable(
+  "agreements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    kind: serviceKindEnum("kind").notNull(),
+    title: text("title"), // optionele omschrijving, bijv. "Boekhouding en btw-aangiftes"
+    websiteId: uuid("website_id").references(() => websites.id, { onDelete: "set null" }),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
+    // Bedragen in centen, exclusief btw. Bij uurtarief is dit het tarief per uur.
+    amountCents: integer("amount_cents").notNull(),
+    pricing: pricingEnum("pricing").notNull(),
+    period: billingPeriodEnum("period"), // alleen bij een vast bedrag per periode
+    budgetCents: integer("budget_cents"), // maatwerk: optioneel plafond
+    sessionsPerMonth: integer("sessions_per_month"), // sparringpartner: optioneel
+    startDate: date("start_date"),
+    endDate: date("end_date"),
+    noticeMonths: integer("notice_months"), // opzegtermijn in maanden
+    indexationPct: numeric("indexation_pct", { precision: 5, scale: 2, mode: "number" }), // jaarlijkse indexatie
+    status: agreementStatusEnum("status").notNull().default("draft"),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [
+    index("agreements_client_idx").on(t.clientId),
+    index("agreements_status_idx").on(t.status),
+  ],
+);
+
+export const installments = pgTable(
+  "installments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    agreementId: uuid("agreement_id").references(() => agreements.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
+    description: text("description").notNull(),
+    amountCents: integer("amount_cents").notNull(), // exclusief btw
+    trigger: installmentTriggerEnum("trigger").notNull().default("date"),
+    dueDate: date("due_date"), // bij trigger "date"; anders optioneel een verwachte datum
+    status: installmentStatusEnum("status").notNull().default("planned"),
+    readyAt: date("ready_at"), // sinds wanneer klaar om te factureren
+    moneybirdInvoiceId: text("moneybird_invoice_id"),
+    invoicedAt: date("invoiced_at"),
+    paidAt: date("paid_at"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [
+    index("installments_client_idx").on(t.clientId),
+    index("installments_agreement_idx").on(t.agreementId),
+    index("installments_status_idx").on(t.status),
+  ],
+);
+
 export const reviews = pgTable("reviews", {
   id: uuid("id").primaryKey().defaultRandom(),
   kind: reviewKindEnum("kind").notNull(),
@@ -264,3 +365,5 @@ export type Project = typeof projects.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
 export type Note = typeof notes.$inferSelect;
 export type Review = typeof reviews.$inferSelect;
+export type Agreement = typeof agreements.$inferSelect;
+export type Installment = typeof installments.$inferSelect;

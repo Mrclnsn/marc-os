@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { requireSession } from "@/lib/auth";
 import * as data from "@/lib/data";
 import { SESSION_COOKIE } from "@/lib/session";
+import { parseEuro } from "@/lib/money";
 
 /* Hulpjes om FormData om te zetten */
 function s(fd: FormData, key: string): string | null {
@@ -315,6 +316,114 @@ export async function createDocumentAction(clientId: string, fd: FormData) {
 export async function deleteDocumentAction(id: string) {
   await requireSession();
   await data.deleteDocument(id);
+  refresh();
+}
+
+/* ---------------- Afspraken ---------------- */
+
+function agreementFromForm(fd: FormData) {
+  const out: Partial<data.AgreementInput> = {};
+  if (has(fd, "kind")) out.kind = s(fd, "kind") as data.AgreementInput["kind"];
+  if (has(fd, "title")) out.title = s(fd, "title");
+  if (has(fd, "status")) out.status = (s(fd, "status") ?? "active") as data.AgreementInput["status"];
+  if (has(fd, "pricing")) out.pricing = s(fd, "pricing") as data.AgreementInput["pricing"];
+  if (has(fd, "period")) out.period = s(fd, "period") as data.AgreementInput["period"];
+  if (has(fd, "amount")) {
+    const c = parseEuro(s(fd, "amount"));
+    if (c != null) out.amountCents = c;
+  }
+  if (has(fd, "budget")) out.budgetCents = parseEuro(s(fd, "budget"));
+  if (has(fd, "sessionsPerMonth")) out.sessionsPerMonth = n(fd, "sessionsPerMonth");
+  if (has(fd, "websiteId")) out.websiteId = s(fd, "websiteId");
+  if (has(fd, "projectId")) out.projectId = s(fd, "projectId");
+  for (const k of ["startDate", "endDate"] as const) if (has(fd, k)) out[k] = s(fd, k);
+  if (has(fd, "noticeMonths")) out.noticeMonths = n(fd, "noticeMonths");
+  if (has(fd, "indexationPct")) {
+    const v = s(fd, "indexationPct");
+    out.indexationPct = v == null ? null : Number(v.replace(",", "."));
+  }
+  if (has(fd, "notes")) out.notes = s(fd, "notes");
+  return out;
+}
+
+export async function createAgreementAction(clientId: string | null, fd: FormData) {
+  await requireSession();
+  const input = agreementFromForm(fd);
+  const cid = clientId ?? s(fd, "clientId");
+  if (!cid || !input.kind || input.amountCents == null) return;
+  await data.createAgreement({ ...input, clientId: cid } as data.AgreementInput);
+  refresh();
+}
+
+export async function updateAgreementAction(id: string, fd: FormData) {
+  await requireSession();
+  await data.updateAgreement(id, agreementFromForm(fd));
+  refresh();
+}
+
+export async function setAgreementStatusAction(id: string, status: data.AgreementInput["status"]) {
+  await requireSession();
+  await data.updateAgreement(id, { status });
+  refresh();
+}
+
+export async function deliverAgreementAction(id: string) {
+  await requireSession();
+  await data.deliverAgreement(id);
+  refresh();
+}
+
+export async function deleteAgreementAction(id: string) {
+  await requireSession();
+  await data.deleteAgreement(id);
+  refresh();
+}
+
+/* ---------------- Termijnen ---------------- */
+
+function installmentFromForm(fd: FormData) {
+  const out: Partial<data.InstallmentInput> & { invoicedAt?: string | null; paidAt?: string | null } = {};
+  if (has(fd, "description")) out.description = s(fd, "description") ?? "";
+  if (has(fd, "amount")) {
+    const c = parseEuro(s(fd, "amount"));
+    if (c != null) out.amountCents = c;
+  }
+  if (has(fd, "trigger")) out.trigger = (s(fd, "trigger") ?? "date") as data.InstallmentInput["trigger"];
+  if (has(fd, "dueDate")) out.dueDate = s(fd, "dueDate");
+  if (has(fd, "status")) out.status = s(fd, "status") as data.InstallmentInput["status"];
+  if (has(fd, "agreementId")) out.agreementId = s(fd, "agreementId");
+  if (has(fd, "moneybirdInvoiceId")) out.moneybirdInvoiceId = s(fd, "moneybirdInvoiceId");
+  if (has(fd, "invoicedAt")) out.invoicedAt = s(fd, "invoicedAt");
+  if (has(fd, "paidAt")) out.paidAt = s(fd, "paidAt");
+  if (has(fd, "notes")) out.notes = s(fd, "notes");
+  return out;
+}
+
+export async function createInstallmentAction(clientId: string, fd: FormData) {
+  await requireSession();
+  const { invoicedAt: _i, paidAt: _p, ...input } = installmentFromForm(fd);
+  void _i;
+  void _p;
+  if (!input.description || input.amountCents == null) return;
+  await data.createInstallment({ ...input, clientId } as data.InstallmentInput);
+  refresh();
+}
+
+export async function updateInstallmentAction(id: string, fd: FormData) {
+  await requireSession();
+  await data.updateInstallment(id, installmentFromForm(fd));
+  refresh();
+}
+
+export async function setInstallmentStatusAction(id: string, status: data.InstallmentInput["status"]) {
+  await requireSession();
+  await data.updateInstallment(id, { status });
+  refresh();
+}
+
+export async function deleteInstallmentAction(id: string) {
+  await requireSession();
+  await data.deleteInstallment(id);
   refresh();
 }
 

@@ -1,12 +1,13 @@
 import { PageHeader, SectionTitle } from "@/components/brand";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ClientAgreements } from "@/components/agreement-parts";
 import { ClientDetails, ClientEditForm, ContactList, DocumentList, WebsiteList } from "@/components/client-parts";
 import { NoteTypeSelect } from "@/components/forms";
 import { NoteList } from "@/components/note-list";
 import { QuickAddTask } from "@/components/quick-add";
 import { TaskList } from "@/components/task-row";
-import { getClientDossier, listNotes, listProjects, listTasks } from "@/lib/data";
+import { getClientDossierFull, listNotes, listProjects, listTasks } from "@/lib/data";
 import { addDaysIso, formatShort, today } from "@/lib/dates";
 import { CLIENT_STATUS, PROJECT_STATUS } from "@/lib/labels";
 import { getOptions } from "@/lib/options";
@@ -14,9 +15,9 @@ import { createNoteAction, createProjectAction, deleteClientAction } from "../..
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const dossier = await getClientDossier(id);
+  const dossier = await getClientDossierFull(id);
   if (!dossier) notFound();
-  const { client, contacts, websites, documents } = dossier;
+  const { client, contacts, websites, documents, agreements, installments, mrrCents } = dossier;
   const primary = contacts.find((c) => c.isPrimary) ?? contacts[0];
 
   const [tasks, projectsRows, notesRows, options] = await Promise.all([
@@ -58,6 +59,18 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       <section>
         <SectionTitle>Websites</SectionTitle>
         <WebsiteList clientId={id} sites={websites} />
+      </section>
+
+      <section>
+        <SectionTitle>Afspraken en termijnen</SectionTitle>
+        <ClientAgreements
+          clientId={id}
+          agreements={agreements}
+          installments={installments}
+          mrrCents={mrrCents}
+          websites={websites.map((w) => ({ id: w.id, name: w.domain }))}
+          projects={clientProjects}
+        />
       </section>
 
       <section>
@@ -114,7 +127,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       </section>
 
       <form action={deleteClientAction.bind(null, id)} className="border-t border-lijn pt-4">
-        <button className="btn-ghost text-xs">Klant verwijderen (contactpersonen, websites en documentlinks gaan mee; taken, projecten en notities blijven)</button>
+        <button className="btn-ghost text-xs">Klant verwijderen (contactpersonen, websites, documentlinks, afspraken en termijnen gaan mee; taken, projecten en notities blijven)</button>
       </form>
     </div>
   );

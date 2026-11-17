@@ -2,9 +2,10 @@ import Link from "next/link";
 import { PageHeader, SectionTitle } from "@/components/brand";
 import { TaskList } from "@/components/task-row";
 import { CaptureBar, QuickAddTask } from "@/components/quick-add";
-import { expiringDomains, listTasks, inboxCount, listReviews } from "@/lib/data";
+import { expiringDomains, listTasks, inboxCount, listReviews, revenueSignals } from "@/lib/data";
+import { formatEuro } from "@/lib/money";
 import { domainState } from "@/components/client-parts";
-import { TIMEZONE, addDaysIso, formatLong, today } from "@/lib/dates";
+import { TIMEZONE, addDaysIso, formatDate, formatLong, today } from "@/lib/dates";
 import { calendarConfigured, getEvents } from "@/lib/calendar";
 import { getOptions } from "@/lib/options";
 
@@ -36,7 +37,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const t = today();
   const tomorrow = addDaysIso(t, 1);
 
-  const [todayTasks, upcoming, inbox, options, cal, lastDay, domains] = await Promise.all([
+  const [todayTasks, upcoming, inbox, options, cal, lastDay, domains, money] = await Promise.all([
     listTasks({ view: "today", area }),
     listTasks({ view: "upcoming", days: 7, area }),
     inboxCount(),
@@ -44,6 +45,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     calendarConfigured() ? getEvents(t, t) : Promise.resolve(null),
     listReviews("day", 1),
     area === "prive" ? Promise.resolve([]) : expiringDomains(),
+    area === "prive" ? Promise.resolve({ ready: [], ending: [] }) : revenueSignals(),
   ]);
 
   const overdue = todayTasks.filter((x) => (x.planDate ?? x.dueDate)! < t);
@@ -135,6 +137,38 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           {cal?.errors.map((err) => (
             <p key={err} className="mt-3 text-xs text-steen">{err}</p>
           ))}
+
+          {money.ready.length > 0 && (
+            <div className="mt-10">
+              <SectionTitle aside={<Link href="/afspraken" className="text-xs text-steen hover:text-nacht">Afspraken</Link>}>Te factureren</SectionTitle>
+              <ul className="space-y-2">
+                {money.ready.map((i) => (
+                  <li key={i.id}>
+                    <Link href={`/klanten/${i.clientId}`} className="block border-l-[3px] border-nacht pl-3 hover:bg-parel">
+                      <span className="block text-[15px] font-bold text-nacht">{i.clientName} · <span className="tabular-nums">{formatEuro(i.amountCents)}</span></span>
+                      <span className="block text-xs text-steen">{i.description}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {money.ending.length > 0 && (
+            <div className="mt-10">
+              <SectionTitle>Afspraken die aflopen</SectionTitle>
+              <ul className="space-y-2">
+                {money.ending.map((a) => (
+                  <li key={a.id}>
+                    <Link href={`/klanten/${a.clientId}`} className="block border-l-[3px] border-nacht pl-3 hover:bg-parel">
+                      <span className="block text-[15px] font-bold text-nacht">{a.label}</span>
+                      <span className="block text-xs text-steen">{a.clientName} · tot {formatDate(a.endDate)}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {domains.length > 0 && (
             <div className="mt-10">

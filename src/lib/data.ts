@@ -4,6 +4,9 @@ import { z } from "zod";
 import { db } from "@/db";
 import { clientContacts, clientDocuments, clients, notes, projects, reviews, tasks, websites, type Task } from "@/db/schema";
 import { addDaysIso, nextOccurrence, today, type Recurrence } from "./dates";
+import { listAgreements, listInstallments, markProjectDelivered } from "./agreements";
+
+export * from "./agreements";
 
 /* ------------------------------------------------------------------ */
 /* Invoerschema's (gedeeld door formulieren en de MCP-server)          */
@@ -356,7 +359,10 @@ export async function createProject(input: ProjectInput) {
 
 export async function updateProject(id: string, patch: Partial<ProjectInput>) {
   const data = projectInput.partial().parse(patch);
+  const [before] = await db.select({ status: projects.status }).from(projects).where(eq(projects.id, id));
   const [row] = await db.update(projects).set(data).where(eq(projects.id, id)).returning();
+  // Project afgerond = opgeleverd: termijnen "bij oplevering" worden klaar om te factureren
+  if (row && row.status === "done" && before?.status !== "done") await markProjectDelivered(id);
   return row;
 }
 
@@ -406,6 +412,15 @@ export async function getClientDossier(id: string) {
     db.select().from(clientDocuments).where(eq(clientDocuments.clientId, id)).orderBy(desc(clientDocuments.docDate), desc(clientDocuments.createdAt)),
   ]);
   return { client, contacts, websites: sites.map((w) => w.website), documents };
+}
+
+/** Dossier plus afspraken, termijnen en MRR van de klant. */
+export async function getClientDossierFull(id: string) {
+  const dossier = await getClientDossier(id);
+  if (!dossier) return null;
+  const [agreementRows, installmentRows] = await Promise.all([listAgreements({ clientId: id }), listInstallments({ clientId: id })]);
+  const mrrCents = Math.round(agreementRows.filter((a) => a.running).reduce((s, a) => s + a.monthlyCents, 0));
+  return { ...dossier, agreements: agreementRows, installments: installmentRows, mrrCents };
 }
 
 export async function findClientByName(name: string) {
