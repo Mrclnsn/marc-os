@@ -3,7 +3,7 @@ import { and, asc, eq, gte, inArray, isNotNull, lte, ne, or, sql } from "drizzle
 import { addMonths, endOfMonth, format, parseISO } from "date-fns";
 import { z } from "zod";
 import { db } from "@/db";
-import { agreements, clients, installments, projects, websites, type Agreement, type Installment } from "@/db/schema";
+import { agreements, clients, installments, projects, timeEntries, websites, type Agreement, type Installment } from "@/db/schema";
 import { addDaysIso, today } from "./dates";
 import { AGREEMENT_WARNING_DAYS, SERVICE_DEFAULTS, SERVICE_KIND, type ServiceKind } from "./labels";
 import { perMonth } from "./money";
@@ -411,6 +411,8 @@ export async function updateInstallment(id: string, patch: Partial<Omit<Installm
 }
 
 export async function deleteInstallment(id: string) {
+  // Uren die met deze termijn gefactureerd waren, komen weer bij "te factureren"
+  await db.update(timeEntries).set({ invoiced: false, installmentId: null }).where(eq(timeEntries.installmentId, id));
   const [row] = await db.delete(installments).where(eq(installments.id, id)).returning();
   return row ?? null;
 }

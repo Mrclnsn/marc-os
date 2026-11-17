@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PageHeader, SectionTitle } from "@/components/brand";
 import { AgreementCard, InstallmentRows, NewAgreementForm } from "@/components/agreement-parts";
-import { listAgreements, listInstallments, listWebsites, revenueOverview } from "@/lib/data";
+import { hourlyBudgets, listAgreements, listInstallments, listWebsites, revenueOverview } from "@/lib/data";
 import { formatDate } from "@/lib/dates";
 import { AGREEMENT_WARNING_DAYS, SERVICE_KIND } from "@/lib/labels";
 import { formatEuro, formatEuroRound } from "@/lib/money";
@@ -31,12 +31,13 @@ export default async function AgreementsPage({ searchParams }: { searchParams: P
   const status =
     toon === "concept" ? (["draft"] as const) : toon === "beeindigd" ? (["ended"] as const) : toon === "alle" ? undefined : (["active", "cancelled"] as const);
 
-  const [overview, rows, installments, sites, options] = await Promise.all([
+  const [overview, rows, installments, sites, options, budgets] = await Promise.all([
     revenueOverview(),
     listAgreements({ status: status ? [...status] : undefined }),
     listInstallments(),
     listWebsites(),
     getOptions(),
+    hourlyBudgets(),
   ]);
   const ready = installments.filter((i) => i.status === "ready");
   const invoiced = installments.filter((i) => i.status === "draft" || i.status === "sent");
@@ -108,7 +109,7 @@ export default async function AgreementsPage({ searchParams }: { searchParams: P
           <p className="mt-2 text-xs text-steen">
             Eerste maand inclusief achterstallige en klaarstaande termijnen. Kwartaalafspraken in jan/apr/jul/okt, jaarafspraken in de startmaand.
             {overview.undatedInstallmentsCents > 0 && ` Plus ${formatEuroRound(overview.undatedInstallmentsCents)} aan termijnen zonder datum (bij akkoord of oplevering).`}
-            {overview.hourly.length > 0 && ` Uurtarief-afspraken tellen hier niet mee (${overview.hourly.length}); die volgen uit de uren.`}
+            {overview.hourly.length > 0 && ` Uurtarief-afspraken tellen hier niet mee (${overview.hourly.length}); die volgen uit de uren (zie Uren).`}
           </p>
         </section>
 
@@ -173,6 +174,7 @@ export default async function AgreementsPage({ searchParams }: { searchParams: P
               installments={installments.filter((i) => i.agreementId === a.id)}
               websites={websiteOpts.filter((w) => sites.find((s) => s.website.id === w.id)?.website.clientId === a.clientId)}
               projects={options.projects.filter((p) => p.clientId === a.clientId)}
+              budget={budgets.find((b) => b.agreementId === a.id)}
             />
           ))}
         </div>

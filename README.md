@@ -154,7 +154,7 @@ In Claude: *Instellingen → Connectors → Custom connector toevoegen* en plak 
 
 **Dagafsluiting (werkdagen 17:30)**
 
-> Gebruik Marc OS. Haal get_overview en completed_tasks voor vandaag op. Vat samen wat er gedaan is, wat is blijven liggen en verplaats onafgemaakte taken van vandaag naar morgen (update_task planDate). Zet de samenvatting onder de briefing van vandaag met save_review (kind=day, append=true).
+> Gebruik Marc OS. Haal get_overview, completed_tasks en list_time_entries voor vandaag op. Vat samen wat er gedaan is, wat is blijven liggen en hoeveel uren er geschreven zijn (meld het als de timer nog loopt), en verplaats onafgemaakte taken van vandaag naar morgen (update_task planDate). Zet de samenvatting onder de briefing van vandaag met save_review (kind=day, append=true).
 
 **Weekreview (vrijdag 15:00)**
 

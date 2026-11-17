@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useOptimistic, useTransition } from "react";
 import { planTaskAction, toggleTaskAction } from "@/app/actions";
 import type { TaskWithRefs } from "@/lib/data";
+import { StartTimerButton } from "./timer";
 
 type Props = {
   task: TaskWithRefs;
@@ -76,6 +77,7 @@ export function TaskRow({ task, today, tomorrow, showClient = true, showProject 
 
       {!done && (
         <div className="flex shrink-0 gap-1 md:opacity-0 md:transition-opacity md:group-hover:opacity-100">
+          <StartTimerButton taskId={task.id} />
           {when !== today && (
             <button className="btn-ghost text-xs" onClick={() => start(() => planTaskAction(task.id, today))}>
               Vandaag

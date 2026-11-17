@@ -6,6 +6,7 @@ import { z } from "zod";
 import * as data from "./data";
 import { getEvents, calendarConfigured } from "./calendar";
 import { addDaysIso, today, weekStart } from "./dates";
+import { formatDuration, parseDuration } from "./duration";
 
 /* ---------------- Authenticatie ---------------- */
 
@@ -70,6 +71,41 @@ const taskFields = {
   notes: z.string().nullable().optional(),
 };
 
+function slimEntry(e: data.TimeEntryRow) {
+  return {
+    id: e.id,
+    date: e.entryDate,
+    description: e.description,
+    area: e.area,
+    client: e.clientName,
+    clientId: e.clientId,
+    project: e.projectName,
+    projectId: e.projectId,
+    task: e.taskTitle,
+    taskId: e.taskId,
+    agreement: e.agreementLabel,
+    agreementId: e.agreementId,
+    category: e.category,
+    minutes: e.minutes,
+    duration: formatDuration(e.minutes),
+    running: e.running,
+    startedAt: e.startedAt,
+    endedAt: e.endedAt,
+    billable: e.billable,
+    invoiced: e.invoiced,
+    rateCents: e.rateCents,
+  };
+}
+
+/** Duur als tekst ("1:30", "1,5", "90m", "2u") of als minuten. */
+function minutesFrom(duration?: string | null, durationMin?: number | null): number | undefined {
+  if (durationMin) return durationMin;
+  if (!duration) return undefined;
+  const m = parseDuration(duration);
+  if (m == null) throw new Error(`Duur "${duration}" niet begrepen. Gebruik bijv. 1:30, 1,5, 90m of 2u.`);
+  return m;
+}
+
 /* ---------------- Server ---------------- */
 
 const INSTRUCTIONS = `Dit is Marc OS: Marc's centrale systeem voor taken, projecten, klanten, notities en reviews.
@@ -78,6 +114,7 @@ const INSTRUCTIONS = `Dit is Marc OS: Marc's centrale systeem voor taken, projec
 - Klanten hebben een dossier (get_client) met meerdere contactpersonen, websites, documentlinks, afspraken en termijnen. Sla nooit wachtwoorden op; vaultRef is alleen een verwijzing.
 - Afspraken zijn diensten per klant (boekhouding, website, hosting, beheer, sparringpartner, maatwerk). Bedragen zijn in centen en exclusief btw. MRR = som van lopende vaste afspraken omgerekend naar per maand (get_revenue).
 - Termijnen zijn te factureren regels. Een eenmalige website-afspraak maakt zelf 2 termijnen van 50% (bij akkoord, bij oplevering). Facturen maakt Marc zelf in Moneybird; zet een termijn alleen op een andere status als Marc dat vraagt.
+- Uren: alles mag uren krijgen (klantwerk, bedrijf algemeen, privé, leren). Er loopt hooguit één timer; start_timer stopt een lopende timer. Voor achteraf schrijven gebruik log_time ("2 uur aan Vobis, SEO-analyse" → client "Vobis", duration "2u", description "SEO-analyse"). Declarabel gaat automatisch als de uren onder een afspraak met uurtarief vallen. get_hours geeft het weekoverzicht, te factureren uren, budgetten (waarschuwing vanaf 80%) en het effectief uurtarief per klant.
 - Inbox-items zijn notities van het type "inbox" (braindump). Verwerk ze met inbox_to_task of update_note.
 - Begin een briefing altijd met get_overview. Sla briefings en samenvattingen op met save_review zodat Marc ze in de app ziet.
 - Tijdzone: Europe/Amsterdam. Schrijf in het Nederlands.`;
@@ -104,7 +141,14 @@ export function buildServer() {
         calendarConfigured() ? getEvents(t, addDaysIso(t, 1)) : Promise.resolve(null),
         data.listReviews(undefined, 3),
       ]);
-      const [domains, money, revenue] = await Promise.all([data.expiringDomains(), data.revenueSignals(), data.revenueOverview(3)]);
+      const [domains, money, revenue, hours, timer, budgets] = await Promise.all([
+        data.expiringDomains(),
+        data.revenueSignals(),
+        data.revenueOverview(3),
+        data.weekHours(t),
+        data.getRunningTimer(),
+        data.hourlyBudgets({ onlyWarnings: true }),
+      ]);
       return json({
         date: t,
         calendar: cal ? { events: cal.events, errors: cal.errors } : "Geen agenda gekoppeld",
@@ -118,6 +162,9 @@ export function buildServer() {
         revenue: { mrrCents: revenue.mrrCents, readyToInvoice: revenue.ready, invoicedUnpaid: revenue.invoicedOpen },
         readyToInvoice: money.ready.map((i) => ({ id: i.id, client: i.clientName, description: i.description, amountCents: i.amountCents })),
         agreementsEnding: money.ending.map((a) => ({ id: a.id, client: a.clientName, agreement: a.label, endDate: a.endDate })),
+        hoursThisWeek: { total: formatDuration(hours.totalMin), billable: formatDuration(hours.billableMin), totalMin: hours.totalMin, billableMin: hours.billableMin },
+        runningTimer: timer ? slimEntry(timer) : null,
+        budgetWarnings: budgets.map((b) => ({ agreementId: b.agreementId, client: b.clientName, agreement: b.label, pct: b.pct, usedCents: b.usedCents, budgetCents: b.budgetCents })),
         recentReviews: lastReviews,
       });
     },
@@ -587,6 +634,155 @@ export function buildServer() {
       annotations: { readOnlyHint: true },
     },
     async ({ months }) => json(await data.revenueOverview(months ?? 12)),
+  );
+
+  /* ---- Uren ---- */
+
+  const timeFields = {
+    client: z.string().nullable().optional().describe("Klant-id of klantnaam"),
+    projectId: z.string().uuid().nullable().optional(),
+    taskId: z.string().uuid().nullable().optional().describe("Taak; neemt project, klant en omschrijving over"),
+    agreementId: z.string().uuid().nullable().optional().describe("Afspraak; standaard automatisch (uurtarief-afspraak van project of klant)"),
+    area: area.optional(),
+    category: optText.describe("Soort werk, bijv. Klantwerk, Administratie, Acquisitie, Leren"),
+    description: optText,
+    billable: z.boolean().nullable().optional().describe("Leeg = automatisch: declarabel bij een uurtarief-afspraak"),
+  };
+
+  server.registerTool(
+    "get_timer",
+    { title: "Lopende timer", description: "De timer die nu loopt, of null.", inputSchema: {}, annotations: { readOnlyHint: true } },
+    async () => {
+      const t = await data.getRunningTimer();
+      return json(t ? slimEntry(t) : null);
+    },
+  );
+
+  server.registerTool(
+    "start_timer",
+    { title: "Timer starten", description: "Start een timer. Een lopende timer wordt eerst gestopt.", inputSchema: timeFields },
+    async ({ client, ...rest }) => {
+      const r = await data.startTimer({ ...rest, clientId: await resolveClient(client) });
+      return json({ started: r.started, stoppedPrevious: r.stopped });
+    },
+  );
+
+  server.registerTool(
+    "stop_timer",
+    { title: "Timer stoppen", description: "Stop de lopende timer. Optioneel de omschrijving aanvullen.", inputSchema: { description: optText } },
+    async ({ description }) => {
+      const r = await data.stopTimer(description ? { description } : {});
+      return json(r ? { stopped: r, duration: formatDuration(r.durationMin) } : { stopped: null, message: "Er liep geen timer." });
+    },
+  );
+
+  server.registerTool(
+    "log_time",
+    {
+      title: "Uren schrijven",
+      description: "Schrijf uren achteraf: een duur, of een begin- en eindtijd. Datum standaard vandaag.",
+      inputSchema: {
+        ...timeFields,
+        date: isoDate.optional(),
+        duration: z.string().optional().describe("Bijv. 1:30, 1,5, 90m, 2u"),
+        durationMin: z.number().int().positive().max(1440).optional(),
+        startTime: z.string().regex(/^\d{1,2}:\d{2}$/).optional().describe("UU:MM"),
+        endTime: z.string().regex(/^\d{1,2}:\d{2}$/).optional().describe("UU:MM"),
+      },
+    },
+    async ({ client, date, duration, durationMin, ...rest }) =>
+      json(await data.logTime({ ...rest, clientId: await resolveClient(client), entryDate: date, durationMin: minutesFrom(duration, durationMin) })),
+  );
+
+  server.registerTool(
+    "list_time_entries",
+    {
+      title: "Urenregistraties",
+      description: "Registraties tussen twee datums (standaard deze week), optioneel per klant of project.",
+      inputSchema: {
+        from: isoDate.optional(),
+        to: isoDate.optional(),
+        client: z.string().optional(),
+        projectId: z.string().uuid().optional(),
+        billable: z.boolean().optional(),
+        uninvoiced: z.boolean().optional().describe("Alleen nog niet gefactureerd"),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ from, to, client, ...rest }) => {
+      const ws = weekStart(today());
+      const rows = await data.listTimeEntries({ from: from ?? ws, to: to ?? addDaysIso(ws, 6), clientId: (await resolveClient(client)) ?? undefined, ...rest });
+      return json({ totalMin: rows.reduce((s, e) => s + e.minutes, 0), entries: rows.map(slimEntry) });
+    },
+  );
+
+  server.registerTool(
+    "update_time_entry",
+    {
+      title: "Registratie wijzigen",
+      description: "Wijzig een urenregistratie.",
+      inputSchema: {
+        id: z.string().uuid(),
+        ...timeFields,
+        date: isoDate.optional(),
+        duration: z.string().optional(),
+        durationMin: z.number().int().positive().max(1440).optional(),
+        startTime: z.string().regex(/^\d{1,2}:\d{2}$/).optional(),
+        endTime: z.string().regex(/^\d{1,2}:\d{2}$/).optional(),
+        invoiced: z.boolean().optional(),
+      },
+    },
+    async ({ id, client, date, duration, durationMin, ...rest }) => {
+      const patch: data.TimeEntryInput = { ...rest, entryDate: date, durationMin: minutesFrom(duration, durationMin) };
+      if (client !== undefined) patch.clientId = await resolveClient(client);
+      return json(await data.updateTimeEntry(id, patch));
+    },
+  );
+
+  server.registerTool(
+    "delete_time_entry",
+    { title: "Registratie verwijderen", description: "Verwijder een urenregistratie.", inputSchema: { id: z.string().uuid() }, annotations: { destructiveHint: true } },
+    async ({ id }) => json(await data.deleteTimeEntry(id)),
+  );
+
+  server.registerTool(
+    "get_hours",
+    {
+      title: "Urenoverzicht",
+      description: "Weekoverzicht per klant en gebied (minuten per dag), uren per soort werk, declarabele uren die nog gefactureerd moeten worden, budget per uurtarief-afspraak (waarschuwing vanaf 80%) en effectief uurtarief per klant (omzet / alle uren). Bedragen in centen excl. btw.",
+      inputSchema: {
+        week: isoDate.optional().describe("Een dag in de week; standaard deze week"),
+        client: z.string().optional(),
+        period: z.enum(["month", "quarter", "year", "12m"]).optional().describe("Periode voor het effectief uurtarief, standaard year"),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ week, client, period }) => {
+      const clientId = (await resolveClient(client)) ?? undefined;
+      const [summary, queue, budgets, rates] = await Promise.all([
+        data.weekSummary(week ?? today(), { clientId }),
+        data.billableQueue({ clientId }),
+        data.hourlyBudgets({ clientId }),
+        data.effectiveRates(period ?? "year"),
+      ]);
+      const { entries, ...rest } = summary;
+      return json({
+        week: { ...rest, entries: entries.map(slimEntry) },
+        toInvoice: queue.map(({ entryIds, ...g }) => ({ ...g, entries: entryIds.length })),
+        budgets,
+        effectiveRates: clientId ? { ...rates, clients: rates.clients.filter((c) => c.clientId === clientId) } : rates,
+      });
+    },
+  );
+
+  server.registerTool(
+    "invoice_hours",
+    {
+      title: "Uren klaarzetten voor factuur",
+      description: "Maakt van alle open declarabele uren van een uurtarief-afspraak één termijn 'klaar om te factureren' en markeert de uren als gefactureerd. Alleen doen als Marc daarom vraagt.",
+      inputSchema: { agreementId: z.string().uuid(), upTo: isoDate.optional().describe("Alleen uren tot en met deze datum") },
+    },
+    async ({ agreementId, upTo }) => json(await data.invoiceHours(agreementId, upTo)),
   );
 
   /* ---- Documenten ---- */

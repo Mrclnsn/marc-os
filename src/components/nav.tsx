@@ -11,6 +11,7 @@ const items = [
   { href: "/projecten", label: "Projecten" },
   { href: "/klanten", label: "Klanten" },
   { href: "/websites", label: "Websites" },
+  { href: "/uren", label: "Uren" },
   { href: "/afspraken", label: "Afspraken" },
   { href: "/notities", label: "Notities" },
   { href: "/reviews", label: "Reviews" },
@@ -60,7 +61,8 @@ export function Nav({ inbox, logout }: { inbox: number; logout: React.ReactNode 
           <Beeldmerk className="h-5 w-auto" color="#fff" strokeWidth={22} />
           <span className="font-bold">Marc OS</span>
         </Link>
-        <div className="flex gap-4 text-sm text-white/70">
+        <div className="-mr-4 flex gap-4 overflow-x-auto pr-4 text-sm text-white/70">
+          <Link href="/uren" className={active("/uren") ? "font-bold text-white" : ""}>Uren</Link>
           <Link href="/afspraken" className={active("/afspraken") ? "font-bold text-white" : ""}>Afspraken</Link>
           <Link href="/notities" className={active("/notities") ? "font-bold text-white" : ""}>Notities</Link>
           <Link href="/reviews" className={active("/reviews") ? "font-bold text-white" : ""}>Reviews</Link>

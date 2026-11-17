@@ -7,6 +7,7 @@ import { addDaysIso, nextOccurrence, today, type Recurrence } from "./dates";
 import { listAgreements, listInstallments, markProjectDelivered } from "./agreements";
 
 export * from "./agreements";
+export * from "./time";
 
 /* ------------------------------------------------------------------ */
 /* Invoerschema's (gedeeld door formulieren en de MCP-server)          */

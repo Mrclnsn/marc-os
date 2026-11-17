@@ -7,6 +7,7 @@ import { requireSession } from "@/lib/auth";
 import * as data from "@/lib/data";
 import { SESSION_COOKIE } from "@/lib/session";
 import { parseEuro } from "@/lib/money";
+import { parseDuration } from "@/lib/duration";
 
 /* Hulpjes om FormData om te zetten */
 function s(fd: FormData, key: string): string | null {
@@ -424,6 +425,107 @@ export async function setInstallmentStatusAction(id: string, status: data.Instal
 export async function deleteInstallmentAction(id: string) {
   await requireSession();
   await data.deleteInstallment(id);
+  refresh();
+}
+
+/* ---------------- Uren ---------------- */
+
+function timeFromForm(fd: FormData) {
+  const out: data.TimeEntryInput = {};
+  if (has(fd, "area")) out.area = (s(fd, "area") ?? "zakelijk") as "zakelijk" | "prive";
+  if (has(fd, "clientId")) out.clientId = s(fd, "clientId");
+  if (has(fd, "projectId")) out.projectId = s(fd, "projectId");
+  if (has(fd, "taskId")) out.taskId = s(fd, "taskId");
+  if (has(fd, "category")) out.category = s(fd, "category");
+  if (has(fd, "description")) out.description = s(fd, "description");
+  if (has(fd, "entryDate")) out.entryDate = s(fd, "entryDate") ?? undefined;
+  if (has(fd, "duration")) out.durationMin = parseDuration(s(fd, "duration"));
+  if (has(fd, "startTime")) out.startTime = s(fd, "startTime");
+  if (has(fd, "endTime")) out.endTime = s(fd, "endTime");
+  if (has(fd, "billable")) {
+    const v = s(fd, "billable"); // "auto" | "ja" | "nee"
+    out.billable = v === "ja" ? true : v === "nee" ? false : null;
+  }
+  if (has(fd, "invoiced")) out.invoiced = s(fd, "invoiced") === "ja";
+  // Privé zonder klant: geen klant, project of afspraak afleiden
+  if (out.area === "prive" && !out.clientId) out.clientId = null;
+  return out;
+}
+
+export async function startTimerAction(fd: FormData) {
+  await requireSession();
+  const { durationMin: _d, startTime: _s, endTime: _e, entryDate: _date, ...input } = timeFromForm(fd);
+  void _d; void _s; void _e; void _date;
+  await data.startTimer(input);
+  refresh();
+}
+
+export async function startTaskTimerAction(taskId: string) {
+  await requireSession();
+  await data.startTimer({ taskId });
+  refresh();
+}
+
+export async function startProjectTimerAction(projectId: string) {
+  await requireSession();
+  await data.startTimer({ projectId });
+  refresh();
+}
+
+export async function stopTimerAction(fd?: FormData) {
+  await requireSession();
+  const description = fd ? s(fd, "description") : null;
+  await data.stopTimer(description ? { description } : {});
+  refresh();
+}
+
+export async function continueTimeEntryAction(id: string) {
+  await requireSession();
+  await data.continueEntry(id);
+  refresh();
+}
+
+export async function logTimeAction(fd: FormData) {
+  await requireSession();
+  const input = timeFromForm(fd);
+  if (!input.durationMin && !(input.startTime && input.endTime)) return;
+  if (input.startTime && input.endTime) input.durationMin = undefined;
+  await data.logTime(input);
+  refresh();
+}
+
+export async function updateTimeEntryAction(id: string, fd: FormData) {
+  await requireSession();
+  const input = timeFromForm(fd);
+  // Alleen wat is aangepast: begin-/eindtijd, of anders de duur (begintijd blijft dan staan)
+  const timesChanged = (s(fd, "startTime") ?? "") !== (s(fd, "origStart") ?? "") || (s(fd, "endTime") ?? "") !== (s(fd, "origEnd") ?? "");
+  const durationChanged = (s(fd, "duration") ?? "") !== (s(fd, "origDuration") ?? "");
+  if (timesChanged && input.startTime && input.endTime) {
+    delete input.durationMin;
+  } else {
+    if (!durationChanged || input.durationMin == null) delete input.durationMin;
+    if (!timesChanged || !input.startTime) delete input.startTime;
+    delete input.endTime;
+  }
+  await data.updateTimeEntry(id, input);
+  refresh();
+}
+
+export async function deleteTimeEntryAction(id: string) {
+  await requireSession();
+  await data.deleteTimeEntry(id);
+  refresh();
+}
+
+export async function invoiceHoursAction(agreementId: string) {
+  await requireSession();
+  await data.invoiceHours(agreementId);
+  refresh();
+}
+
+export async function setHoursInvoicedAction(ids: string[], invoiced: boolean) {
+  await requireSession();
+  await data.setInvoiced(ids, invoiced);
   refresh();
 }
 

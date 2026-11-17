@@ -137,5 +137,10 @@ export const SERVICE_DEFAULTS: Record<ServiceKind, { pricing: Pricing; period: B
 /** Dagen vóór de einddatum waarop een afspraak een signaal geeft. */
 export const AGREEMENT_WARNING_DAYS = 30;
 
-/** Waarschuwing bij maatwerk: percentage van het budget (uren volgen in gesprek 3). */
+/** Waarschuwing bij maatwerk: percentage van het budget dat met declarabele uren besteed is. */
 export const BUDGET_WARNING_PCT = 80;
+
+/* ---------------- Uren ---------------- */
+
+/** Suggesties voor de soort werk; vrij in te vullen. */
+export const TIME_CATEGORIES = ["Klantwerk", "Overleg", "Administratie", "Acquisitie", "Marketing", "Leren", "Reistijd", "Sport", "Privé"];

@@ -29,6 +29,13 @@
       "when": 1794948882702,
       "tag": "0003_afspraken_termijnen",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794949879198,
+      "tag": "0004_uren",
+      "breakpoints": true
     }
   ]
 }

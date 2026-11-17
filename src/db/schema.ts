@@ -349,6 +349,37 @@ export const installments = pgTable(
   ],
 );
 
+/* ---------------- Urenregistratie ---------------- */
+
+export const timeEntries = pgTable(
+  "time_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    area: areaEnum("area").notNull().default("zakelijk"),
+    clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
+    taskId: uuid("task_id").references(() => tasks.id, { onDelete: "set null" }),
+    // Afspraak waaronder de uren vallen (bij uurtarief: tarief en budget)
+    agreementId: uuid("agreement_id").references(() => agreements.id, { onDelete: "set null" }),
+    category: text("category"), // vrije soort werk: klantwerk, administratie, acquisitie, leren...
+    description: text("description"),
+    entryDate: date("entry_date").notNull(), // dag waarop de uren tellen
+    startedAt: timestamp("started_at", { withTimezone: true }), // bij timer of ingevulde begintijd
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    durationMin: integer("duration_min"), // leeg = timer loopt nog
+    billable: boolean("billable").notNull().default(false), // declarabel
+    invoiced: boolean("invoiced").notNull().default(false), // gefactureerd
+    installmentId: uuid("installment_id").references(() => installments.id, { onDelete: "set null" }), // termijn waarmee gefactureerd
+    ...timestamps,
+  },
+  (t) => [
+    index("time_entries_date_idx").on(t.entryDate),
+    index("time_entries_client_idx").on(t.clientId),
+    index("time_entries_project_idx").on(t.projectId),
+    index("time_entries_agreement_idx").on(t.agreementId),
+  ],
+);
+
 export const reviews = pgTable("reviews", {
   id: uuid("id").primaryKey().defaultRandom(),
   kind: reviewKindEnum("kind").notNull(),
@@ -367,3 +398,4 @@ export type Note = typeof notes.$inferSelect;
 export type Review = typeof reviews.$inferSelect;
 export type Agreement = typeof agreements.$inferSelect;
 export type Installment = typeof installments.$inferSelect;
+export type TimeEntry = typeof timeEntries.$inferSelect;

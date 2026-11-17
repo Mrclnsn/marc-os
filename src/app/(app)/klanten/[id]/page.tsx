@@ -7,7 +7,10 @@ import { NoteTypeSelect } from "@/components/forms";
 import { NoteList } from "@/components/note-list";
 import { QuickAddTask } from "@/components/quick-add";
 import { TaskList } from "@/components/task-row";
-import { getClientDossierFull, listNotes, listProjects, listTasks } from "@/lib/data";
+import { clientHours, getClientDossierFull, listNotes, listProjects, listTasks, recentDescriptions } from "@/lib/data";
+import { BillingQueue, ManualTimeForm, RecentEntries, StartTimerForm } from "@/components/time-parts";
+import { formatDuration, formatHours } from "@/lib/duration";
+import { formatEuro } from "@/lib/money";
 import { addDaysIso, formatShort, today } from "@/lib/dates";
 import { CLIENT_STATUS, PROJECT_STATUS } from "@/lib/labels";
 import { getOptions } from "@/lib/options";
@@ -20,11 +23,13 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   const { client, contacts, websites, documents, agreements, installments, mrrCents } = dossier;
   const primary = contacts.find((c) => c.isPrimary) ?? contacts[0];
 
-  const [tasks, projectsRows, notesRows, options] = await Promise.all([
+  const [tasks, projectsRows, notesRows, options, hours, descriptions] = await Promise.all([
     listTasks({ clientId: id, view: "open" }),
     listProjects({ clientId: id, includeClosed: true }),
     listNotes({ clientId: id, excludeInbox: true }),
     getOptions(),
+    clientHours(id),
+    recentDescriptions(),
   ]);
   const t = today();
   const clientProjects = options.projects.filter((p) => p.clientId === id);
@@ -70,7 +75,30 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           mrrCents={mrrCents}
           websites={websites.map((w) => ({ id: w.id, name: w.domain }))}
           projects={clientProjects}
+          budgets={hours.budgets}
         />
+      </section>
+
+      <section className="space-y-3">
+        <SectionTitle aside={<Link href={`/uren?klant=${id}`} className="text-xs text-steen hover:text-nacht">Alle uren</Link>}>Uren</SectionTitle>
+        <div className="flex flex-wrap gap-6 text-sm">
+          <p><span className="text-steen">Dit jaar </span><span className="font-bold tabular-nums text-nacht">{formatHours(hours.rate?.minutes ?? 0)}</span></p>
+          <p><span className="text-steen">Declarabel </span><span className="font-bold tabular-nums text-nacht">{formatHours(hours.rate?.billableMinutes ?? 0)}</span></p>
+          <p>
+            <span className="text-steen">Effectief uurtarief </span>
+            <span className="font-bold tabular-nums text-nacht">{hours.rate?.rateCents != null ? formatEuro(hours.rate.rateCents) : "–"}</span>
+            {hours.rate?.rateCents != null && <span className="text-steen"> ({formatEuro(hours.rate.revenueCents)} omzet)</span>}
+          </p>
+        </div>
+        {hours.queue.length > 0 && (
+          <div className="card">
+            <p className="label px-3 pt-3">Te factureren uren ({formatDuration(hours.queue.reduce((s, g) => s + g.minutes, 0))})</p>
+            <BillingQueue groups={hours.queue} showClient={false} />
+          </div>
+        )}
+        <RecentEntries entries={hours.recent} />
+        <StartTimerForm clients={options.clients} projects={clientProjects} descriptions={descriptions} clientId={id} />
+        <ManualTimeForm clients={options.clients} projects={clientProjects} descriptions={descriptions} today={t} clientId={id} />
       </section>
 
       <section>

@@ -2,7 +2,8 @@ import Link from "next/link";
 import { PageHeader, SectionTitle } from "@/components/brand";
 import { TaskList } from "@/components/task-row";
 import { CaptureBar, QuickAddTask } from "@/components/quick-add";
-import { expiringDomains, listTasks, inboxCount, listReviews, revenueSignals } from "@/lib/data";
+import { expiringDomains, hourlyBudgets, listTasks, inboxCount, listReviews, revenueSignals, weekHours } from "@/lib/data";
+import { formatDuration } from "@/lib/duration";
 import { formatEuro } from "@/lib/money";
 import { domainState } from "@/components/client-parts";
 import { TIMEZONE, addDaysIso, formatDate, formatLong, today } from "@/lib/dates";
@@ -17,11 +18,12 @@ function greeting() {
   return "Goedenavond";
 }
 
-function Stat({ value, label, href }: { value: number; label: string; href?: string }) {
+function Stat({ value, label, href, sub }: { value: number | string; label: string; href?: string; sub?: string }) {
   const inner = (
     <>
       <span className="block text-4xl font-bold leading-none text-nacht tabular-nums">{value}</span>
       <span className="mt-2 block text-xs uppercase tracking-wider text-steen">{label}</span>
+      {sub && <span className="block text-xs text-steen">{sub}</span>}
     </>
   );
   return href ? (
@@ -37,7 +39,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const t = today();
   const tomorrow = addDaysIso(t, 1);
 
-  const [todayTasks, upcoming, inbox, options, cal, lastDay, domains, money] = await Promise.all([
+  const [todayTasks, upcoming, inbox, options, cal, lastDay, domains, money, hours, budgets] = await Promise.all([
     listTasks({ view: "today", area }),
     listTasks({ view: "upcoming", days: 7, area }),
     inboxCount(),
@@ -46,6 +48,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     listReviews("day", 1),
     area === "prive" ? Promise.resolve([]) : expiringDomains(),
     area === "prive" ? Promise.resolve({ ready: [], ending: [] }) : revenueSignals(),
+    weekHours(t),
+    area === "prive" ? Promise.resolve([]) : hourlyBudgets({ onlyWarnings: true }),
   ]);
 
   const overdue = todayTasks.filter((x) => (x.planDate ?? x.dueDate)! < t);
@@ -70,11 +74,12 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         </div>
       </PageHeader>
 
-      <div className="mb-10 grid grid-cols-2 gap-6 md:grid-cols-4">
+      <div className="mb-10 grid grid-cols-2 gap-6 md:grid-cols-5">
         <Stat value={now.length} label="Vandaag" />
         <Stat value={overdue.length} label="Achterstallig" />
         <Stat value={cal?.events.length ?? 0} label="Afspraken" />
         <Stat value={inbox} label="In je inbox" href="/inbox" />
+        <Stat value={formatDuration(hours.totalMin)} label="Uren deze week" sub={`${formatDuration(hours.billableMin)} declarabel`} href="/uren" />
       </div>
 
       <div className="mb-10">
@@ -147,6 +152,22 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
                     <Link href={`/klanten/${i.clientId}`} className="block border-l-[3px] border-nacht pl-3 hover:bg-parel">
                       <span className="block text-[15px] font-bold text-nacht">{i.clientName} · <span className="tabular-nums">{formatEuro(i.amountCents)}</span></span>
                       <span className="block text-xs text-steen">{i.description}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {budgets.length > 0 && (
+            <div className="mt-10">
+              <SectionTitle aside={<Link href="/uren" className="text-xs text-steen hover:text-nacht">Uren</Link>}>Budget maatwerk</SectionTitle>
+              <ul className="space-y-2">
+                {budgets.map((b) => (
+                  <li key={b.agreementId}>
+                    <Link href={`/klanten/${b.clientId}`} className="block border-l-[3px] border-nacht pl-3 hover:bg-parel">
+                      <span className="block text-[15px] font-bold text-nacht">{b.clientName} · <span className="tabular-nums">{b.pct}%</span></span>
+                      <span className="block text-xs text-steen">{b.label} · {b.over ? "budget overschreden" : "meer dan 80% besteed"}</span>
                     </Link>
                   </li>
                 ))}

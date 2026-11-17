@@ -15,6 +15,8 @@ import {
   updateInstallmentAction,
 } from "@/app/actions";
 import { AgreementFields } from "./agreement-fields";
+import { BudgetLine } from "./time-parts";
+import type { BudgetStatus } from "@/lib/time";
 
 type Opt = { id: string; name: string };
 
@@ -133,7 +135,7 @@ export function AddInstallmentForm({ clientId, agreements }: { clientId: string;
 
 /* ---------------- Afspraken ---------------- */
 
-export function AgreementCard({ a, installments, websites, projects, showClient = false }: { a: AgreementRow; installments: InstallmentRow[]; websites: Opt[]; projects: Opt[]; showClient?: boolean }) {
+export function AgreementCard({ a, installments, websites, projects, showClient = false, budget }: { a: AgreementRow; installments: InstallmentRow[]; websites: Opt[]; projects: Opt[]; showClient?: boolean; budget?: BudgetStatus }) {
   const deliverable = a.pricing === "one_off" && a.status === "active" && installments.some((i) => i.trigger === "delivery" && i.status === "planned");
   const inactive = a.status === "ended" || a.status === "draft";
   return (
@@ -166,6 +168,11 @@ export function AgreementCard({ a, installments, websites, projects, showClient 
         </div>
       </div>
       {a.notes && <p className="mt-2 whitespace-pre-line text-sm text-steen">{a.notes}</p>}
+      {budget && (budget.minutes > 0 || budget.budgetCents) ? (
+        <div className="mt-2 border-t border-lijn">
+          <BudgetLine b={{ ...budget, label: "Uren" }} />
+        </div>
+      ) : null}
 
       {installments.length > 0 && (
         <div className="mt-3 rounded-sm border border-lijn">
@@ -210,8 +217,9 @@ export function NewAgreementForm({ clientId, websites, projects, clients }: { cl
 }
 
 /** Afspraken en termijnen in het klantdossier. */
-export function ClientAgreements({ clientId, agreements, installments, mrrCents, websites, projects }: {
+export function ClientAgreements({ clientId, agreements, installments, mrrCents, websites, projects, budgets = [] }: {
   clientId: string;
+  budgets?: BudgetStatus[];
   agreements: AgreementRow[];
   installments: InstallmentRow[];
   mrrCents: number;
@@ -230,7 +238,7 @@ export function ClientAgreements({ clientId, agreements, installments, mrrCents,
       {agreements.length === 0 && <p className="text-sm text-steen">Nog geen afspraken.</p>}
       <div className="grid gap-3">
         {agreements.map((a) => (
-          <AgreementCard key={a.id} a={a} installments={installments.filter((i) => i.agreementId === a.id)} websites={websites} projects={projects} />
+          <AgreementCard key={a.id} a={a} installments={installments.filter((i) => i.agreementId === a.id)} websites={websites} projects={projects} budget={budgets.find((b) => b.agreementId === a.id)} />
         ))}
       </div>
       {loose.length > 0 && (
