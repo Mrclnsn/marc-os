@@ -44,3 +44,7 @@ next-env.d.ts
 # lokale database-dumps
 backups/
 .seeded
+
+# lokale ingebouwde database
+.local-db/
+.local-seeded

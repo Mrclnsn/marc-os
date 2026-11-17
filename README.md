@@ -21,7 +21,17 @@ Met een MCP-koppeling, zodat een AI-assistent (Claude) je kan helpen met de dagp
 - **Plannen op** (`planDate`): wanneer je het wilt doen. **Deadline** (`dueDate`): wanneer het echt af moet.
 - **Herhaling**: bij afronden van een terugkerende taak wordt automatisch de volgende aangemaakt.
 
-## Lokaal ontwikkelen
+## Lokaal proberen (alleen Node nodig)
+
+```bash
+git clone https://github.com/Mrclnsn/marc-os.git && cd marc-os
+npm install
+npm run local
+```
+
+Open http://localhost:3000 en log in met wachtwoord `marc-os`. De eerste keer maakt dit `.env.local` aan met een ingebouwde database in de map `.local-db` (PGlite, niets te installeren), voert de migraties uit en importeert de Notion-klanten. Opnieuw beginnen: verwijder `.local-db`, `.local-seeded` en `.env.local`.
+
+## Lokaal ontwikkelen met echte Postgres
 
 Vereist: Node 22 en een Postgres-database.
 

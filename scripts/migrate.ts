@@ -1,13 +1,13 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
-import postgres from "postgres";
+import { migrate as migratePg } from "drizzle-orm/postgres-js/migrator";
+import { migrate as migrateLite } from "drizzle-orm/pglite/migrator";
+import { connect } from "../src/db/connect";
 
 async function main() {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL ontbreekt");
-  const sql = postgres(url, { max: 1 });
-  await migrate(drizzle(sql), { migrationsFolder: "./drizzle" });
-  await sql.end();
+  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL ontbreekt");
+  const { db, close, kind } = connect();
+  const migrate = (kind === "pglite" ? migrateLite : migratePg) as typeof migratePg;
+  await migrate(db, { migrationsFolder: "./drizzle" });
+  await close();
   console.log("Migraties uitgevoerd");
 }
 

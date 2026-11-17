@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  serverExternalPackages: ["node-ical"],
+  serverExternalPackages: ["node-ical", "@electric-sql/pglite"],
   turbopack: {
     rules: {
       "*.css": {

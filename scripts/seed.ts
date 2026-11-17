@@ -7,8 +7,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { readFileSync } from "node:fs";
 import { and, eq, ilike } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { connect } from "../src/db/connect";
 import * as schema from "../src/db/schema";
 
 type Export = {
@@ -18,8 +17,7 @@ type Export = {
 };
 
 async function main() {
-  const sql = postgres(process.env.DATABASE_URL!, { max: 1 });
-  const db = drizzle({ client: sql, schema });
+  const { db, close } = connect();
   const file = process.argv[2] ?? "scripts/notion-export.json";
   const data: Export = JSON.parse(readFileSync(file, "utf8"));
   const { clients, projects, tasks } = schema;
@@ -63,7 +61,7 @@ async function main() {
     console.log("Taak:", t.title);
   }
 
-  await sql.end();
+  await close();
   console.log("Import klaar");
 }
 
