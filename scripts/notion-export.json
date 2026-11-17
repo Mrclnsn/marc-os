@@ -1,0 +1,16 @@
+{
+  "exportedAt": "2026-11-17",
+  "source": "Notion: Freelance Business OS",
+  "clients": [
+    { "name": "Vobis", "contactPerson": "Robin Eefting", "status": "active" },
+    { "name": "Huurconsult", "contactPerson": "Merel Bruntink", "status": "active" },
+    { "name": "Aljasyogaforyou", "contactPerson": "Alja", "status": "active" },
+    { "name": "SVWW", "contactPerson": "Diana Ipema", "status": "active" },
+    { "name": "JS Interieurwerken", "contactPerson": "Jeffrey Strijk", "status": "active" },
+    { "name": "NK Technical Services", "contactPerson": "Nick Kremer", "status": "active" }
+  ],
+  "projects": [],
+  "tasks": [
+    { "title": "Handleiding webbeheer", "client": "SVWW", "area": "zakelijk", "status": "todo" }
+  ]
+}

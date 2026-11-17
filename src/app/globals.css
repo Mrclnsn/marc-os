@@ -1,26 +1,76 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --bg: #f7f7f5;
+  --surface: #ffffff;
+  --fg: #1c1c1a;
+  --muted: #6b6b66;
+  --line: #e6e5e0;
+  --accent: #1f4e79;
+  --accent-soft: #e8eff6;
+  --danger: #b42318;
+  --warn: #b54708;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --bg: #141413;
+    --surface: #1d1d1b;
+    --fg: #ececea;
+    --muted: #9a9a94;
+    --line: #2e2e2b;
+    --accent: #7fb0dc;
+    --accent-soft: #1e2a36;
+    --danger: #f97066;
+    --warn: #fdb022;
   }
 }
 
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-warn: var(--warn);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+}
+
+@layer components {
+  .input {
+    @apply min-w-0 rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-accent;
+  }
+  .btn {
+    @apply inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-md border border-line bg-surface px-3 py-2 text-sm font-medium hover:bg-bg disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-md bg-accent px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 dark:text-black;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded-md px-2 py-1 text-sm text-muted hover:bg-line/50 hover:text-fg;
+  }
+  .card {
+    @apply rounded-lg border border-line bg-surface;
+  }
+  .chip {
+    @apply inline-flex items-center rounded px-1.5 py-0.5 text-xs text-muted bg-bg border border-line whitespace-nowrap;
+  }
+  .label {
+    @apply block text-xs font-medium text-muted mb-1;
+  }
+  .h1 {
+    @apply text-2xl font-semibold tracking-tight;
+  }
+  .h2 {
+    @apply text-sm font-semibold uppercase tracking-wide text-muted;
+  }
 }
