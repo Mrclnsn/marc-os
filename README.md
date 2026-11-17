@@ -38,6 +38,21 @@ Schema aangepast in `src/db/schema.ts`? Draai `npm run db:generate` voor een nie
 
 ## Op je VPS zetten
 
+### Snelle route: installatiescript
+
+Op een verse Ubuntu 24.04 VPS. Vanaf je eigen computer (in de map van deze repo):
+
+```bash
+scp scripts/setup-server.sh root@<IP-van-je-VPS>:
+ssh root@<IP-van-je-VPS> "bash setup-server.sh"
+```
+
+Het script installeert Docker, zet de firewall dicht (alleen SSH, HTTP, HTTPS), maakt een deploy key aan die je op GitHub toevoegt, haalt de code op, vraagt je wachtwoord, genereert alle geheimen, start alles, importeert de Notion-data en zet een dagelijkse back-up klaar. Aan het eind toont het je MCP-URL.
+
+Bijwerken na nieuwe code: `bash /opt/marc-os/scripts/update.sh`
+
+### Handmatig
+
 Vereist: een VPS met Docker en Docker Compose, en een (sub)domein met een A-record naar de VPS.
 
 ```bash
