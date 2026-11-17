@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Marc OS: installatie op een verse Ubuntu 24.04 VPS.
-# Draaien als root:  bash setup-server.sh
+# Getest voor Ubuntu 24.04 en 26.04. Draaien als root:  bash setup-server.sh
 # Veilig om opnieuw te draaien: bestaande sleutels, .env en data blijven staan.
 
 set -euo pipefail
@@ -30,8 +30,10 @@ ok "Systeem bijgewerkt, automatische beveiligingsupdates en fail2ban aan"
 
 bold "2/8 Docker installeren"
 if ! command -v docker >/dev/null 2>&1; then
-  curl -fsSL https://get.docker.com | sh >/dev/null
+  # Officiële installatie; valt terug op de Ubuntu-pakketten als die versie (nog) niet wordt ondersteund
+  curl -fsSL https://get.docker.com | sh >/dev/null 2>&1 || apt-get install -y -qq docker.io docker-compose-v2 >/dev/null
 fi
+docker compose version >/dev/null 2>&1 || apt-get install -y -qq docker-compose-v2 >/dev/null
 systemctl enable --now docker >/dev/null
 ok "Docker $(docker --version | awk '{print $3}' | tr -d ,)"
 
