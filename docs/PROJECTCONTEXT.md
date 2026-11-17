@@ -51,7 +51,7 @@ Uitgangspunt: Marc werkt vanaf december 2026 fulltime voor zijn eigen bedrijf. H
 | GitHub-repo | `Mrclnsn/marc-os` (private), Claude heeft push-toegang via de Claude GitHub-app |
 | Lokaal draaien | Werkt met `npm run local` op Node 22 (getest 17 november, ook een verse installatie). Op de Mac zelf nog `node -v` controleren |
 | Gesprek 1: klantdossier | Klaar (commit `4b4e09a`) |
-| Gesprek 2: afspraken, termijnen, MRR | Klaar |
+| Gesprek 2: afspraken, termijnen, MRR | Klaar (commit `bea069c`) |
 | VPS | Besteld en draait, nog niet geïnstalleerd |
 | Domein `os.marclonsain.nl` | Nog geen DNS-record |
 | Verhuizing `marclonsain.nl` naar Hostinger | Besloten, nog niet gestart |
