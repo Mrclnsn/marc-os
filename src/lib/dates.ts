@@ -78,3 +78,10 @@ export function formatShort(iso: string | null | undefined): string {
 export function formatLong(iso: string): string {
   return nlLong.format(parseISO(iso));
 }
+
+const nlFull = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "short", year: "numeric" });
+
+/** Datum als "17 nov. 2026"; leeg bij geen datum. */
+export function formatDate(iso: string | null | undefined): string {
+  return iso ? nlFull.format(parseISO(iso)) : "";
+}

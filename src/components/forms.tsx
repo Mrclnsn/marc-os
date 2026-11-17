@@ -1,4 +1,4 @@
-import { AREAS, CLIENT_STATUS, NOTE_TYPES, PROJECT_STATUS, RECURRENCE, TASK_STATUS } from "@/lib/labels";
+import { AREAS, CLIENT_STATUS, DOCUMENT_KIND, DPA_STATUS, NOTE_TYPES, PROJECT_STATUS, RECURRENCE, TASK_STATUS } from "@/lib/labels";
 
 export type Option = { id: string; name: string; clientId?: string | null };
 
@@ -77,6 +77,32 @@ export function Field({ label, children, className = "" }: { label: string; chil
     <label className={`block ${className}`}>
       <span className="label">{label}</span>
       {children}
+    </label>
+  );
+}
+
+export const DpaStatusSelect = (p: { value?: string | null }) => <EnumSelect map={DPA_STATUS} name="dpaStatus" {...p} />;
+export const DocumentKindSelect = (p: { value?: string | null }) => <EnumSelect map={DOCUMENT_KIND} name="kind" {...p} />;
+
+/** Vrij tekstveld met suggesties (datalist). */
+export function SuggestInput({ name, value, options, placeholder, listId }: { name: string; value?: string | null; options: readonly string[]; placeholder?: string; listId: string }) {
+  return (
+    <>
+      <input name={name} defaultValue={value ?? ""} list={listId} placeholder={placeholder} className="input w-full" />
+      <datalist id={listId}>
+        {options.map((o) => (
+          <option key={o} value={o} />
+        ))}
+      </datalist>
+    </>
+  );
+}
+
+export function Checkbox({ name, label, checked }: { name: string; label: string; checked?: boolean }) {
+  return (
+    <label className="flex items-center gap-2 text-sm">
+      <input type="checkbox" name={name} defaultChecked={checked} className="h-4 w-4 accent-[var(--nacht)]" />
+      {label}
     </label>
   );
 }

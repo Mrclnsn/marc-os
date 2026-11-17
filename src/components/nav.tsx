@@ -10,6 +10,7 @@ const items = [
   { href: "/taken", label: "Taken" },
   { href: "/projecten", label: "Projecten" },
   { href: "/klanten", label: "Klanten" },
+  { href: "/websites", label: "Websites" },
   { href: "/notities", label: "Notities" },
   { href: "/reviews", label: "Reviews" },
 ];

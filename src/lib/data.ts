@@ -2,7 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, lte, ne, or, sql, gte } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { clients, notes, projects, reviews, tasks, type Task } from "@/db/schema";
+import { clientContacts, clientDocuments, clients, notes, projects, reviews, tasks, websites, type Task } from "@/db/schema";
 import { addDaysIso, nextOccurrence, today, type Recurrence } from "./dates";
 
 /* ------------------------------------------------------------------ */
@@ -19,6 +19,8 @@ export const taskStatusSchema = z.enum(["todo", "doing", "waiting", "done"]);
 export const recurrenceSchema = z.enum(["none", "daily", "weekdays", "weekly", "monthly", "quarterly", "yearly"]);
 export const projectStatusSchema = z.enum(["idea", "planned", "active", "waiting", "done", "archived"]);
 export const clientStatusSchema = z.enum(["lead", "active", "on_hold", "past"]);
+export const dpaStatusSchema = z.enum(["not_applicable", "needed", "sent", "signed"]);
+export const documentKindSchema = z.enum(["quote", "agreement", "dpa", "other"]);
 export const noteTypeSchema = z.enum(["inbox", "note", "meeting", "call", "email", "decision", "info", "idea"]);
 export const reviewKindSchema = z.enum(["day", "week", "month"]);
 
@@ -50,13 +52,77 @@ export type ProjectInput = z.infer<typeof projectInput>;
 
 export const clientInput = z.object({
   name: z.string().min(1),
-  contactPerson: optText,
-  email: optText,
-  phone: optText,
+  legalForm: optText,
   status: clientStatusSchema.optional(),
+  clientSince: optDate,
+  source: optText,
+  kvkNumber: optText,
+  vatNumber: optText,
+  address: optText,
+  postcode: optText,
+  city: optText,
+  country: z.string().min(2).optional(),
+  invoiceAddress: optText,
+  invoicePostcode: optText,
+  invoiceCity: optText,
+  invoiceCountry: optText,
+  invoiceEmail: optText,
+  paymentTermDays: z.number().int().min(0).max(365).optional(),
+  moneybirdContactId: optText,
+  dpaStatus: dpaStatusSchema.optional(),
+  dpaDate: optDate,
+  personalData: optText,
+  vaultRef: optText,
+  tags: z.array(z.string().min(1)).optional(),
   info: optText,
 });
 export type ClientInput = z.infer<typeof clientInput>;
+
+export const contactInput = z.object({
+  clientId: z.string().uuid(),
+  name: z.string().min(1),
+  role: optText,
+  email: optText,
+  phone: optText,
+  isPrimary: z.boolean().optional(),
+  notes: optText,
+});
+export type ContactInput = z.infer<typeof contactInput>;
+
+export const websiteInput = z.object({
+  clientId: z.string().uuid(),
+  domain: z.string().min(1),
+  registrar: optText,
+  domainExpiresAt: optDate,
+  hostingLocation: optText,
+  cms: optText,
+  liveDate: optDate,
+  hostingByUs: z.boolean().optional(),
+  maintenanceByUs: z.boolean().optional(),
+  notes: optText,
+});
+export type WebsiteInput = z.infer<typeof websiteInput>;
+
+export const documentInput = z.object({
+  clientId: z.string().uuid(),
+  kind: documentKindSchema.optional(),
+  title: z.string().min(1),
+  url: optText,
+  docDate: optDate,
+  notes: optText,
+});
+export type DocumentInput = z.infer<typeof documentInput>;
+
+/** Tags netjes maken: getrimd, kleine letters, uniek. */
+export function cleanTags(tags: string[] | string | null | undefined): string[] {
+  const list = Array.isArray(tags) ? tags : (tags ?? "").split(",");
+  return [...new Set(list.map((t) => t.trim().toLowerCase()).filter(Boolean))];
+}
+
+/** Domein zonder protocol, www-voorvoegsel en pad. */
+export function cleanDomain(input: string): string {
+  return input.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+}
 
 export const noteInput = z.object({
   title: z.string().min(1),
@@ -261,8 +327,9 @@ export async function listProjects(filter: { area?: "zakelijk" | "prive"; client
   if (filter.clientId) conds.push(eq(projects.clientId, filter.clientId));
   if (filter.general) conds.push(eq(projects.area, "zakelijk"), isNull(projects.clientId));
 
-  const openCount = sql<number>`(select count(*)::int from ${tasks} where ${tasks.projectId} = ${projects.id} and ${tasks.status} <> 'done')`;
-  const doneCount = sql<number>`(select count(*)::int from ${tasks} where ${tasks.projectId} = ${projects.id} and ${tasks.status} = 'done')`;
+  // Let op: in subqueries kolommen expliciet met tabelnaam; drizzle laat die weg als de hoofdquery één tabel heeft
+  const openCount = sql<number>`(select count(*)::int from "tasks" t where t.project_id = "projects"."id" and t.status <> 'done')`;
+  const doneCount = sql<number>`(select count(*)::int from "tasks" t where t.project_id = "projects"."id" and t.status = 'done')`;
 
   return db
     .select({ project: projects, clientName: clients.name, openTasks: openCount, doneTasks: doneCount })
@@ -301,14 +368,27 @@ export async function deleteProject(id: string) {
 /* Klanten                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function listClients(filter: { includePast?: boolean } = {}) {
-  const openTasks = sql<number>`(select count(*)::int from ${tasks} where ${tasks.clientId} = ${clients.id} and ${tasks.status} <> 'done')`;
-  const activeProjects = sql<number>`(select count(*)::int from ${projects} where ${projects.clientId} = ${clients.id} and ${projects.status} in ('planned','active','waiting'))`;
+export async function listClients(filter: { includePast?: boolean; tag?: string; status?: z.infer<typeof clientStatusSchema> } = {}) {
+  // Let op: in subqueries kolommen expliciet met tabelnaam; drizzle laat die weg als de hoofdquery één tabel heeft
+  const openTasks = sql<number>`(select count(*)::int from "tasks" t where t.client_id = "clients"."id" and t.status <> 'done')`;
+  const activeProjects = sql<number>`(select count(*)::int from "projects" p where p.client_id = "clients"."id" and p.status in ('planned','active','waiting'))`;
+  const websiteCount = sql<number>`(select count(*)::int from "websites" w where w.client_id = "clients"."id")`;
+  const primaryContact = sql<string | null>`(select c.name from "client_contacts" c where c.client_id = "clients"."id" order by c.is_primary desc, c.created_at asc limit 1)`;
+  const conds = [];
+  if (filter.status) conds.push(eq(clients.status, filter.status));
+  else if (!filter.includePast) conds.push(ne(clients.status, "past"));
+  if (filter.tag) conds.push(sql`${filter.tag.toLowerCase()} = any(${clients.tags})`);
   return db
-    .select({ client: clients, openTasks, activeProjects })
+    .select({ client: clients, openTasks, activeProjects, websiteCount, primaryContact })
     .from(clients)
-    .where(filter.includePast ? undefined : ne(clients.status, "past"))
+    .where(conds.length ? and(...conds) : undefined)
     .orderBy(asc(clients.name));
+}
+
+/** Alle tags die in gebruik zijn, alfabetisch. */
+export async function listClientTags(): Promise<string[]> {
+  const rows = await db.execute<{ tag: string }>(sql`select distinct unnest(${clients.tags}) as tag from ${clients} order by tag`);
+  return rows.map((r) => r.tag);
 }
 
 export async function getClient(id: string) {
@@ -316,25 +396,168 @@ export async function getClient(id: string) {
   return row ?? null;
 }
 
+/** Klant met contactpersonen (primair eerst), websites en documenten. */
+export async function getClientDossier(id: string) {
+  const client = await getClient(id);
+  if (!client) return null;
+  const [contacts, sites, documents] = await Promise.all([
+    listContacts(id),
+    listWebsites({ clientId: id }),
+    db.select().from(clientDocuments).where(eq(clientDocuments.clientId, id)).orderBy(desc(clientDocuments.docDate), desc(clientDocuments.createdAt)),
+  ]);
+  return { client, contacts, websites: sites.map((w) => w.website), documents };
+}
+
 export async function findClientByName(name: string) {
   const [row] = await db.select().from(clients).where(ilike(clients.name, `%${name}%`)).limit(1);
   return row ?? null;
 }
 
-export async function createClient(input: ClientInput) {
+/**
+ * Nieuwe klant. Optioneel direct een primaire contactpersoon (zo blijven
+ * snelle invoer en oudere MCP-aanroepen met contactPerson/email/phone werken).
+ */
+export async function createClient(input: ClientInput, contact?: { name?: string | null; email?: string | null; phone?: string | null; role?: string | null }) {
   const data = clientInput.parse(input);
+  if (data.tags) data.tags = cleanTags(data.tags);
   const [row] = await db.insert(clients).values(data).returning();
+  if (contact && (contact.name || contact.email || contact.phone)) {
+    await createContact({ clientId: row.id, name: contact.name || "Contactpersoon", email: contact.email, phone: contact.phone, role: contact.role, isPrimary: true });
+  }
   return row;
 }
 
 export async function updateClient(id: string, patch: Partial<ClientInput>) {
   const data = clientInput.partial().parse(patch);
+  if (data.tags) data.tags = cleanTags(data.tags);
   const [row] = await db.update(clients).set(data).where(eq(clients.id, id)).returning();
   return row;
 }
 
 export async function deleteClient(id: string) {
+  // Contactpersonen, websites en documenten gaan mee (cascade); taken, projecten en notities blijven
   await db.delete(clients).where(eq(clients.id, id));
+}
+
+/* ------------------------------------------------------------------ */
+/* Contactpersonen                                                     */
+/* ------------------------------------------------------------------ */
+
+export async function listContacts(clientId: string) {
+  return db
+    .select()
+    .from(clientContacts)
+    .where(eq(clientContacts.clientId, clientId))
+    .orderBy(desc(clientContacts.isPrimary), asc(clientContacts.createdAt));
+}
+
+export async function getContact(id: string) {
+  const [row] = await db.select().from(clientContacts).where(eq(clientContacts.id, id));
+  return row ?? null;
+}
+
+/** Zorgt dat er per klant precies één primaire contactpersoon is (als er contacten zijn). */
+async function settlePrimary(clientId: string, primaryId?: string) {
+  if (primaryId) {
+    await db
+      .update(clientContacts)
+      .set({ isPrimary: false })
+      .where(and(eq(clientContacts.clientId, clientId), ne(clientContacts.id, primaryId), eq(clientContacts.isPrimary, true)));
+    return;
+  }
+  const rows = await listContacts(clientId);
+  if (rows.length > 0 && !rows.some((r) => r.isPrimary)) {
+    await db.update(clientContacts).set({ isPrimary: true }).where(eq(clientContacts.id, rows[0].id));
+  }
+}
+
+export async function createContact(input: ContactInput) {
+  const data = contactInput.parse(input);
+  const [row] = await db.insert(clientContacts).values(data).returning();
+  await settlePrimary(row.clientId, row.isPrimary ? row.id : undefined);
+  return (await getContact(row.id))!;
+}
+
+export async function updateContact(id: string, patch: Partial<Omit<ContactInput, "clientId">>) {
+  const data = contactInput.omit({ clientId: true }).partial().parse(patch);
+  const [row] = await db.update(clientContacts).set(data).where(eq(clientContacts.id, id)).returning();
+  if (!row) return null;
+  await settlePrimary(row.clientId, row.isPrimary ? row.id : undefined);
+  return (await getContact(row.id))!;
+}
+
+export async function deleteContact(id: string) {
+  const [row] = await db.delete(clientContacts).where(eq(clientContacts.id, id)).returning();
+  if (row) await settlePrimary(row.clientId);
+  return row ?? null;
+}
+
+/* ------------------------------------------------------------------ */
+/* Websites                                                            */
+/* ------------------------------------------------------------------ */
+
+export async function listWebsites(filter: { clientId?: string; expiringWithinDays?: number } = {}) {
+  const conds = [];
+  if (filter.clientId) conds.push(eq(websites.clientId, filter.clientId));
+  if (filter.expiringWithinDays !== undefined) {
+    conds.push(isNotNull(websites.domainExpiresAt), lte(websites.domainExpiresAt, addDaysIso(today(), filter.expiringWithinDays)));
+  }
+  return db
+    .select({ website: websites, clientName: clients.name, clientStatus: clients.status })
+    .from(websites)
+    .innerJoin(clients, eq(websites.clientId, clients.id))
+    .where(conds.length ? and(...conds) : undefined)
+    .orderBy(filter.expiringWithinDays !== undefined ? asc(websites.domainExpiresAt) : asc(websites.domain));
+}
+
+/** Websites waarvan het domein binnen `days` dagen verloopt (of al verlopen is). Standaard 30 dagen. */
+export async function expiringDomains(days = 30) {
+  return listWebsites({ expiringWithinDays: days });
+}
+
+export async function getWebsite(id: string) {
+  const [row] = await db.select().from(websites).where(eq(websites.id, id));
+  return row ?? null;
+}
+
+export async function createWebsite(input: WebsiteInput) {
+  const data = websiteInput.parse(input);
+  data.domain = cleanDomain(data.domain);
+  const [row] = await db.insert(websites).values(data).returning();
+  return row;
+}
+
+export async function updateWebsite(id: string, patch: Partial<WebsiteInput>) {
+  const data = websiteInput.partial().parse(patch);
+  if (data.domain) data.domain = cleanDomain(data.domain);
+  const [row] = await db.update(websites).set(data).where(eq(websites.id, id)).returning();
+  return row ?? null;
+}
+
+export async function deleteWebsite(id: string) {
+  const [row] = await db.delete(websites).where(eq(websites.id, id)).returning();
+  return row ?? null;
+}
+
+/* ------------------------------------------------------------------ */
+/* Documenten (links naar offertes, overeenkomsten, VWO's)             */
+/* ------------------------------------------------------------------ */
+
+export async function createDocument(input: DocumentInput) {
+  const data = documentInput.parse(input);
+  const [row] = await db.insert(clientDocuments).values(data).returning();
+  return row;
+}
+
+export async function updateDocument(id: string, patch: Partial<Omit<DocumentInput, "clientId">>) {
+  const data = documentInput.omit({ clientId: true }).partial().parse(patch);
+  const [row] = await db.update(clientDocuments).set(data).where(eq(clientDocuments.id, id)).returning();
+  return row ?? null;
+}
+
+export async function deleteDocument(id: string) {
+  const [row] = await db.delete(clientDocuments).where(eq(clientDocuments.id, id)).returning();
+  return row ?? null;
 }
 
 /* ------------------------------------------------------------------ */

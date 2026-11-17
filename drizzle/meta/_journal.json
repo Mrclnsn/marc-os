@@ -8,6 +8,20 @@
       "when": 1794939999350,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794947840966,
+      "tag": "0001_klant_uitgebreid",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794947841717,
+      "tag": "0002_contactpersonen_overzetten",
+      "breakpoints": true
     }
   ]
 }

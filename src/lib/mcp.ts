@@ -24,6 +24,8 @@ const json = (value: unknown) => ({ content: [{ type: "text" as const, text: JSO
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("Datum als YYYY-MM-DD");
 const area = z.enum(["zakelijk", "prive"]);
 const uuidRe = /^[0-9a-f-]{36}$/i;
+const optText = z.string().nullable().optional();
+const clientStatus = z.enum(["lead", "active", "on_hold", "past"]);
 
 /** Klant mag als id of als (deel van de) naam worden opgegeven. */
 async function resolveClient(ref: string | null | undefined): Promise<string | null | undefined> {
@@ -73,6 +75,7 @@ const taskFields = {
 const INSTRUCTIONS = `Dit is Marc OS: Marc's centrale systeem voor taken, projecten, klanten, notities en reviews.
 - Taken hebben een gebied (zakelijk/prive), optioneel een klant en project. Zakelijk zonder klant = algemeen bedrijfswerk.
 - planDate = wanneer Marc het wil doen; dueDate = deadline.
+- Klanten hebben een dossier (get_client) met meerdere contactpersonen, websites en documentlinks. Sla nooit wachtwoorden op; vaultRef is alleen een verwijzing.
 - Inbox-items zijn notities van het type "inbox" (braindump). Verwerk ze met inbox_to_task of update_note.
 - Begin een briefing altijd met get_overview. Sla briefings en samenvattingen op met save_review zodat Marc ze in de app ziet.
 - Tijdzone: Europe/Amsterdam. Schrijf in het Nederlands.`;
@@ -84,7 +87,7 @@ export function buildServer() {
     "get_overview",
     {
       title: "Dagoverzicht",
-      description: "Alles voor een briefing: agenda, taken van vandaag, achterstallig, komende 7 dagen, inbox, lopende projecten en wat gisteren is afgerond.",
+      description: "Alles voor een briefing: agenda, taken van vandaag, achterstallig, komende 7 dagen, inbox, lopende projecten, domeinen die binnen 30 dagen verlopen en wat gisteren is afgerond.",
       inputSchema: { date: isoDate.optional().describe("Standaard vandaag") },
       annotations: { readOnlyHint: true },
     },
@@ -99,6 +102,7 @@ export function buildServer() {
         calendarConfigured() ? getEvents(t, addDaysIso(t, 1)) : Promise.resolve(null),
         data.listReviews(undefined, 3),
       ]);
+      const domains = await data.expiringDomains();
       return json({
         date: t,
         calendar: cal ? { events: cal.events, errors: cal.errors } : "Geen agenda gekoppeld",
@@ -108,6 +112,7 @@ export function buildServer() {
         inbox: inbox.map((r) => ({ id: r.note.id, title: r.note.title, body: r.note.body })),
         activeProjects: projects.map((p) => ({ id: p.project.id, name: p.project.name, client: p.clientName, area: p.project.area, status: p.project.status, dueDate: p.project.dueDate, openTasks: p.openTasks })),
         completedYesterday: doneYesterday.map((x) => ({ title: x.title, client: x.clientName })),
+        expiringDomains: domains.map((r) => ({ domain: r.website.domain, client: r.clientName, expiresAt: r.website.domainExpiresAt })),
         recentReviews: lastReviews,
       });
     },
@@ -287,23 +292,50 @@ export function buildServer() {
 
   server.registerTool(
     "list_clients",
-    { title: "Klanten", description: "Alle klanten met aantal open taken en lopende projecten.", inputSchema: { includePast: z.boolean().optional() }, annotations: { readOnlyHint: true } },
-    async ({ includePast }) => json((await data.listClients({ includePast })).map((r) => ({ ...r.client, openTasks: r.openTasks, activeProjects: r.activeProjects }))),
+    {
+      title: "Klanten",
+      description: "Klanten met primaire contactpersoon, aantal open taken, lopende projecten en websites. Filter op status of tag.",
+      inputSchema: {
+        includePast: z.boolean().optional().describe("Ook oud-klanten"),
+        status: clientStatus.optional(),
+        tag: z.string().optional(),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async (a) =>
+      json(
+        (await data.listClients(a)).map((r) => ({
+          id: r.client.id,
+          name: r.client.name,
+          status: r.client.status,
+          city: r.client.city,
+          tags: r.client.tags,
+          primaryContact: r.primaryContact,
+          openTasks: r.openTasks,
+          activeProjects: r.activeProjects,
+          websites: r.websiteCount,
+        })),
+      ),
   );
 
   server.registerTool(
     "get_client",
-    { title: "Klantdossier", description: "Klant met info, projecten, open taken en recente notities.", inputSchema: { client: z.string().describe("Id of naam") }, annotations: { readOnlyHint: true } },
+    {
+      title: "Klantdossier",
+      description: "Volledig klantdossier: alle klantgegevens, contactpersonen, websites, documenten, projecten, open taken en recente notities.",
+      inputSchema: { client: z.string().describe("Id of naam") },
+      annotations: { readOnlyHint: true },
+    },
     async ({ client }) => {
       const id = (await resolveClient(client))!;
-      const [c, projects, tasks, notes] = await Promise.all([
-        data.getClient(id),
+      const [dossier, projects, tasks, notes] = await Promise.all([
+        data.getClientDossier(id),
         data.listProjects({ clientId: id, includeClosed: true }),
         data.listTasks({ clientId: id, view: "open" }),
         data.listNotes({ clientId: id, excludeInbox: true, limit: 20 }),
       ]);
       return json({
-        client: c,
+        ...dossier,
         projects: projects.map((p) => ({ id: p.project.id, name: p.project.name, status: p.project.status, dueDate: p.project.dueDate, openTasks: p.openTasks })),
         openTasks: tasks.map(slimTask),
         recentNotes: notes.map((r) => ({ id: r.note.id, title: r.note.title, type: r.note.type, date: r.note.noteDate, preview: r.note.body?.slice(0, 300) })),
@@ -312,23 +344,150 @@ export function buildServer() {
   );
 
   const clientFields = {
-    contactPerson: z.string().nullable().optional(),
-    email: z.string().nullable().optional(),
-    phone: z.string().nullable().optional(),
-    status: z.enum(["lead", "active", "on_hold", "past"]).optional(),
-    info: z.string().nullable().optional(),
+    legalForm: optText.describe("Rechtsvorm, bijv. Eenmanszaak, BV, Vereniging"),
+    status: clientStatus.optional(),
+    clientSince: isoDate.nullable().optional(),
+    source: optText.describe("Hoe binnengekomen"),
+    kvkNumber: optText,
+    vatNumber: optText,
+    address: optText.describe("Bezoekadres: straat en huisnummer"),
+    postcode: optText,
+    city: optText,
+    country: z.string().length(2).optional().describe("Landcode, standaard NL"),
+    invoiceAddress: optText.describe("Alleen als het factuuradres afwijkt"),
+    invoicePostcode: optText,
+    invoiceCity: optText,
+    invoiceCountry: optText,
+    invoiceEmail: optText,
+    paymentTermDays: z.number().int().min(0).max(365).optional(),
+    moneybirdContactId: optText,
+    dpaStatus: z.enum(["not_applicable", "needed", "sent", "signed"]).optional().describe("Verwerkersovereenkomst"),
+    dpaDate: isoDate.nullable().optional(),
+    personalData: optText.describe("Welke persoonsgegevens verwerkt worden"),
+    vaultRef: optText.describe("Verwijzing naar de wachtwoordmanager. Nooit wachtwoorden zelf opslaan."),
+    tags: z.array(z.string()).optional().describe("Vervangt alle tags"),
+    info: optText.describe("Vaste informatie, markdown"),
   };
 
   server.registerTool(
     "create_client",
-    { title: "Klant aanmaken", description: "Nieuwe klant. name = bedrijfsnaam.", inputSchema: { name: z.string().min(1), ...clientFields } },
-    async (a) => json(await data.createClient(a)),
+    {
+      title: "Klant aanmaken",
+      description: "Nieuwe klant. name = bedrijfsnaam. contactPerson/email/phone maken direct een primaire contactpersoon aan.",
+      inputSchema: {
+        name: z.string().min(1),
+        ...clientFields,
+        contactPerson: optText,
+        email: optText.describe("E-mail van de contactpersoon"),
+        phone: optText.describe("Telefoon van de contactpersoon"),
+      },
+    },
+    async ({ contactPerson, email, phone, ...rest }) => json(await data.createClient(rest, { name: contactPerson, email, phone })),
   );
 
   server.registerTool(
     "update_client",
-    { title: "Klant wijzigen", description: "Wijzig klantgegevens.", inputSchema: { client: z.string(), name: z.string().optional(), ...clientFields } },
+    { title: "Klant wijzigen", description: "Wijzig klantgegevens. Contactpersonen en websites hebben eigen tools.", inputSchema: { client: z.string(), name: z.string().optional(), ...clientFields } },
     async ({ client, ...rest }) => json(await data.updateClient((await resolveClient(client))!, rest)),
+  );
+
+  /* ---- Contactpersonen ---- */
+
+  const contactFields = {
+    role: optText.describe("Rol, bijv. eigenaar, penningmeester"),
+    email: optText,
+    phone: optText,
+    isPrimary: z.boolean().optional().describe("Primaire contactpersoon; de vorige primaire vervalt dan"),
+    notes: optText,
+  };
+
+  server.registerTool(
+    "add_contact",
+    { title: "Contactpersoon toevoegen", description: "Contactpersoon bij een klant.", inputSchema: { client: z.string().describe("Klant-id of naam"), name: z.string().min(1), ...contactFields } },
+    async ({ client, ...rest }) => json(await data.createContact({ ...rest, clientId: (await resolveClient(client))! })),
+  );
+
+  server.registerTool(
+    "update_contact",
+    { title: "Contactpersoon wijzigen", description: "Wijzig een contactpersoon (id uit get_client).", inputSchema: { id: z.string().uuid(), name: z.string().min(1).optional(), ...contactFields } },
+    async ({ id, ...rest }) => json(await data.updateContact(id, rest)),
+  );
+
+  server.registerTool(
+    "delete_contact",
+    { title: "Contactpersoon verwijderen", description: "Verwijder een contactpersoon.", inputSchema: { id: z.string().uuid() }, annotations: { destructiveHint: true } },
+    async ({ id }) => json(await data.deleteContact(id)),
+  );
+
+  /* ---- Websites ---- */
+
+  const websiteFields = {
+    registrar: optText,
+    domainExpiresAt: isoDate.nullable().optional().describe("Verloopdatum domein"),
+    hostingLocation: optText,
+    cms: optText,
+    liveDate: isoDate.nullable().optional(),
+    hostingByUs: z.boolean().optional().describe("Hosting afgenomen bij MLC"),
+    maintenanceByUs: z.boolean().optional().describe("Beheer afgenomen bij MLC"),
+    notes: optText,
+  };
+
+  server.registerTool(
+    "list_websites",
+    {
+      title: "Websites",
+      description: "Websites van alle klanten, of van één klant. Met expiringWithinDays alleen domeinen die binnen zoveel dagen verlopen (of al verlopen zijn).",
+      inputSchema: { client: z.string().optional(), expiringWithinDays: z.number().int().min(0).optional() },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ client, expiringWithinDays }) => {
+      const clientId = (await resolveClient(client)) ?? undefined;
+      const rows = await data.listWebsites({ clientId, expiringWithinDays });
+      return json(rows.map((r) => ({ ...r.website, client: r.clientName })));
+    },
+  );
+
+  server.registerTool(
+    "add_website",
+    { title: "Website toevoegen", description: "Website bij een klant. Een klant kan meerdere websites hebben.", inputSchema: { client: z.string().describe("Klant-id of naam"), domain: z.string().min(1), ...websiteFields } },
+    async ({ client, ...rest }) => json(await data.createWebsite({ ...rest, clientId: (await resolveClient(client))! })),
+  );
+
+  server.registerTool(
+    "update_website",
+    { title: "Website wijzigen", description: "Wijzig een website (id uit get_client of list_websites).", inputSchema: { id: z.string().uuid(), domain: z.string().min(1).optional(), ...websiteFields } },
+    async ({ id, ...rest }) => json(await data.updateWebsite(id, rest)),
+  );
+
+  server.registerTool(
+    "delete_website",
+    { title: "Website verwijderen", description: "Verwijder een website.", inputSchema: { id: z.string().uuid() }, annotations: { destructiveHint: true } },
+    async ({ id }) => json(await data.deleteWebsite(id)),
+  );
+
+  /* ---- Documenten ---- */
+
+  server.registerTool(
+    "add_document",
+    {
+      title: "Document koppelen",
+      description: "Link naar een document bij een klant (offerte, overeenkomst, verwerkersovereenkomst, overig). Het bestand zelf staat elders.",
+      inputSchema: {
+        client: z.string().describe("Klant-id of naam"),
+        title: z.string().min(1),
+        kind: z.enum(["quote", "agreement", "dpa", "other"]).optional(),
+        url: optText,
+        docDate: isoDate.nullable().optional(),
+        notes: optText,
+      },
+    },
+    async ({ client, ...rest }) => json(await data.createDocument({ ...rest, clientId: (await resolveClient(client))! })),
+  );
+
+  server.registerTool(
+    "delete_document",
+    { title: "Documentlink verwijderen", description: "Verwijder een documentlink.", inputSchema: { id: z.string().uuid() }, annotations: { destructiveHint: true } },
+    async ({ id }) => json(await data.deleteDocument(id)),
   );
 
   /* ---- Projecten ---- */

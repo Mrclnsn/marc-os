@@ -13,7 +13,8 @@ Met een MCP-koppeling, zodat een AI-assistent (Claude) je kan helpen met de dagp
 | **Inbox** | Braindump. Snel iets vastleggen en later omzetten naar een taak of notitie. |
 | **Taken** | Alle taken met filters: klantwerk, bedrijf algemeen, privé, per klant, zonder datum, afgerond. |
 | **Projecten** | Gegroepeerd in Klanten, Bedrijf algemeen en Privé, met voortgang. |
-| **Klanten** | Per klant een dossier: info, projecten, taken en notities. |
+| **Klanten** | Per klant een dossier: basis, registratie (KvK, btw), adressen, facturatie, verwerkersovereenkomst, tags, meerdere contactpersonen (één primair), websites, documentlinks, projecten, taken en notities. Filter op status en tag. |
+| **Websites** | Alle websites van klanten met domein, registrar, verloopdatum, hosting, CMS en of hosting en beheer zijn afgenomen. Signaal 30 dagen voor het verlopen van een domein (ook op Vandaag en in `get_overview`). |
 | **Notities** | Gespreksverslagen, besluiten, info en ideeën, te koppelen aan klant of project. |
 | **Reviews** | Briefings, dagafsluitingen en weekreviews (geschreven door de AI-assistent). |
 
@@ -143,7 +144,7 @@ In Claude: *Instellingen → Connectors → Custom connector toevoegen* en plak 
 
 ### Beschikbare tools
 
-`get_overview` (alles voor een briefing), `list_tasks`, `create_task`, `update_task`, `complete_task`, `delete_task`, `completed_tasks`, `capture`, `inbox_to_task`, `list_notes`, `get_note`, `create_note`, `update_note`, `list_clients`, `get_client`, `create_client`, `update_client`, `list_projects`, `get_project`, `create_project`, `update_project`, `get_calendar`, `save_review`, `list_reviews`.
+`get_overview` (alles voor een briefing), `list_tasks`, `create_task`, `update_task`, `complete_task`, `delete_task`, `completed_tasks`, `capture`, `inbox_to_task`, `list_notes`, `get_note`, `create_note`, `update_note`, `list_clients`, `get_client`, `create_client`, `update_client`, `add_contact`, `update_contact`, `delete_contact`, `list_websites`, `add_website`, `update_website`, `delete_website`, `add_document`, `delete_document`, `list_projects`, `get_project`, `create_project`, `update_project`, `get_calendar`, `save_review`, `list_reviews`.
 
 ### Voorbeeld-opdrachten voor vaste taken
 

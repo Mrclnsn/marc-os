@@ -2,7 +2,8 @@ import Link from "next/link";
 import { PageHeader, SectionTitle } from "@/components/brand";
 import { TaskList } from "@/components/task-row";
 import { CaptureBar, QuickAddTask } from "@/components/quick-add";
-import { listTasks, inboxCount, listReviews } from "@/lib/data";
+import { expiringDomains, listTasks, inboxCount, listReviews } from "@/lib/data";
+import { domainState } from "@/components/client-parts";
 import { TIMEZONE, addDaysIso, formatLong, today } from "@/lib/dates";
 import { calendarConfigured, getEvents } from "@/lib/calendar";
 import { getOptions } from "@/lib/options";
@@ -35,13 +36,14 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const t = today();
   const tomorrow = addDaysIso(t, 1);
 
-  const [todayTasks, upcoming, inbox, options, cal, lastDay] = await Promise.all([
+  const [todayTasks, upcoming, inbox, options, cal, lastDay, domains] = await Promise.all([
     listTasks({ view: "today", area }),
     listTasks({ view: "upcoming", days: 7, area }),
     inboxCount(),
     getOptions(),
     calendarConfigured() ? getEvents(t, t) : Promise.resolve(null),
     listReviews("day", 1),
+    area === "prive" ? Promise.resolve([]) : expiringDomains(),
   ]);
 
   const overdue = todayTasks.filter((x) => (x.planDate ?? x.dueDate)! < t);
@@ -133,6 +135,22 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           {cal?.errors.map((err) => (
             <p key={err} className="mt-3 text-xs text-steen">{err}</p>
           ))}
+
+          {domains.length > 0 && (
+            <div className="mt-10">
+              <SectionTitle>Domeinen</SectionTitle>
+              <ul className="space-y-2">
+                {domains.map(({ website, clientName }) => (
+                  <li key={website.id}>
+                    <Link href={`/klanten/${website.clientId}`} className="block border-l-[3px] border-nacht pl-3 hover:bg-parel">
+                      <span className="block text-[15px] font-bold text-nacht">{website.domain}</span>
+                      <span className="block text-xs text-steen">{clientName} · {domainState(website.domainExpiresAt)?.label}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </aside>
       </div>
     </div>

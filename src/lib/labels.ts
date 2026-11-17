@@ -51,3 +51,28 @@ export const NOTE_TYPES = {
 export type NoteType = keyof typeof NOTE_TYPES;
 
 export const PRIORITY = { 1: "Hoog", 2: "Normaal", 3: "Laag" } as const;
+
+export const DPA_STATUS = {
+  not_applicable: "N.v.t.",
+  needed: "Nodig",
+  sent: "Verstuurd",
+  signed: "Getekend",
+} as const;
+export type DpaStatus = keyof typeof DPA_STATUS;
+
+export const DOCUMENT_KIND = {
+  quote: "Offerte",
+  agreement: "Overeenkomst",
+  dpa: "Verwerkersovereenkomst",
+  other: "Overig",
+} as const;
+export type DocumentKind = keyof typeof DOCUMENT_KIND;
+
+/** Suggesties voor rechtsvorm (vrij invulbaar). */
+export const LEGAL_FORMS = ["Eenmanszaak", "VOF", "BV", "Maatschap", "Stichting", "Vereniging", "Coöperatie", "NV"];
+
+/** Suggesties voor bron (vrij invulbaar). */
+export const CLIENT_SOURCES = ["Netwerk", "Doorverwijzing", "Website", "LinkedIn", "Bestaand contact", "Vereniging"];
+
+/** Dagen vóór verlopen waarop een domein een signaal geeft. */
+export const DOMAIN_WARNING_DAYS = 30;

@@ -5,6 +5,7 @@ import {
   timestamp,
   date,
   integer,
+  boolean,
   pgEnum,
   index,
 } from "drizzle-orm/pg-core";
@@ -16,6 +17,20 @@ export const clientStatusEnum = pgEnum("client_status", [
   "active",
   "on_hold",
   "past",
+]);
+
+export const dpaStatusEnum = pgEnum("dpa_status", [
+  "not_applicable",
+  "needed",
+  "sent",
+  "signed",
+]);
+
+export const documentKindEnum = pgEnum("document_kind", [
+  "quote",
+  "agreement",
+  "dpa",
+  "other",
 ]);
 
 export const projectStatusEnum = pgEnum("project_status", [
@@ -69,14 +84,97 @@ const timestamps = {
 
 export const clients = pgTable("clients", {
   id: uuid("id").primaryKey().defaultRandom(),
+  // Basis
   name: text("name").notNull(), // bedrijfsnaam
-  contactPerson: text("contact_person"),
-  email: text("email"),
-  phone: text("phone"),
+  legalForm: text("legal_form"), // rechtsvorm: eenmanszaak, vof, bv, stichting, vereniging...
   status: clientStatusEnum("status").notNull().default("active"),
+  clientSince: date("client_since"),
+  source: text("source"), // hoe binnengekomen
+  // Registratie
+  kvkNumber: text("kvk_number"),
+  vatNumber: text("vat_number"),
+  // Adres (bezoekadres; factuuradres alleen als het afwijkt)
+  address: text("address"),
+  postcode: text("postcode"),
+  city: text("city"),
+  country: text("country").notNull().default("NL"),
+  invoiceAddress: text("invoice_address"),
+  invoicePostcode: text("invoice_postcode"),
+  invoiceCity: text("invoice_city"),
+  invoiceCountry: text("invoice_country"),
+  // Facturatie
+  invoiceEmail: text("invoice_email"),
+  paymentTermDays: integer("payment_term_days").notNull().default(14),
+  moneybirdContactId: text("moneybird_contact_id"),
+  // Compliance
+  dpaStatus: dpaStatusEnum("dpa_status").notNull().default("not_applicable"),
+  dpaDate: date("dpa_date"),
+  personalData: text("personal_data"), // welke persoonsgegevens verwerkt worden
+  // Overig
+  vaultRef: text("vault_ref"), // verwijzing naar de wachtwoordmanager, nooit wachtwoorden zelf
+  tags: text("tags").array().notNull().default([]),
   info: text("info"), // vaste informatie, markdown
   ...timestamps,
 });
+
+export const clientContacts = pgTable(
+  "client_contacts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    role: text("role"),
+    email: text("email"),
+    phone: text("phone"),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [index("client_contacts_client_idx").on(t.clientId)],
+);
+
+export const websites = pgTable(
+  "websites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    domain: text("domain").notNull(),
+    registrar: text("registrar"),
+    domainExpiresAt: date("domain_expires_at"),
+    hostingLocation: text("hosting_location"),
+    cms: text("cms"),
+    liveDate: date("live_date"),
+    hostingByUs: boolean("hosting_by_us").notNull().default(false), // hosting afgenomen bij MLC
+    maintenanceByUs: boolean("maintenance_by_us").notNull().default(false), // beheer afgenomen bij MLC
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [
+    index("websites_client_idx").on(t.clientId),
+    index("websites_expires_idx").on(t.domainExpiresAt),
+  ],
+);
+
+export const clientDocuments = pgTable(
+  "client_documents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    kind: documentKindEnum("kind").notNull().default("other"),
+    title: text("title").notNull(),
+    url: text("url"), // link naar het bestand (OneDrive, Drive, Moneybird...)
+    docDate: date("doc_date"),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [index("client_documents_client_idx").on(t.clientId)],
+);
 
 export const projects = pgTable(
   "projects",
@@ -159,6 +257,9 @@ export const reviews = pgTable("reviews", {
 });
 
 export type Client = typeof clients.$inferSelect;
+export type ClientContact = typeof clientContacts.$inferSelect;
+export type Website = typeof websites.$inferSelect;
+export type ClientDocument = typeof clientDocuments.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
 export type Note = typeof notes.$inferSelect;

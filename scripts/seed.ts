@@ -20,7 +20,7 @@ async function main() {
   const { db, close } = connect();
   const file = process.argv[2] ?? "scripts/notion-export.json";
   const data: Export = JSON.parse(readFileSync(file, "utf8"));
-  const { clients, projects, tasks } = schema;
+  const { clients, clientContacts, projects, tasks } = schema;
 
   const clientIds = new Map<string, string>();
   for (const c of data.clients) {
@@ -29,8 +29,12 @@ async function main() {
       clientIds.set(c.name, existing.id);
       continue;
     }
-    const [row] = await db.insert(clients).values(c).returning();
+    const { contactPerson, email, phone, ...clientData } = c;
+    const [row] = await db.insert(clients).values({ ...clientData, invoiceEmail: email ?? null }).returning();
     clientIds.set(c.name, row.id);
+    if (contactPerson || email || phone) {
+      await db.insert(clientContacts).values({ clientId: row.id, name: contactPerson || "Contactpersoon", email, phone, isPrimary: true });
+    }
     console.log("Klant:", c.name);
   }
 

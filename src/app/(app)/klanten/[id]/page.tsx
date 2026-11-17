@@ -1,20 +1,23 @@
 import { PageHeader, SectionTitle } from "@/components/brand";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ClientStatusSelect, Field, NoteTypeSelect } from "@/components/forms";
+import { ClientDetails, ClientEditForm, ContactList, DocumentList, WebsiteList } from "@/components/client-parts";
+import { NoteTypeSelect } from "@/components/forms";
 import { NoteList } from "@/components/note-list";
 import { QuickAddTask } from "@/components/quick-add";
 import { TaskList } from "@/components/task-row";
-import { getClient, listNotes, listProjects, listTasks } from "@/lib/data";
+import { getClientDossier, listNotes, listProjects, listTasks } from "@/lib/data";
 import { addDaysIso, formatShort, today } from "@/lib/dates";
 import { CLIENT_STATUS, PROJECT_STATUS } from "@/lib/labels";
 import { getOptions } from "@/lib/options";
-import { createNoteAction, createProjectAction, deleteClientAction, updateClientAction } from "../../../actions";
+import { createNoteAction, createProjectAction, deleteClientAction } from "../../../actions";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const client = await getClient(id);
-  if (!client) notFound();
+  const dossier = await getClientDossier(id);
+  if (!dossier) notFound();
+  const { client, contacts, websites, documents } = dossier;
+  const primary = contacts.find((c) => c.isPrimary) ?? contacts[0];
 
   const [tasks, projectsRows, notesRows, options] = await Promise.all([
     listTasks({ clientId: id, view: "open" }),
@@ -29,16 +32,43 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     <div className="space-y-10">
       <Link href="/klanten" className="mb-6 inline-block text-sm text-steen hover:text-nacht">← Klanten</Link>
       <PageHeader
-        eyebrow={[client.contactPerson, client.email, client.phone].filter(Boolean).join(" · ") || "Nog geen contactgegevens"}
+        eyebrow={[client.legalForm, client.city, primary && `${primary.name}${primary.role ? ` (${primary.role})` : ""}`].filter(Boolean).join(" · ") || "Nog geen gegevens"}
         title={client.name}
       >
+        {client.tags.map((tag) => (
+          <Link key={tag} href={`/klanten?tag=${encodeURIComponent(tag)}`} className="chip hover:bg-lijn">{tag}</Link>
+        ))}
         <span className="chip">{CLIENT_STATUS[client.status]}</span>
       </PageHeader>
 
+      <section className="space-y-2">
+        <SectionTitle>Gegevens</SectionTitle>
+        <ClientDetails client={client} />
+        <details className="card p-4">
+          <summary className="cursor-pointer text-sm font-medium">Klantgegevens bewerken</summary>
+          <ClientEditForm client={client} />
+        </details>
+      </section>
+
+      <section>
+        <SectionTitle>Contactpersonen</SectionTitle>
+        <ContactList clientId={id} contacts={contacts} />
+      </section>
+
+      <section>
+        <SectionTitle>Websites</SectionTitle>
+        <WebsiteList clientId={id} sites={websites} />
+      </section>
+
+      <section>
+        <SectionTitle>Documenten</SectionTitle>
+        <DocumentList clientId={id} documents={documents} />
+      </section>
+
       {client.info && (
-        <section className="card p-4">
-          <SectionTitle>Informatie</SectionTitle>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed">{client.info}</p>
+        <section>
+          <SectionTitle>Vaste informatie</SectionTitle>
+          <p className="card whitespace-pre-wrap p-4 text-sm leading-relaxed">{client.info}</p>
         </section>
       )}
 
@@ -71,7 +101,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       </section>
 
       <section className="space-y-2">
-        <SectionTitle>Dossier</SectionTitle>
+        <SectionTitle>Notities</SectionTitle>
         <div className="card"><NoteList rows={notesRows} showClient={false} empty="Nog geen notities voor deze klant." /></div>
         <form action={createNoteAction} className="flex flex-wrap gap-2">
           <input type="hidden" name="clientId" value={id} />
@@ -83,25 +113,9 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         </form>
       </section>
 
-      <details className="card p-4">
-        <summary className="cursor-pointer text-sm font-medium">Klantgegevens bewerken</summary>
-        <form action={updateClientAction.bind(null, id)} className="mt-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Bedrijfsnaam"><input name="name" defaultValue={client.name} required className="input w-full" /></Field>
-            <Field label="Contactpersoon"><input name="contactPerson" defaultValue={client.contactPerson ?? ""} className="input w-full" /></Field>
-            <Field label="E-mail"><input name="email" type="email" defaultValue={client.email ?? ""} className="input w-full" /></Field>
-            <Field label="Telefoon"><input name="phone" defaultValue={client.phone ?? ""} className="input w-full" /></Field>
-            <Field label="Status"><ClientStatusSelect value={client.status} /></Field>
-          </div>
-          <Field label="Vaste informatie (pakket, toegang, afspraken, adres...)">
-            <textarea name="info" rows={6} defaultValue={client.info ?? ""} className="input w-full" />
-          </Field>
-          <button className="btn-primary">Opslaan</button>
-        </form>
-        <form action={deleteClientAction.bind(null, id)} className="mt-3">
-          <button className="btn-ghost text-xs text-nacht">Klant verwijderen (taken en notities blijven bestaan)</button>
-        </form>
-      </details>
+      <form action={deleteClientAction.bind(null, id)} className="border-t border-lijn pt-4">
+        <button className="btn-ghost text-xs">Klant verwijderen (contactpersonen, websites en documentlinks gaan mee; taken, projecten en notities blijven)</button>
+      </form>
     </div>
   );
 }

@@ -180,14 +180,23 @@ export async function deleteProjectAction(id: string) {
 
 /* ---------------- Klanten ---------------- */
 
+function b(fd: FormData, key: string): boolean {
+  const v = fd.get(key);
+  return v === "on" || v === "1" || v === "true";
+}
+
 function clientFromForm(fd: FormData) {
   const out: Partial<data.ClientInput> = {};
+  const text = ["legalForm", "source", "kvkNumber", "vatNumber", "address", "postcode", "city", "invoiceAddress", "invoicePostcode", "invoiceCity", "invoiceCountry", "invoiceEmail", "moneybirdContactId", "personalData", "vaultRef", "info"] as const;
+  const dates = ["clientSince", "dpaDate"] as const;
   if (has(fd, "name")) out.name = s(fd, "name") ?? "";
-  if (has(fd, "contactPerson")) out.contactPerson = s(fd, "contactPerson");
-  if (has(fd, "email")) out.email = s(fd, "email");
-  if (has(fd, "phone")) out.phone = s(fd, "phone");
+  for (const k of text) if (has(fd, k)) out[k] = s(fd, k);
+  for (const k of dates) if (has(fd, k)) out[k] = s(fd, k);
   if (has(fd, "status")) out.status = (s(fd, "status") ?? "active") as data.ClientInput["status"];
-  if (has(fd, "info")) out.info = s(fd, "info");
+  if (has(fd, "country")) out.country = (s(fd, "country") ?? "NL").toUpperCase();
+  if (has(fd, "paymentTermDays")) out.paymentTermDays = n(fd, "paymentTermDays") ?? 14;
+  if (has(fd, "dpaStatus")) out.dpaStatus = (s(fd, "dpaStatus") ?? "not_applicable") as data.ClientInput["dpaStatus"];
+  if (has(fd, "tags")) out.tags = data.cleanTags(s(fd, "tags"));
   return out;
 }
 
@@ -195,7 +204,7 @@ export async function createClientAction(fd: FormData) {
   await requireSession();
   const input = clientFromForm(fd);
   if (!input.name) return;
-  const c = await data.createClient(input as data.ClientInput);
+  const c = await data.createClient(input as data.ClientInput, { name: s(fd, "contactPerson"), email: s(fd, "contactEmail"), phone: s(fd, "contactPhone") });
   refresh();
   redirect(`/klanten/${c.id}`);
 }
@@ -211,6 +220,102 @@ export async function deleteClientAction(id: string) {
   await data.deleteClient(id);
   refresh();
   redirect("/klanten");
+}
+
+/* ---------------- Contactpersonen ---------------- */
+
+function contactFromForm(fd: FormData) {
+  const out: Partial<data.ContactInput> = {};
+  if (has(fd, "name")) out.name = s(fd, "name") ?? "";
+  if (has(fd, "role")) out.role = s(fd, "role");
+  if (has(fd, "email")) out.email = s(fd, "email");
+  if (has(fd, "phone")) out.phone = s(fd, "phone");
+  if (has(fd, "notes")) out.notes = s(fd, "notes");
+  // Checkbox: alleen aanwezig als aangevinkt; het verborgen veld "isPrimaryField" geeft aan dat het formulier hem toont
+  if (has(fd, "isPrimaryField")) out.isPrimary = b(fd, "isPrimary");
+  return out;
+}
+
+export async function createContactAction(clientId: string, fd: FormData) {
+  await requireSession();
+  const input = contactFromForm(fd);
+  if (!input.name) return;
+  await data.createContact({ ...input, clientId } as data.ContactInput);
+  refresh();
+}
+
+export async function updateContactAction(id: string, fd: FormData) {
+  await requireSession();
+  await data.updateContact(id, contactFromForm(fd));
+  refresh();
+}
+
+export async function makePrimaryContactAction(id: string) {
+  await requireSession();
+  await data.updateContact(id, { isPrimary: true });
+  refresh();
+}
+
+export async function deleteContactAction(id: string) {
+  await requireSession();
+  await data.deleteContact(id);
+  refresh();
+}
+
+/* ---------------- Websites ---------------- */
+
+function websiteFromForm(fd: FormData) {
+  const out: Partial<data.WebsiteInput> = {};
+  if (has(fd, "domain")) out.domain = s(fd, "domain") ?? "";
+  for (const k of ["registrar", "hostingLocation", "cms", "notes"] as const) if (has(fd, k)) out[k] = s(fd, k);
+  for (const k of ["domainExpiresAt", "liveDate"] as const) if (has(fd, k)) out[k] = s(fd, k);
+  if (has(fd, "servicesField")) {
+    out.hostingByUs = b(fd, "hostingByUs");
+    out.maintenanceByUs = b(fd, "maintenanceByUs");
+  }
+  return out;
+}
+
+export async function createWebsiteAction(clientId: string, fd: FormData) {
+  await requireSession();
+  const input = websiteFromForm(fd);
+  if (!input.domain) return;
+  await data.createWebsite({ ...input, clientId } as data.WebsiteInput);
+  refresh();
+}
+
+export async function updateWebsiteAction(id: string, fd: FormData) {
+  await requireSession();
+  await data.updateWebsite(id, websiteFromForm(fd));
+  refresh();
+}
+
+export async function deleteWebsiteAction(id: string) {
+  await requireSession();
+  await data.deleteWebsite(id);
+  refresh();
+}
+
+/* ---------------- Documenten ---------------- */
+
+export async function createDocumentAction(clientId: string, fd: FormData) {
+  await requireSession();
+  const title = s(fd, "title");
+  if (!title) return;
+  await data.createDocument({
+    clientId,
+    title,
+    kind: (s(fd, "kind") ?? "other") as data.DocumentInput["kind"],
+    url: s(fd, "url"),
+    docDate: s(fd, "docDate"),
+  });
+  refresh();
+}
+
+export async function deleteDocumentAction(id: string) {
+  await requireSession();
+  await data.deleteDocument(id);
+  refresh();
 }
 
 /* ---------------- Sessie ---------------- */
