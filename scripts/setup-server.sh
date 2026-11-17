@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Marc OS: installatie op een verse Ubuntu 24.04 VPS.
-# Getest voor Ubuntu 24.04 en 26.04. Draaien als root:  bash setup-server.sh
+# Bedoeld voor Ubuntu 24.04 en 26.04. Draaien als root:  bash setup-server.sh
 # Veilig om opnieuw te draaien: bestaande sleutels, .env en data blijven staan.
 
 set -euo pipefail
