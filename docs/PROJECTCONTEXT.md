@@ -1,6 +1,6 @@
 # Marc OS: projectcontext
 
-*Stand van zaken: 17 november 2026*
+*Stand van zaken: 17 november 2026, na gesprek 1 (klant uitgebreid, contactpersonen, websites)*
 
 ## Doel
 
@@ -27,6 +27,11 @@ Uitgangspunt: Marc werkt vanaf december 2026 fulltime voor zijn eigen bedrijf. H
 | Geldzaken | Blijven in Moneybird | Geen dubbele administratie |
 | Voeding | Blijft in Foodvisor | Niet nabouwen; koppeling later bekijken |
 | Vormgeving | MLC-huisstijl | Nacht/Grafiet/Steen/Parel, Calibri, "een lijn, geen ruis" |
+| Contactpersonen | Eigen tabel, meerdere per klant, precies één primair | Oude velden contactpersoon/e-mail/telefoon zijn bij de migratie omgezet naar de primaire contactpersoon en verwijderd |
+| Websites | Eigen object per klant | Een klant kan meerdere sites hebben; hosting en beheer per site afgenomen ja/nee |
+| Documenten | Alleen links (OneDrive, Drive, Moneybird) | Geen bestandsopslag op de VPS nodig; upload staat op "Later" |
+| Adres | Gestructureerd: straat, postcode, plaats, land | Sluit aan op de Moneybird-contactvelden (gesprek 8) |
+| Wachtwoorden | Nooit in het dossier, alleen een verwijzing (`vaultRef`) | Staan in de wachtwoordmanager |
 
 ## Huidige status
 
@@ -35,7 +40,8 @@ Uitgangspunt: Marc werkt vanaf december 2026 fulltime voor zijn eigen bedrijf. H
 | Eerste versie app | Klaar en getest |
 | MLC-huisstijl | Doorgevoerd |
 | GitHub-repo | `Mrclnsn/marc-os` (private), Claude heeft push-toegang via de Claude GitHub-app |
-| Lokaal draaien | Werkt met `npm run local` (vereist Node 22; Marc had Node 20.16, moet updaten) |
+| Lokaal draaien | Werkt met `npm run local` op Node 22 (getest 17 november, ook een verse installatie). Op de Mac zelf nog `node -v` controleren |
+| Gesprek 1: klantdossier | Klaar (commit `4b4e09a`) |
 | VPS | Besteld en draait, nog niet geïnstalleerd |
 | Domein `os.marclonsain.nl` | Nog geen DNS-record |
 | Verhuizing `marclonsain.nl` naar Hostinger | Besloten, nog niet gestart |
@@ -84,7 +90,8 @@ Tip: zet het `os`-record nu al bij de huidige provider, zodat de installatie nie
 | **Inbox** | Braindump-items omzetten naar taak of notitie, of weggooien |
 | **Taken** | Weergaven: alle open, vandaag, komende 14 dagen, zonder datum, afgerond. Filters: klantwerk, bedrijf algemeen, privé, per klant, zoeken |
 | **Projecten** | Gegroepeerd in Klanten / Bedrijf algemeen / Privé, met voortgang |
-| **Klanten** | Per klant: projecten, taken, dossier (notities), vaste informatie, contactgegevens. Titel is de bedrijfsnaam, contactpersoon apart |
+| **Klanten** | Dossier per klant: gegevens (basis, registratie, adressen, facturatie, compliance, overig), contactpersonen, websites, documenten, vaste informatie, projecten, taken, notities. Lijst met filter op status en tag |
+| **Websites** | Alle websites van alle klanten, filter op hosting/beheer afgenomen, bovenaan domeinen die binnen 30 dagen verlopen |
 | **Notities** | Soorten: notitie, meeting, telefoon, e-mail, besluit, info, idee. Te koppelen aan klant, project, gebied |
 | **Reviews** | Briefings, dagafsluitingen, weekreviews en maandreviews van de AI |
 
@@ -94,7 +101,10 @@ Verder: terugkerende taken (bij afronden wordt de volgende automatisch aangemaak
 
 | Object | Belangrijkste velden |
 |---|---|
-| Klant (`clients`) | naam (bedrijf), contactpersoon, e-mail, telefoon, status (lead/actief/on hold/oud-klant), info |
+| Klant (`clients`) | naam (bedrijf), rechtsvorm, status (lead/actief/on hold/oud-klant), klant sinds, bron, KvK, btw, adres/postcode/plaats/land, factuuradres (alleen als afwijkend), factuur-e-mail, betaaltermijn (dagen, standaard 14), Moneybird-contact-ID, verwerkersovereenkomst (n.v.t./nodig/verstuurd/getekend) + datum, verwerkte persoonsgegevens, verwijzing wachtwoordmanager, tags, info |
+| Contactpersoon (`client_contacts`) | klant, naam, rol, e-mail, telefoon, primair ja/nee, notitie. Precies één primair per klant (wordt automatisch bewaakt) |
+| Website (`websites`) | klant, domein (opgeschoond: zonder https/www/pad), registrar, verloopdatum domein, hostinglocatie, CMS, livegang, hosting afgenomen, beheer afgenomen, notities |
+| Document (`client_documents`) | klant, soort (offerte/overeenkomst/verwerkersovereenkomst/overig), titel, link, datum, notitie |
 | Project (`projects`) | naam, gebied, klant, status (idee/gepland/actief/wacht/afgerond/gearchiveerd), start, deadline, omschrijving |
 | Taak (`tasks`) | titel, gebied, klant, project, status (te doen/bezig/wacht op/klaar), plannen op, deadline, prioriteit (1-3), inschatting, herhaling, notities |
 | Notitie (`notes`) | titel, inhoud (markdown), soort (incl. `inbox`), gebied, klant, project, datum |
@@ -178,7 +188,7 @@ Open http://localhost:3000, wachtwoord `marc-os`. Data staat in `.local-pg`. Sto
 
 Na installatie: in Claude → Instellingen → Connectors → Custom connector, met URL `https://os.marclonsain.nl/api/mcp/<MCP_TOKEN>`.
 
-Beschikbare tools: `get_overview`, `list_tasks`, `create_task`, `update_task`, `complete_task`, `delete_task`, `completed_tasks`, `capture`, `inbox_to_task`, `list_notes`, `get_note`, `create_note`, `update_note`, `list_clients`, `get_client`, `create_client`, `update_client`, `list_projects`, `get_project`, `create_project`, `update_project`, `get_calendar`, `save_review` (met `append` om onder een bestaande review toe te voegen), `list_reviews`.
+Beschikbare tools: `get_overview` (inclusief domeinen die binnen 30 dagen verlopen), `list_tasks`, `create_task`, `update_task`, `complete_task`, `delete_task`, `completed_tasks`, `capture`, `inbox_to_task`, `list_notes`, `get_note`, `create_note`, `update_note`, `list_clients` (filter op status en tag), `get_client` (volledig dossier), `create_client` (met optioneel primaire contactpersoon), `update_client`, `add_contact`, `update_contact`, `delete_contact`, `list_websites` (met `expiringWithinDays`), `add_website`, `update_website`, `delete_website`, `add_document`, `delete_document`, `list_projects`, `get_project`, `create_project`, `update_project`, `get_calendar`, `save_review` (met `append` om onder een bestaande review toe te voegen), `list_reviews`.
 
 ### Vaste taken om in te plannen
 
@@ -220,7 +230,7 @@ Plus één taak: "Handleiding webbeheer" (SVWW). De Notion-workspace "Freelance 
 ## Openstaande punten
 
 ### Nu
-- [ ] Node 22 installeren op de Mac en lokaal opnieuw starten
+- [ ] Op de Mac `node -v` controleren (moet 22 of hoger zijn), dan `npm run local` en het klantdossier invullen
 - [ ] DNS-record `os.marclonsain.nl` → `179.67.202.123`
 - [ ] Installatiescript draaien op de VPS
 - [ ] MCP-koppeling toevoegen in Claude
