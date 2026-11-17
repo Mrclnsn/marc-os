@@ -531,6 +531,140 @@ export async function setHoursInvoicedAction(ids: string[], invoiced: boolean) {
 
 /* ---------------- Sessie ---------------- */
 
+/* ---------------- Pipeline: leads en offertes ---------------- */
+
+function leadFromForm(fd: FormData) {
+  const out: Partial<data.LeadInput> = {};
+  for (const k of ["companyName", "contactName", "contactEmail", "contactPhone", "source", "nextStep", "lostReason", "notes"] as const) {
+    if (has(fd, k)) out[k] = s(fd, k);
+  }
+  if (has(fd, "title")) out.title = s(fd, "title") ?? "";
+  if (has(fd, "clientId")) out.clientId = s(fd, "clientId");
+  if (has(fd, "nextStepDate")) out.nextStepDate = s(fd, "nextStepDate");
+  if (has(fd, "status")) out.status = (s(fd, "status") ?? "new") as data.LeadInput["status"];
+  if (has(fd, "estimatedValue")) out.estimatedValueCents = parseEuro(s(fd, "estimatedValue"));
+  if (has(fd, "probabilityPct")) {
+    const p = n(fd, "probabilityPct");
+    if (p != null && Number.isFinite(p)) out.probabilityPct = Math.max(0, Math.min(100, Math.round(p)));
+  }
+  // Checkboxen: het verborgen veld "interestsField" geeft aan dat het formulier ze toont
+  if (has(fd, "interestsField")) out.interests = fd.getAll("interests").map(String) as data.LeadInput["interests"];
+  return out;
+}
+
+export async function createLeadAction(fd: FormData) {
+  await requireSession();
+  const input = leadFromForm(fd);
+  if (!input.title || (!input.companyName && !input.clientId)) return;
+  const lead = await data.createLead(input as data.LeadInput);
+  refresh();
+  if (s(fd, "stay") !== "1") redirect(`/pipeline/${lead.id}`);
+}
+
+export async function updateLeadAction(id: string, fd: FormData) {
+  await requireSession();
+  await data.updateLead(id, leadFromForm(fd));
+  refresh();
+}
+
+export async function setLeadStatusAction(id: string, status: data.LeadInput["status"], fd?: FormData) {
+  await requireSession();
+  await data.updateLead(id, { status, ...(fd && has(fd, "lostReason") ? { lostReason: s(fd, "lostReason") } : {}) });
+  refresh();
+}
+
+export async function deleteLeadAction(id: string) {
+  await requireSession();
+  await data.deleteLead(id);
+  refresh();
+  redirect("/pipeline");
+}
+
+function quoteFromForm(fd: FormData) {
+  const out: Partial<Omit<data.QuoteInput, "leadId" | "lines" | "status">> = {};
+  for (const k of ["title", "url", "notes"] as const) if (has(fd, k)) out[k] = s(fd, k);
+  for (const k of ["quoteDate", "validUntil"] as const) if (has(fd, k)) out[k] = s(fd, k);
+  return out;
+}
+
+export async function createQuoteAction(leadId: string) {
+  await requireSession();
+  const q = await data.createQuote({ leadId });
+  refresh();
+  redirect(`/pipeline/offertes/${q!.id}`);
+}
+
+export async function updateQuoteAction(id: string, fd: FormData) {
+  await requireSession();
+  await data.updateQuote(id, quoteFromForm(fd));
+  refresh();
+}
+
+function quoteLineFromForm(fd: FormData) {
+  const out: Partial<data.QuoteLineInput> = {};
+  if (has(fd, "kind")) out.kind = s(fd, "kind") as data.QuoteLineInput["kind"];
+  if (has(fd, "description")) out.description = s(fd, "description");
+  if (has(fd, "pricing")) out.pricing = s(fd, "pricing") as data.QuoteLineInput["pricing"];
+  if (has(fd, "period")) out.period = s(fd, "period") as data.QuoteLineInput["period"];
+  if (has(fd, "amount")) {
+    const c = parseEuro(s(fd, "amount"));
+    if (c != null) out.amountCents = c;
+  }
+  if (has(fd, "budget")) out.budgetCents = parseEuro(s(fd, "budget"));
+  if (has(fd, "sessionsPerMonth")) out.sessionsPerMonth = n(fd, "sessionsPerMonth");
+  if (has(fd, "domain")) out.domain = s(fd, "domain");
+  if (has(fd, "startDate")) out.startDate = s(fd, "startDate");
+  return out;
+}
+
+export async function addQuoteLineAction(quoteId: string, fd: FormData) {
+  await requireSession();
+  const input = quoteLineFromForm(fd);
+  if (!input.kind) return;
+  await data.addQuoteLine(quoteId, input as data.QuoteLineInput);
+  refresh();
+}
+
+export async function updateQuoteLineAction(id: string, fd: FormData) {
+  await requireSession();
+  await data.updateQuoteLine(id, quoteLineFromForm(fd));
+  refresh();
+}
+
+export async function deleteQuoteLineAction(id: string) {
+  await requireSession();
+  await data.deleteQuoteLine(id);
+  refresh();
+}
+
+export async function setQuoteStatusAction(id: string, status: data.QuoteInput["status"]) {
+  await requireSession();
+  if (!status) return;
+  await data.setQuoteStatus(id, status);
+  refresh();
+}
+
+export async function acceptQuoteAction(id: string, fd: FormData) {
+  await requireSession();
+  await data.acceptQuote(id, { startDate: s(fd, "startDate") });
+  refresh();
+  redirect(`/pipeline/offertes/${id}`);
+}
+
+export async function duplicateQuoteAction(id: string) {
+  await requireSession();
+  const q = await data.duplicateQuote(id);
+  refresh();
+  redirect(`/pipeline/offertes/${q!.id}`);
+}
+
+export async function deleteQuoteAction(id: string, leadId: string) {
+  await requireSession();
+  await data.deleteQuote(id);
+  refresh();
+  redirect(`/pipeline/${leadId}`);
+}
+
 export async function logoutAction() {
   const store = await cookies();
   store.delete(SESSION_COOKIE);

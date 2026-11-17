@@ -1,0 +1,2413 @@
+{
+  "id": "64201e7e-6939-4888-9469-fbca140c7419",
+  "prevId": "363f87e8-4e57-48ea-9934-75261a2fb2b8",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.agreements": {
+      "name": "agreements",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "service_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "website_id": {
+          "name": "website_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pricing": {
+          "name": "pricing",
+          "type": "pricing",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period": {
+          "name": "period",
+          "type": "billing_period",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "budget_cents": {
+          "name": "budget_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sessions_per_month": {
+          "name": "sessions_per_month",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "end_date": {
+          "name": "end_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notice_months": {
+          "name": "notice_months",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "indexation_pct": {
+          "name": "indexation_pct",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "agreement_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "agreements_client_idx": {
+          "name": "agreements_client_idx",
+          "columns": [
+            {
+              "expression": "client_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agreements_status_idx": {
+          "name": "agreements_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "agreements_client_id_clients_id_fk": {
+          "name": "agreements_client_id_clients_id_fk",
+          "tableFrom": "agreements",
+          "tableTo": "clients",
+          "columnsFrom": [
+            "client_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agreements_website_id_websites_id_fk": {
+          "name": "agreements_website_id_websites_id_fk",
+          "tableFrom": "agreements",
+          "tableTo": "websites",
+          "columnsFrom": [
+            "website_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agreements_project_id_projects_id_fk": {
+          "name": "agreements_project_id_projects_id_fk",
+          "tableFrom": "agreements",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.client_contacts": {
+      "name": "client_contacts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_primary": {
+          "name": "is_primary",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "client_contacts_client_idx": {
+          "name": "client_contacts_client_idx",
+          "columns": [
+            {
+              "expression": "client_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "client_contacts_client_id_clients_id_fk": {
+          "name": "client_contacts_client_id_clients_id_fk",
+          "tableFrom": "client_contacts",
+          "tableTo": "clients",
+          "columnsFrom": [
+            "client_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.client_documents": {
+      "name": "client_documents",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "document_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'other'"
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "doc_date": {
+          "name": "doc_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "client_documents_client_idx": {
+          "name": "client_documents_client_idx",
+          "columns": [
+            {
+              "expression": "client_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "client_documents_client_id_clients_id_fk": {
+          "name": "client_documents_client_id_clients_id_fk",
+          "tableFrom": "client_documents",
+          "tableTo": "clients",
+          "columnsFrom": [
+            "client_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.clients": {
+      "name": "clients",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "legal_form": {
+          "name": "legal_form",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "client_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "client_since": {
+          "name": "client_since",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kvk_number": {
+          "name": "kvk_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "vat_number": {
+          "name": "vat_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "postcode": {
+          "name": "postcode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "country": {
+          "name": "country",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'NL'"
+        },
+        "invoice_address": {
+          "name": "invoice_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invoice_postcode": {
+          "name": "invoice_postcode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invoice_city": {
+          "name": "invoice_city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invoice_country": {
+          "name": "invoice_country",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invoice_email": {
+          "name": "invoice_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payment_term_days": {
+          "name": "payment_term_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 14
+        },
+        "moneybird_contact_id": {
+          "name": "moneybird_contact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dpa_status": {
+          "name": "dpa_status",
+          "type": "dpa_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'not_applicable'"
+        },
+        "dpa_date": {
+          "name": "dpa_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "personal_data": {
+          "name": "personal_data",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "vault_ref": {
+          "name": "vault_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tags": {
+          "name": "tags",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "info": {
+          "name": "info",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.installments": {
+      "name": "installments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "agreement_id": {
+          "name": "agreement_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trigger": {
+          "name": "trigger",
+          "type": "installment_trigger",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'date'"
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "installment_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'planned'"
+        },
+        "ready_at": {
+          "name": "ready_at",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "moneybird_invoice_id": {
+          "name": "moneybird_invoice_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invoiced_at": {
+          "name": "invoiced_at",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paid_at": {
+          "name": "paid_at",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "installments_client_idx": {
+          "name": "installments_client_idx",
+          "columns": [
+            {
+              "expression": "client_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "installments_agreement_idx": {
+          "name": "installments_agreement_idx",
+          "columns": [
+            {
+              "expression": "agreement_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "installments_status_idx": {
+          "name": "installments_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "installments_client_id_clients_id_fk": {
+          "name": "installments_client_id_clients_id_fk",
+          "tableFrom": "installments",
+          "tableTo": "clients",
+          "columnsFrom": [
+            "client_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "installments_agreement_id_agreements_id_fk": {
+          "name": "installments_agreement_id_agreements_id_fk",
+          "tableFrom": "installments",
+          "tableTo": "agreements",
+          "columnsFrom": [
+            "agreement_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "installments_project_id_projects_id_fk": {
+          "name": "installments_project_id_projects_id_fk",
+          "tableFrom": "installments",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.leads": {
+      "name": "leads",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "company_name": {
+          "name": "company_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_name": {
+          "name": "contact_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_email": {
+          "name": "contact_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_phone": {
+          "name": "contact_phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "interests": {
+          "name": "interests",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "estimated_value_cents": {
+          "name": "estimated_value_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "probability_pct": {
+          "name": "probability_pct",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 50
+        },
+        "next_step": {
+          "name": "next_step",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "next_step_date": {
+          "name": "next_step_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "lead_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'new'"
+        },
+        "lost_reason": {
+          "name": "lost_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "leads_status_idx": {
+          "name": "leads_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "leads_client_idx": {
+          "name": "leads_client_idx",
+          "columns": [
+            {
+              "expression": "client_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "leads_next_step_idx": {
+          "name": "leads_next_step_idx",
+          "columns": [
+            {
+              "expression": "next_step_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "leads_client_id_clients_id_fk": {
+          "name": "leads_client_id_clients_id_fk",
+          "tableFrom": "leads",
+          "tableTo": "clients",
+          "columnsFrom": [
+            "client_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.notes": {
+      "name": "notes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type": {
+          "name": "type",
+          "type": "note_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'note'"
+        },
+        "area": {
+          "name": "area",
+          "type": "area",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note_date": {
+          "name": "note_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "notes_type_idx": {
+          "name": "notes_type_idx",
+          "columns": [
+            {
+              "expression": "type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "notes_client_idx": {
+          "name": "notes_client_idx",
+          "columns": [
+            {
+              "expression": "client_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "notes_client_id_clients_id_fk": {
+          "name": "notes_client_id_clients_id_fk",
+          "tableFrom": "notes",
+          "tableTo": "clients",
+          "columnsFrom": [
+            "client_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "notes_project_id_projects_id_fk": {
+          "name": "notes_project_id_projects_id_fk",
+          "tableFrom": "notes",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.projects": {
+      "name": "projects",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "area": {
+          "name": "area",
+          "type": "area",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'zakelijk'"
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "project_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'planned'"
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "projects_client_idx": {
+          "name": "projects_client_idx",
+          "columns": [
+            {
+              "expression": "client_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "projects_client_id_clients_id_fk": {
+          "name": "projects_client_id_clients_id_fk",
+          "tableFrom": "projects",
+          "tableTo": "clients",
+          "columnsFrom": [
+            "client_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.quote_lines": {
+      "name": "quote_lines",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "quote_id": {
+          "name": "quote_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "service_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pricing": {
+          "name": "pricing",
+          "type": "pricing",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period": {
+          "name": "period",
+          "type": "billing_period",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "budget_cents": {
+          "name": "budget_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sessions_per_month": {
+          "name": "sessions_per_month",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "domain": {
+          "name": "domain",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "agreement_id": {
+          "name": "agreement_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "quote_lines_quote_idx": {
+          "name": "quote_lines_quote_idx",
+          "columns": [
+            {
+              "expression": "quote_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "quote_lines_quote_id_quotes_id_fk": {
+          "name": "quote_lines_quote_id_quotes_id_fk",
+          "tableFrom": "quote_lines",
+          "tableTo": "quotes",
+          "columnsFrom": [
+            "quote_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "quote_lines_agreement_id_agreements_id_fk": {
+          "name": "quote_lines_agreement_id_agreements_id_fk",
+          "tableFrom": "quote_lines",
+          "tableTo": "agreements",
+          "columnsFrom": [
+            "agreement_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.quotes": {
+      "name": "quotes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "lead_id": {
+          "name": "lead_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "number": {
+          "name": "number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quote_date": {
+          "name": "quote_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "valid_until": {
+          "name": "valid_until",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "quote_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_at": {
+          "name": "decided_at",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "quotes_lead_idx": {
+          "name": "quotes_lead_idx",
+          "columns": [
+            {
+              "expression": "lead_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "quotes_status_idx": {
+          "name": "quotes_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "quotes_lead_id_leads_id_fk": {
+          "name": "quotes_lead_id_leads_id_fk",
+          "tableFrom": "quotes",
+          "tableTo": "leads",
+          "columnsFrom": [
+            "lead_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "quotes_client_id_clients_id_fk": {
+          "name": "quotes_client_id_clients_id_fk",
+          "tableFrom": "quotes",
+          "tableTo": "clients",
+          "columnsFrom": [
+            "client_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "quotes_number_unique": {
+          "name": "quotes_number_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "number"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.reviews": {
+      "name": "reviews",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "kind": {
+          "name": "kind",
+          "type": "review_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period_date": {
+          "name": "period_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.tasks": {
+      "name": "tasks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "area": {
+          "name": "area",
+          "type": "area",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'zakelijk'"
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "task_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'todo'"
+        },
+        "plan_date": {
+          "name": "plan_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "priority": {
+          "name": "priority",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 2
+        },
+        "estimate_min": {
+          "name": "estimate_min",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recurrence": {
+          "name": "recurrence",
+          "type": "recurrence",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'none'"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "tasks_status_idx": {
+          "name": "tasks_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "tasks_plan_idx": {
+          "name": "tasks_plan_idx",
+          "columns": [
+            {
+              "expression": "plan_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "tasks_client_idx": {
+          "name": "tasks_client_idx",
+          "columns": [
+            {
+              "expression": "client_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "tasks_project_idx": {
+          "name": "tasks_project_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "tasks_client_id_clients_id_fk": {
+          "name": "tasks_client_id_clients_id_fk",
+          "tableFrom": "tasks",
+          "tableTo": "clients",
+          "columnsFrom": [
+            "client_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "tasks_project_id_projects_id_fk": {
+          "name": "tasks_project_id_projects_id_fk",
+          "tableFrom": "tasks",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.time_entries": {
+      "name": "time_entries",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "area": {
+          "name": "area",
+          "type": "area",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'zakelijk'"
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "task_id": {
+          "name": "task_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "agreement_id": {
+          "name": "agreement_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "entry_date": {
+          "name": "entry_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ended_at": {
+          "name": "ended_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "duration_min": {
+          "name": "duration_min",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "billable": {
+          "name": "billable",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "invoiced": {
+          "name": "invoiced",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "installment_id": {
+          "name": "installment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "time_entries_date_idx": {
+          "name": "time_entries_date_idx",
+          "columns": [
+            {
+              "expression": "entry_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "time_entries_client_idx": {
+          "name": "time_entries_client_idx",
+          "columns": [
+            {
+              "expression": "client_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "time_entries_project_idx": {
+          "name": "time_entries_project_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "time_entries_agreement_idx": {
+          "name": "time_entries_agreement_idx",
+          "columns": [
+            {
+              "expression": "agreement_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "time_entries_client_id_clients_id_fk": {
+          "name": "time_entries_client_id_clients_id_fk",
+          "tableFrom": "time_entries",
+          "tableTo": "clients",
+          "columnsFrom": [
+            "client_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "time_entries_project_id_projects_id_fk": {
+          "name": "time_entries_project_id_projects_id_fk",
+          "tableFrom": "time_entries",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "time_entries_task_id_tasks_id_fk": {
+          "name": "time_entries_task_id_tasks_id_fk",
+          "tableFrom": "time_entries",
+          "tableTo": "tasks",
+          "columnsFrom": [
+            "task_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "time_entries_agreement_id_agreements_id_fk": {
+          "name": "time_entries_agreement_id_agreements_id_fk",
+          "tableFrom": "time_entries",
+          "tableTo": "agreements",
+          "columnsFrom": [
+            "agreement_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "time_entries_installment_id_installments_id_fk": {
+          "name": "time_entries_installment_id_installments_id_fk",
+          "tableFrom": "time_entries",
+          "tableTo": "installments",
+          "columnsFrom": [
+            "installment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.websites": {
+      "name": "websites",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "domain": {
+          "name": "domain",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "registrar": {
+          "name": "registrar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "domain_expires_at": {
+          "name": "domain_expires_at",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hosting_location": {
+          "name": "hosting_location",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cms": {
+          "name": "cms",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "live_date": {
+          "name": "live_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hosting_by_us": {
+          "name": "hosting_by_us",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "maintenance_by_us": {
+          "name": "maintenance_by_us",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "websites_client_idx": {
+          "name": "websites_client_idx",
+          "columns": [
+            {
+              "expression": "client_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "websites_expires_idx": {
+          "name": "websites_expires_idx",
+          "columns": [
+            {
+              "expression": "domain_expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "websites_client_id_clients_id_fk": {
+          "name": "websites_client_id_clients_id_fk",
+          "tableFrom": "websites",
+          "tableTo": "clients",
+          "columnsFrom": [
+            "client_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.agreement_status": {
+      "name": "agreement_status",
+      "schema": "public",
+      "values": [
+        "draft",
+        "active",
+        "cancelled",
+        "ended"
+      ]
+    },
+    "public.area": {
+      "name": "area",
+      "schema": "public",
+      "values": [
+        "zakelijk",
+        "prive"
+      ]
+    },
+    "public.billing_period": {
+      "name": "billing_period",
+      "schema": "public",
+      "values": [
+        "month",
+        "quarter",
+        "year"
+      ]
+    },
+    "public.client_status": {
+      "name": "client_status",
+      "schema": "public",
+      "values": [
+        "lead",
+        "active",
+        "on_hold",
+        "past"
+      ]
+    },
+    "public.document_kind": {
+      "name": "document_kind",
+      "schema": "public",
+      "values": [
+        "quote",
+        "agreement",
+        "dpa",
+        "other"
+      ]
+    },
+    "public.dpa_status": {
+      "name": "dpa_status",
+      "schema": "public",
+      "values": [
+        "not_applicable",
+        "needed",
+        "sent",
+        "signed"
+      ]
+    },
+    "public.installment_status": {
+      "name": "installment_status",
+      "schema": "public",
+      "values": [
+        "planned",
+        "ready",
+        "draft",
+        "sent",
+        "paid"
+      ]
+    },
+    "public.installment_trigger": {
+      "name": "installment_trigger",
+      "schema": "public",
+      "values": [
+        "date",
+        "acceptance",
+        "delivery"
+      ]
+    },
+    "public.lead_status": {
+      "name": "lead_status",
+      "schema": "public",
+      "values": [
+        "new",
+        "contact",
+        "quoted",
+        "won",
+        "lost"
+      ]
+    },
+    "public.note_type": {
+      "name": "note_type",
+      "schema": "public",
+      "values": [
+        "inbox",
+        "note",
+        "meeting",
+        "call",
+        "email",
+        "decision",
+        "info",
+        "idea"
+      ]
+    },
+    "public.pricing": {
+      "name": "pricing",
+      "schema": "public",
+      "values": [
+        "recurring",
+        "one_off",
+        "hourly"
+      ]
+    },
+    "public.project_status": {
+      "name": "project_status",
+      "schema": "public",
+      "values": [
+        "idea",
+        "planned",
+        "active",
+        "waiting",
+        "done",
+        "archived"
+      ]
+    },
+    "public.quote_status": {
+      "name": "quote_status",
+      "schema": "public",
+      "values": [
+        "draft",
+        "sent",
+        "accepted",
+        "rejected",
+        "expired"
+      ]
+    },
+    "public.recurrence": {
+      "name": "recurrence",
+      "schema": "public",
+      "values": [
+        "none",
+        "daily",
+        "weekdays",
+        "weekly",
+        "monthly",
+        "quarterly",
+        "yearly"
+      ]
+    },
+    "public.review_kind": {
+      "name": "review_kind",
+      "schema": "public",
+      "values": [
+        "day",
+        "week",
+        "month"
+      ]
+    },
+    "public.service_kind": {
+      "name": "service_kind",
+      "schema": "public",
+      "values": [
+        "bookkeeping",
+        "website",
+        "hosting",
+        "maintenance",
+        "sparring",
+        "custom"
+      ]
+    },
+    "public.task_status": {
+      "name": "task_status",
+      "schema": "public",
+      "values": [
+        "todo",
+        "doing",
+        "waiting",
+        "done"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

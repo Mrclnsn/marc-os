@@ -10,6 +10,7 @@ const items = [
   { href: "/taken", label: "Taken" },
   { href: "/projecten", label: "Projecten" },
   { href: "/klanten", label: "Klanten" },
+  { href: "/pipeline", label: "Pipeline" },
   { href: "/websites", label: "Websites" },
   { href: "/uren", label: "Uren" },
   { href: "/afspraken", label: "Afspraken" },
@@ -57,11 +58,12 @@ export function Nav({ inbox, logout }: { inbox: number; logout: React.ReactNode 
 
       {/* Mobiel: compacte kop en onderbalk */}
       <div className="sticky top-0 z-10 flex items-center justify-between bg-nacht px-4 py-3 text-white md:hidden">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/" className="flex shrink-0 items-center gap-2 pr-4">
           <Beeldmerk className="h-5 w-auto" color="#fff" strokeWidth={22} />
-          <span className="font-bold">Marc OS</span>
+          <span className="whitespace-nowrap font-bold">Marc OS</span>
         </Link>
         <div className="-mr-4 flex gap-4 overflow-x-auto pr-4 text-sm text-white/70">
+          <Link href="/pipeline" className={active("/pipeline") ? "font-bold text-white" : ""}>Pipeline</Link>
           <Link href="/uren" className={active("/uren") ? "font-bold text-white" : ""}>Uren</Link>
           <Link href="/afspraken" className={active("/afspraken") ? "font-bold text-white" : ""}>Afspraken</Link>
           <Link href="/notities" className={active("/notities") ? "font-bold text-white" : ""}>Notities</Link>

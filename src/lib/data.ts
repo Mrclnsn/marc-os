@@ -8,6 +8,7 @@ import { listAgreements, listInstallments, markProjectDelivered } from "./agreem
 
 export * from "./agreements";
 export * from "./time";
+export * from "./pipeline";
 
 /* ------------------------------------------------------------------ */
 /* Invoerschema's (gedeeld door formulieren en de MCP-server)          */

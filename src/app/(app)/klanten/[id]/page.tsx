@@ -7,14 +7,15 @@ import { NoteTypeSelect } from "@/components/forms";
 import { NoteList } from "@/components/note-list";
 import { QuickAddTask } from "@/components/quick-add";
 import { TaskList } from "@/components/task-row";
-import { clientHours, getClientDossierFull, listNotes, listProjects, listTasks, recentDescriptions } from "@/lib/data";
+import { clientHours, getClientDossierFull, listLeads, listNotes, listProjects, listTasks, recentDescriptions } from "@/lib/data";
+import { LeadLine } from "@/components/pipeline-parts";
 import { BillingQueue, ManualTimeForm, RecentEntries, StartTimerForm } from "@/components/time-parts";
 import { formatDuration, formatHours } from "@/lib/duration";
 import { formatEuro } from "@/lib/money";
 import { addDaysIso, formatShort, today } from "@/lib/dates";
 import { CLIENT_STATUS, PROJECT_STATUS } from "@/lib/labels";
 import { getOptions } from "@/lib/options";
-import { createNoteAction, createProjectAction, deleteClientAction } from "../../../actions";
+import { createLeadAction, createNoteAction, createProjectAction, deleteClientAction } from "../../../actions";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -23,13 +24,14 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   const { client, contacts, websites, documents, agreements, installments, mrrCents } = dossier;
   const primary = contacts.find((c) => c.isPrimary) ?? contacts[0];
 
-  const [tasks, projectsRows, notesRows, options, hours, descriptions] = await Promise.all([
+  const [tasks, projectsRows, notesRows, options, hours, descriptions, leadRows] = await Promise.all([
     listTasks({ clientId: id, view: "open" }),
     listProjects({ clientId: id, includeClosed: true }),
     listNotes({ clientId: id, excludeInbox: true }),
     getOptions(),
     clientHours(id),
     recentDescriptions(),
+    listLeads({ clientId: id }),
   ]);
   const t = today();
   const clientProjects = options.projects.filter((p) => p.clientId === id);
@@ -77,6 +79,20 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           projects={clientProjects}
           budgets={hours.budgets}
         />
+      </section>
+
+      <section className="space-y-2">
+        <SectionTitle aside={<Link href="/pipeline" className="text-xs text-steen hover:text-nacht">Pipeline</Link>}>Leads en offertes</SectionTitle>
+        {leadRows.length > 0 ? (
+          <div className="card"><ul className="divide-y divide-lijn">{leadRows.map((l) => <LeadLine key={l.id} l={l} />)}</ul></div>
+        ) : (
+          <p className="text-sm text-steen">Nog geen leads of offertes.</p>
+        )}
+        <form action={createLeadAction} className="flex gap-2">
+          <input type="hidden" name="clientId" value={id} />
+          <input name="title" required placeholder="Nieuwe kans bij deze klant, bijv. Extra beheer..." className="input flex-1" />
+          <button className="btn">Lead toevoegen</button>
+        </form>
       </section>
 
       <section className="space-y-3">

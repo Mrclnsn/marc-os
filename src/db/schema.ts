@@ -380,6 +380,102 @@ export const timeEntries = pgTable(
   ],
 );
 
+/* ---------------- Pipeline: leads en offertes ---------------- */
+
+export const leadStatusEnum = pgEnum("lead_status", [
+  "new", // nieuw
+  "contact", // in gesprek
+  "quoted", // offerte verstuurd
+  "won", // gewonnen
+  "lost", // verloren
+]);
+
+export const quoteStatusEnum = pgEnum("quote_status", [
+  "draft", // concept
+  "sent", // verstuurd
+  "accepted", // akkoord
+  "rejected", // afgewezen
+  "expired", // verlopen
+]);
+
+export const leads = pgTable(
+  "leads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    title: text("title").notNull(), // waar gaat het over, bijv. "Nieuwe website met webshop"
+    companyName: text("company_name").notNull(), // bedrijfsnaam (bij een bestaande klant: de klantnaam)
+    clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }), // bestaande klant, of de klant die bij akkoord is aangemaakt
+    contactName: text("contact_name"),
+    contactEmail: text("contact_email"),
+    contactPhone: text("contact_phone"),
+    source: text("source"), // hoe binnengekomen
+    interests: text("interests").array().notNull().default([]), // soorten dienst (service_kind)
+    estimatedValueCents: integer("estimated_value_cents"), // geschatte waarde eerste jaar, excl. btw
+    probabilityPct: integer("probability_pct").notNull().default(50), // kans in procenten
+    nextStep: text("next_step"),
+    nextStepDate: date("next_step_date"),
+    status: leadStatusEnum("status").notNull().default("new"),
+    lostReason: text("lost_reason"),
+    closedAt: date("closed_at"), // gewonnen of verloren op
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [
+    index("leads_status_idx").on(t.status),
+    index("leads_client_idx").on(t.clientId),
+    index("leads_next_step_idx").on(t.nextStepDate),
+  ],
+);
+
+export const quotes = pgTable(
+  "quotes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leadId: uuid("lead_id")
+      .notNull()
+      .references(() => leads.id, { onDelete: "cascade" }),
+    clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
+    number: text("number").notNull().unique(), // OFF-2026-001
+    title: text("title"),
+    quoteDate: date("quote_date").notNull(),
+    validUntil: date("valid_until"),
+    status: quoteStatusEnum("status").notNull().default("draft"),
+    sentAt: date("sent_at"),
+    decidedAt: date("decided_at"), // akkoord, afgewezen of verlopen op
+    url: text("url"), // link naar het offertedocument (OneDrive, Drive...)
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [
+    index("quotes_lead_idx").on(t.leadId),
+    index("quotes_status_idx").on(t.status),
+  ],
+);
+
+export const quoteLines = pgTable(
+  "quote_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    quoteId: uuid("quote_id")
+      .notNull()
+      .references(() => quotes.id, { onDelete: "cascade" }),
+    kind: serviceKindEnum("kind").notNull(),
+    description: text("description"),
+    // Zelfde betekenis als bij een afspraak: centen excl. btw; bij uurtarief het tarief per uur
+    amountCents: integer("amount_cents").notNull(),
+    pricing: pricingEnum("pricing").notNull(),
+    period: billingPeriodEnum("period"),
+    budgetCents: integer("budget_cents"),
+    sessionsPerMonth: integer("sessions_per_month"),
+    domain: text("domain"), // website waar de regel bij hoort (website, hosting, beheer)
+    startDate: date("start_date"), // leeg = datum van akkoord
+    sortOrder: integer("sort_order").notNull().default(0),
+    agreementId: uuid("agreement_id").references(() => agreements.id, { onDelete: "set null" }), // afspraak die bij akkoord is aangemaakt
+    ...timestamps,
+  },
+  (t) => [index("quote_lines_quote_idx").on(t.quoteId)],
+);
+
 export const reviews = pgTable("reviews", {
   id: uuid("id").primaryKey().defaultRandom(),
   kind: reviewKindEnum("kind").notNull(),
@@ -399,3 +495,6 @@ export type Review = typeof reviews.$inferSelect;
 export type Agreement = typeof agreements.$inferSelect;
 export type Installment = typeof installments.$inferSelect;
 export type TimeEntry = typeof timeEntries.$inferSelect;
+export type Lead = typeof leads.$inferSelect;
+export type Quote = typeof quotes.$inferSelect;
+export type QuoteLine = typeof quoteLines.$inferSelect;

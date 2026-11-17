@@ -144,3 +144,32 @@ export const BUDGET_WARNING_PCT = 80;
 
 /** Suggesties voor de soort werk; vrij in te vullen. */
 export const TIME_CATEGORIES = ["Klantwerk", "Overleg", "Administratie", "Acquisitie", "Marketing", "Leren", "Reistijd", "Sport", "Privé"];
+
+/* ---------------- Pipeline: leads en offertes ---------------- */
+
+export const LEAD_STATUS = {
+  new: "Nieuw",
+  contact: "In gesprek",
+  quoted: "Offerte verstuurd",
+  won: "Gewonnen",
+  lost: "Verloren",
+} as const;
+export type LeadStatus = keyof typeof LEAD_STATUS;
+/** Statussen van een lead die nog loopt. */
+export const OPEN_LEAD_STATUSES = ["new", "contact", "quoted"] as const;
+
+export const QUOTE_STATUS = {
+  draft: "Concept",
+  sent: "Verstuurd",
+  accepted: "Akkoord",
+  rejected: "Afgewezen",
+  expired: "Verlopen",
+} as const;
+export type QuoteStatus = keyof typeof QUOTE_STATUS;
+
+/** Standaard geldigheid van een offerte in dagen. */
+export const QUOTE_VALID_DAYS = 30;
+/** Dagen vóór "geldig tot" waarop een verstuurde offerte een signaal geeft. */
+export const QUOTE_WARNING_DAYS = 7;
+/** Standaard kans per status van een lead (bij wijzigen van de status, als je de kans niet zelf aanpast). */
+export const LEAD_DEFAULT_PROBABILITY: Record<LeadStatus, number> = { new: 20, contact: 40, quoted: 60, won: 100, lost: 0 };

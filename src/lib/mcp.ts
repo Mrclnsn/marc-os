@@ -115,6 +115,7 @@ const INSTRUCTIONS = `Dit is Marc OS: Marc's centrale systeem voor taken, projec
 - Afspraken zijn diensten per klant (boekhouding, website, hosting, beheer, sparringpartner, maatwerk). Bedragen zijn in centen en exclusief btw. MRR = som van lopende vaste afspraken omgerekend naar per maand (get_revenue).
 - Termijnen zijn te factureren regels. Een eenmalige website-afspraak maakt zelf 2 termijnen van 50% (bij akkoord, bij oplevering). Facturen maakt Marc zelf in Moneybird; zet een termijn alleen op een andere status als Marc dat vraagt.
 - Uren: alles mag uren krijgen (klantwerk, bedrijf algemeen, privé, leren). Er loopt hooguit één timer; start_timer stopt een lopende timer. Voor achteraf schrijven gebruik log_time ("2 uur aan Vobis, SEO-analyse" → client "Vobis", duration "2u", description "SEO-analyse"). Declarabel gaat automatisch als de uren onder een afspraak met uurtarief vallen. get_hours geeft het weekoverzicht, te factureren uren, budgetten (waarschuwing vanaf 80%) en het effectief uurtarief per klant.
+- Pipeline: een lead is een kans (nieuw bedrijf of bestaande klant) met status new/contact/quoted/won/lost, kans in procenten en een volgende stap. Een offerte hoort altijd bij een lead en heeft regels per dienst (zelfde velden als een afspraak). accept_quote verwerkt een akkoord met één aanroep: klant aanmaken of activeren, websites per domein, elke regel een actieve afspraak, websiteproject en termijnen (eerste termijn klaar om te factureren), lead gewonnen. Doe accept_quote, set_quote_status en delete-acties alleen als Marc daarom vraagt.
 - Inbox-items zijn notities van het type "inbox" (braindump). Verwerk ze met inbox_to_task of update_note.
 - Begin een briefing altijd met get_overview. Sla briefings en samenvattingen op met save_review zodat Marc ze in de app ziet.
 - Tijdzone: Europe/Amsterdam. Schrijf in het Nederlands.`;
@@ -126,7 +127,7 @@ export function buildServer() {
     "get_overview",
     {
       title: "Dagoverzicht",
-      description: "Alles voor een briefing: agenda, taken van vandaag, achterstallig, komende 7 dagen, inbox, lopende projecten, domeinen die binnen 30 dagen verlopen, MRR, termijnen klaar om te factureren, afspraken die binnen 30 dagen aflopen en wat gisteren is afgerond.",
+      description: "Alles voor een briefing: agenda, pipeline (volgende stappen van leads en offertes die bijna verlopen), taken van vandaag, achterstallig, komende 7 dagen, inbox, lopende projecten, domeinen die binnen 30 dagen verlopen, MRR, termijnen klaar om te factureren, afspraken die binnen 30 dagen aflopen en wat gisteren is afgerond.",
       inputSchema: { date: isoDate.optional().describe("Standaard vandaag") },
       annotations: { readOnlyHint: true },
     },
@@ -141,13 +142,14 @@ export function buildServer() {
         calendarConfigured() ? getEvents(t, addDaysIso(t, 1)) : Promise.resolve(null),
         data.listReviews(undefined, 3),
       ]);
-      const [domains, money, revenue, hours, timer, budgets] = await Promise.all([
+      const [domains, money, revenue, hours, timer, budgets, pipeline] = await Promise.all([
         data.expiringDomains(),
         data.revenueSignals(),
         data.revenueOverview(3),
         data.weekHours(t),
         data.getRunningTimer(),
         data.hourlyBudgets({ onlyWarnings: true }),
+        data.pipelineSignals(),
       ]);
       return json({
         date: t,
@@ -165,6 +167,11 @@ export function buildServer() {
         hoursThisWeek: { total: formatDuration(hours.totalMin), billable: formatDuration(hours.billableMin), totalMin: hours.totalMin, billableMin: hours.billableMin },
         runningTimer: timer ? slimEntry(timer) : null,
         budgetWarnings: budgets.map((b) => ({ agreementId: b.agreementId, client: b.clientName, agreement: b.label, pct: b.pct, usedCents: b.usedCents, budgetCents: b.budgetCents })),
+        pipeline: {
+          openQuotes: pipeline.openQuotes,
+          nextStepsDue: pipeline.nextSteps.map((l) => ({ leadId: l.id, company: l.clientName ?? l.companyName, title: l.title, nextStep: l.nextStep, nextStepDate: l.nextStepDate })),
+          quotesExpiringSoon: pipeline.expiringQuotes.map((q) => ({ quoteId: q.id, number: q.number, company: q.companyName, validUntil: q.validUntil })),
+        },
         recentReviews: lastReviews,
       });
     },
@@ -634,6 +641,200 @@ export function buildServer() {
       annotations: { readOnlyHint: true },
     },
     async ({ months }) => json(await data.revenueOverview(months ?? 12)),
+  );
+
+  /* ---- Pipeline: leads en offertes ---- */
+
+  const leadStatus = z.enum(["new", "contact", "quoted", "won", "lost"]);
+  const quoteStatus = z.enum(["draft", "sent", "accepted", "rejected", "expired"]);
+  const leadFields = {
+    companyName: optText.describe("Bedrijfsnaam bij een nieuw bedrijf; leeg bij een bestaande klant"),
+    client: z.string().nullable().optional().describe("Bestaande klant (id of naam)"),
+    contactName: optText,
+    contactEmail: optText,
+    contactPhone: optText,
+    source: optText.describe("Hoe binnengekomen, bijv. Netwerk, Doorverwijzing, Website, LinkedIn"),
+    interests: z.array(kind).optional().describe("Soorten dienst waar interesse in is"),
+    estimatedValueCents: z.number().int().min(0).nullable().optional().describe("Geschatte waarde eerste jaar in centen excl. btw (zolang er geen offerte is)"),
+    probabilityPct: z.number().int().min(0).max(100).optional().describe("Kans; leeg = standaard bij de status (new 20, contact 40, quoted 60)"),
+    nextStep: optText,
+    nextStepDate: isoDate.nullable().optional(),
+    status: leadStatus.optional(),
+    lostReason: optText,
+    notes: optText,
+  };
+  const quoteLine = z.object({
+    kind,
+    description: optText,
+    amountCents: z.number().int().min(0).optional().describe("Centen excl. btw: eenmalig, per periode of per uur. Leeg bij sparringpartner = 12500"),
+    pricing: z.enum(["recurring", "one_off", "hourly"]).optional().describe("Leeg = standaard voor de soort"),
+    period: z.enum(["month", "quarter", "year"]).nullable().optional(),
+    budgetCents: z.number().int().min(0).nullable().optional().describe("Bij uurtarief: budget/plafond"),
+    sessionsPerMonth: z.number().int().min(0).nullable().optional(),
+    domain: optText.describe("Domein bij website, hosting of beheer; wordt bij akkoord een website van de klant"),
+    startDate: isoDate.nullable().optional().describe("Leeg = datum van akkoord"),
+  });
+
+  function slimLead(l: data.LeadRow) {
+    return {
+      id: l.id, company: l.clientName ?? l.companyName, clientId: l.clientId, title: l.title, status: l.status,
+      probabilityPct: l.probabilityPct, valueCents: l.valueCents, weightedCents: l.weightedCents,
+      nextStep: l.nextStep, nextStepDate: l.nextStepDate, nextStepDue: l.nextStepDue, source: l.source, interests: l.interests,
+      contact: { name: l.contactName, email: l.contactEmail, phone: l.contactPhone }, lostReason: l.lostReason, closedAt: l.closedAt, notes: l.notes,
+      quotes: l.quotes.map((q) => ({ id: q.id, number: q.number, title: q.title, status: q.status, validUntil: q.validUntil, totals: q.totals })),
+    };
+  }
+
+  server.registerTool(
+    "get_pipeline",
+    {
+      title: "Pipeline-overzicht",
+      description: "Open leads, waarde en gewogen waarde (waarde x kans), openstaande offertes (aantal, waarde eerste jaar, MRR), gewonnen dit jaar en winstpercentage, plus de open leads.",
+      inputSchema: {},
+      annotations: { readOnlyHint: true },
+    },
+    async () => {
+      const [overview, leads] = await Promise.all([data.pipelineOverview(), data.listLeads({ open: true })]);
+      return json({ ...overview, leads: leads.map(slimLead) });
+    },
+  );
+
+  server.registerTool(
+    "list_leads",
+    {
+      title: "Leads",
+      description: "Leads met hun offertes. Filter op status (new, contact, quoted, won, lost), alleen open, of klant.",
+      inputSchema: { status: z.array(leadStatus).optional(), open: z.boolean().optional(), client: z.string().optional() },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ client, ...rest }) => json((await data.listLeads({ ...rest, clientId: (await resolveClient(client)) ?? undefined })).map(slimLead)),
+  );
+
+  server.registerTool(
+    "get_lead",
+    { title: "Lead", description: "Eén lead met offertes en regels.", inputSchema: { id: z.string().uuid() }, annotations: { readOnlyHint: true } },
+    async ({ id }) => json(await data.getLead(id)),
+  );
+
+  server.registerTool(
+    "create_lead",
+    {
+      title: "Lead aanmaken",
+      description: "Nieuwe lead: een nieuw bedrijf (companyName) of een kans bij een bestaande klant (client). Geef een onderwerp (title) en bij voorkeur een volgende stap met datum.",
+      inputSchema: { title: z.string().describe("Waar gaat het over, bijv. 'Nieuwe website met webshop'"), ...leadFields },
+    },
+    async ({ client, ...rest }) => json(await data.createLead({ ...rest, clientId: await resolveClient(client) })),
+  );
+
+  server.registerTool(
+    "update_lead",
+    {
+      title: "Lead wijzigen",
+      description: "Wijzig een lead, bijv. volgende stap, kans of status. Status lost met lostReason om hem als verloren te markeren. Gewonnen gaat normaal via accept_quote.",
+      inputSchema: { id: z.string().uuid(), title: z.string().optional(), ...leadFields },
+    },
+    async ({ id, client, ...rest }) => json(await data.updateLead(id, { ...rest, ...(client !== undefined ? { clientId: await resolveClient(client) } : {}) })),
+  );
+
+  server.registerTool(
+    "delete_lead",
+    { title: "Lead verwijderen", description: "Verwijder een lead met zijn offertes (niet als er een offerte met akkoord is).", inputSchema: { id: z.string().uuid() }, annotations: { destructiveHint: true } },
+    async ({ id }) => json(await data.deleteLead(id)),
+  );
+
+  server.registerTool(
+    "list_quotes",
+    {
+      title: "Offertes",
+      description: "Offertes met totalen (eenmalig, per maand, waarde eerste jaar). Filter op status (draft, sent, accepted, rejected, expired) of lead.",
+      inputSchema: { status: z.array(quoteStatus).optional(), leadId: z.string().uuid().optional() },
+      annotations: { readOnlyHint: true },
+    },
+    async (args) => json(await data.listQuotes(args)),
+  );
+
+  server.registerTool(
+    "get_quote",
+    { title: "Offerte", description: "Eén offerte met regels, totalen en lead.", inputSchema: { id: z.string().uuid() }, annotations: { readOnlyHint: true } },
+    async ({ id }) => json(await data.getQuote(id)),
+  );
+
+  server.registerTool(
+    "create_quote",
+    {
+      title: "Offerte aanmaken",
+      description: "Nieuwe offerte (concept, nummer OFF-jaar-volgnummer, standaard 30 dagen geldig) bij een lead, met regels. Zonder leadId wordt eerst een lead aangemaakt voor client of companyName met leadTitle.",
+      inputSchema: {
+        leadId: z.string().uuid().optional(),
+        client: z.string().optional().describe("Zonder leadId: bestaande klant (id of naam)"),
+        companyName: z.string().optional().describe("Zonder leadId: nieuw bedrijf"),
+        leadTitle: z.string().optional().describe("Zonder leadId: onderwerp van de nieuwe lead (standaard de offertetitel)"),
+        title: optText,
+        quoteDate: isoDate.optional(),
+        validUntil: isoDate.optional(),
+        url: optText.describe("Link naar het offertedocument"),
+        notes: optText,
+        lines: z.array(quoteLine).optional(),
+      },
+    },
+    async ({ leadId, client, companyName, leadTitle, ...rest }) => {
+      let id = leadId;
+      if (!id) {
+        const clientId = await resolveClient(client);
+        if (!clientId && !companyName) throw new Error("Geef leadId, client of companyName.");
+        const lead = await data.createLead({ title: leadTitle ?? rest.title ?? "Offerte", clientId, companyName });
+        id = lead.id;
+      }
+      return json(await data.createQuote({ ...rest, leadId: id }));
+    },
+  );
+
+  server.registerTool(
+    "update_quote",
+    {
+      title: "Offerte wijzigen",
+      description: "Wijzig titel, datum, geldigheid, documentlink of notitie van een offerte.",
+      inputSchema: { id: z.string().uuid(), title: optText, quoteDate: isoDate.optional(), validUntil: isoDate.nullable().optional(), url: optText, notes: optText },
+    },
+    async ({ id, ...rest }) => json(await data.updateQuote(id, rest)),
+  );
+
+  server.registerTool(
+    "add_quote_line",
+    { title: "Offerteregel toevoegen", description: "Voeg een dienst toe aan een offerte (niet na akkoord).", inputSchema: { quoteId: z.string().uuid(), line: quoteLine } },
+    async ({ quoteId, line }) => json(await data.addQuoteLine(quoteId, line)),
+  );
+
+  server.registerTool(
+    "update_quote_line",
+    { title: "Offerteregel wijzigen", description: "Wijzig een offerteregel (niet na akkoord).", inputSchema: { id: z.string().uuid(), line: quoteLine.partial() } },
+    async ({ id, line }) => json(await data.updateQuoteLine(id, line)),
+  );
+
+  server.registerTool(
+    "delete_quote_line",
+    { title: "Offerteregel verwijderen", description: "Verwijder een offerteregel (niet na akkoord).", inputSchema: { id: z.string().uuid() }, annotations: { destructiveHint: true } },
+    async ({ id }) => json(await data.deleteQuoteLine(id)),
+  );
+
+  server.registerTool(
+    "set_quote_status",
+    {
+      title: "Offertestatus",
+      description: "Zet een offerte op sent (verstuurd; lead gaat naar quoted), rejected (afgewezen), expired of terug naar draft. Voor akkoord: accept_quote.",
+      inputSchema: { id: z.string().uuid(), status: z.enum(["draft", "sent", "rejected", "expired"]) },
+    },
+    async ({ id, status }) => json(await data.setQuoteStatus(id, status)),
+  );
+
+  server.registerTool(
+    "accept_quote",
+    {
+      title: "Offerte akkoord",
+      description: "Verwerk het akkoord van de klant: klant aanmaken of activeren, websites per domein, elke regel een actieve afspraak, websiteproject en termijnen (eerste termijn klaar om te factureren), lead gewonnen, andere open offertes van de lead afgewezen. Alleen op verzoek van Marc.",
+      inputSchema: { id: z.string().uuid(), startDate: isoDate.optional().describe("Startdatum van de afspraken; standaard vandaag") },
+    },
+    async ({ id, startDate }) => json(await data.acceptQuote(id, { startDate })),
   );
 
   /* ---- Uren ---- */

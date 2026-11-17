@@ -2,9 +2,9 @@ import Link from "next/link";
 import { PageHeader, SectionTitle } from "@/components/brand";
 import { TaskList } from "@/components/task-row";
 import { CaptureBar, QuickAddTask } from "@/components/quick-add";
-import { expiringDomains, hourlyBudgets, listTasks, inboxCount, listReviews, revenueSignals, weekHours } from "@/lib/data";
+import { expiringDomains, hourlyBudgets, listTasks, inboxCount, listReviews, pipelineSignals, revenueSignals, weekHours } from "@/lib/data";
 import { formatDuration } from "@/lib/duration";
-import { formatEuro } from "@/lib/money";
+import { formatEuro, formatEuroRound } from "@/lib/money";
 import { domainState } from "@/components/client-parts";
 import { TIMEZONE, addDaysIso, formatDate, formatLong, today } from "@/lib/dates";
 import { calendarConfigured, getEvents } from "@/lib/calendar";
@@ -39,7 +39,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const t = today();
   const tomorrow = addDaysIso(t, 1);
 
-  const [todayTasks, upcoming, inbox, options, cal, lastDay, domains, money, hours, budgets] = await Promise.all([
+  const [todayTasks, upcoming, inbox, options, cal, lastDay, domains, money, hours, budgets, pipeline] = await Promise.all([
     listTasks({ view: "today", area }),
     listTasks({ view: "upcoming", days: 7, area }),
     inboxCount(),
@@ -50,6 +50,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     area === "prive" ? Promise.resolve({ ready: [], ending: [] }) : revenueSignals(),
     weekHours(t),
     area === "prive" ? Promise.resolve([]) : hourlyBudgets({ onlyWarnings: true }),
+    area === "prive" ? Promise.resolve(null) : pipelineSignals(),
   ]);
 
   const overdue = todayTasks.filter((x) => (x.planDate ?? x.dueDate)! < t);
@@ -142,6 +143,30 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           {cal?.errors.map((err) => (
             <p key={err} className="mt-3 text-xs text-steen">{err}</p>
           ))}
+
+          {pipeline && (pipeline.nextSteps.length > 0 || pipeline.expiringQuotes.length > 0) && (
+            <div className="mt-10">
+              <SectionTitle aside={<Link href="/pipeline" className="text-xs text-steen hover:text-nacht">{pipeline.openQuotes.count} open · {formatEuroRound(pipeline.openQuotes.cents)}</Link>}>Pipeline</SectionTitle>
+              <ul className="space-y-2">
+                {pipeline.nextSteps.map((l) => (
+                  <li key={l.id}>
+                    <Link href={`/pipeline/${l.id}`} className="block border-l-[3px] border-nacht pl-3 hover:bg-parel">
+                      <span className="block text-[15px] font-bold text-nacht">{l.clientName ?? l.companyName}</span>
+                      <span className="block text-xs text-steen">{l.nextStep ?? l.title}{l.nextStepDate && l.nextStepDate < t ? ` · sinds ${formatDate(l.nextStepDate)}` : ""}</span>
+                    </Link>
+                  </li>
+                ))}
+                {pipeline.expiringQuotes.map((q) => (
+                  <li key={q.id}>
+                    <Link href={`/pipeline/offertes/${q.id}`} className="block border-l-[3px] border-nacht pl-3 hover:bg-parel">
+                      <span className="block text-[15px] font-bold text-nacht">{q.companyName} · {q.number}</span>
+                      <span className="block text-xs text-steen">Offerte geldig tot {formatDate(q.validUntil)}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {money.ready.length > 0 && (
             <div className="mt-10">
