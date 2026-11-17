@@ -1,6 +1,6 @@
 # Marc OS: projectcontext
 
-*Stand van zaken: 17 november 2026, na gesprek 3 (urenregistratie)*
+*Stand van zaken: 17 november 2026, na gesprek 4 (pipeline: leads en offertes)*
 
 ## Doel
 
@@ -47,6 +47,14 @@ Uitgangspunt: Marc werkt vanaf december 2026 fulltime voor zijn eigen bedrijf. H
 | Declarabel | Standaard ja als de uren onder een afspraak met uurtarief vallen, anders nee. Per registratie aan te passen | Uren voor vaste afspraken (boekhouding, beheer) zitten al in de prijs |
 | Uren factureren | Knop "Klaarzetten voor factuur" maakt van alle open declarabele uren van een uurtarief-afspraak één termijn "klaar om te factureren" en markeert de uren als gefactureerd. Termijn verwijderen zet de uren weer open. Uren zonder uurtarief kun je handmatig als gefactureerd markeren | Factureren blijft via termijnen en straks Moneybird (gesprek 8) |
 | Budget maatwerk | Besteed = declarabele uren x tarief, tegenover het budget van de afspraak. Signaal vanaf 80%, "overschreden" vanaf 100% | Volgens ontwerp |
+| Leads | Eigen tabel, los van klanten. Een lead is een nieuw bedrijf (bedrijfsnaam, contactgegevens) of een kans bij een bestaande klant. Status nieuw / in gesprek / offerte verstuurd / gewonnen / verloren, met kans, geschatte waarde en volgende stap + datum | De klantenlijst blijft schoon; pas bij akkoord wordt een nieuw bedrijf klant. Bestaande klanten met status lead kregen bij de migratie een lead |
+| Kans | Standaard per status (nieuw 20%, in gesprek 40%, offerte verstuurd 60%, gewonnen 100%, verloren 0%). Schuift mee met de status zolang je hem niet zelf aanpast | Gewogen pipeline zonder extra invullen |
+| Waarde van een lead | Offerte met akkoord, anders verstuurd, anders concept; zonder lopende offerte de eigen schatting, anders de laatste offerte | Eén getal per lead |
+| Offerte | Hoort altijd bij een lead. Nummer `OFF-jaar-volgnummer`, standaard 30 dagen geldig. Regels met dezelfde velden als een afspraak (soort, prijsvorm, bedrag, periode, budget, domein, start) | Akkoord kan zo één op één afspraken maken |
+| Waarde offerte | Eenmalig + 12 x maandbedrag + budgetten van uurwerk = waarde eerste jaar. MRR apart getoond | Vergelijkbaar tussen eenmalig en terugkerend werk |
+| Offertestatus | Verstuurd zet de lead op "offerte verstuurd". Verstuurd en voorbij "geldig tot" wordt automatisch verlopen. Opnieuw versturen na verlopen geeft weer 30 dagen | Minder handwerk |
+| Akkoord (één klik) | Klant van de lead, of een bestaande klant met precies dezelfde naam, of een nieuwe klant (actief, klant sinds vandaag, bron en primaire contactpersoon uit de lead). Websites per domein (bestaande hergebruikt). Elke regel een actieve afspraak met startdatum (standaard vandaag, of de eigen start van de regel) en notitie "Uit offerte ...". Websiteproject en termijnen volgen uit de afspraken (eerste websitetermijn direct klaar om te factureren). Lead gewonnen, andere open offertes van die lead afgewezen, documentlink bij de klant | Volgens ontwerp; geen dubbele klanten of websites |
+| Offerte na akkoord | Niet meer te wijzigen of te verwijderen; wijzigingen gaan via de afspraken. Wel te kopiëren als nieuwe offerte | De afspraken zijn de bron van waarheid |
 | Effectief uurtarief | Omzet / alle zakelijke uren voor de klant in de periode (maand, kwartaal, jaar, 12 maanden). Omzet = vaste afspraken naar rato van de dagen + termijnen van eenmalig werk (klaar of gefactureerd in de periode) + declarabele uren x tarief; uren-termijnen tellen niet dubbel. De periode begint nooit vóór de eerste geschreven uren | Anders staat er maanden omzet tegenover nul uren |
 
 ## Huidige status
@@ -60,6 +68,7 @@ Uitgangspunt: Marc werkt vanaf december 2026 fulltime voor zijn eigen bedrijf. H
 | Gesprek 1: klantdossier | Klaar (commit `4b4e09a`) |
 | Gesprek 2: afspraken, termijnen, MRR | Klaar (commit `bea069c`) |
 | Gesprek 3: urenregistratie | Klaar (commit `a4cf0b6`) |
+| Gesprek 4: pipeline | Klaar (commit `d10ca90`) |
 | VPS | Besteld en draait, nog niet geïnstalleerd |
 | Domein `os.marclonsain.nl` | Nog geen DNS-record |
 | Verhuizing `marclonsain.nl` naar Hostinger | Besloten, nog niet gestart |
@@ -104,13 +113,14 @@ Tip: zet het `os`-record nu al bij de huidige provider, zodat de installatie nie
 
 | Pagina | Inhoud |
 |---|---|
-| **Vandaag** | Begroeting, kerncijfers (vandaag, achterstallig, afspraken, inbox, uren deze week met declarabel), braindump-balk, briefing van de AI, achterstallige taken, taken voor vandaag, komende 7 dagen, agenda, signalen (te factureren, budget maatwerk vanaf 80%, afspraken die aflopen, domeinen). Filter: Alles / Zakelijk / Privé |
+| **Vandaag** | Begroeting, kerncijfers (vandaag, achterstallig, afspraken, inbox, uren deze week met declarabel), braindump-balk, briefing van de AI, achterstallige taken, taken voor vandaag, komende 7 dagen, agenda, signalen (pipeline: volgende stappen en offertes die binnen 7 dagen verlopen, te factureren, budget maatwerk vanaf 80%, afspraken die aflopen, domeinen). Filter: Alles / Zakelijk / Privé |
 | **Inbox** | Braindump-items omzetten naar taak of notitie, of weggooien |
 | **Taken** | Weergaven: alle open, vandaag, komende 14 dagen, zonder datum, afgerond. Filters: klantwerk, bedrijf algemeen, privé, per klant, zoeken |
 | **Projecten** | Gegroepeerd in Klanten / Bedrijf algemeen / Privé, met voortgang |
-| **Klanten** | Dossier per klant: gegevens (basis, registratie, adressen, facturatie, compliance, overig), contactpersonen, websites, afspraken en termijnen (met MRR van de klant en uren/budget per uurtarief-afspraak), uren (dit jaar, declarabel, effectief uurtarief, te factureren uren, laatste registraties, timer en handmatig), documenten, vaste informatie, projecten, taken, notities. Lijst met filter op status en tag |
+| **Klanten** | Dossier per klant: gegevens (basis, registratie, adressen, facturatie, compliance, overig), contactpersonen, websites, afspraken en termijnen (met MRR van de klant en uren/budget per uurtarief-afspraak), leads en offertes (met snel een nieuwe lead voor deze klant), uren (dit jaar, declarabel, effectief uurtarief, te factureren uren, laatste registraties, timer en handmatig), documenten, vaste informatie, projecten, taken, notities. Lijst met filter op status en tag |
 | **Websites** | Alle websites van alle klanten, filter op hosting/beheer afgenomen, bovenaan domeinen die binnen 30 dagen verlopen |
 | **Uren** | Timer starten, KPI's (deze week, declarabel, uren te factureren, effectief uurtarief), weekoverzicht per klant/gebied en per dag (vorige/volgende week, filter op klant), uren per soort werk, registraties per dag (bewerken, verwijderen, ▶ verder), handmatig toevoegen, te factureren uren met "Klaarzetten voor factuur", budget per maatwerkafspraak, effectief uurtarief per klant (maand/kwartaal/jaar/12 mnd) |
+| **Pipeline** | KPI's (open leads met totaalwaarde, gewogen pipeline, openstaande offertes met waarde en MRR, gewonnen dit jaar met winstpercentage), nieuwe lead, volgende stappen die aan de beurt zijn, bord met kolommen Nieuw / In gesprek / Offerte verstuurd, tabbladen Gewonnen / Verloren / Alle offertes, lopende offertes. Lead-pagina: gegevens, volgende stap, status (in gesprek, verloren met reden, heropenen), offertes, nieuwe offerte. Offertepagina: regels toevoegen en bewerken, totalen, verstuurd / afgewezen / terug naar concept, kopie als nieuwe versie, en "Akkoord van de klant verwerken" met een overzicht van wat er gebeurt |
 | **Afspraken** | KPI's (MRR, jaaromzet vast, klaar om te factureren, gefactureerd open), te factureren termijnen, afspraken die binnen 30 dagen eindigen, verwachte omzet 12 maanden, MRR per dienst en per klant, alle afspraken (lopend/concept/beëindigd/alle), gefactureerde en geplande termijnen |
 | **Projecten (detail)** | Plus: knop "Start timer", uren totaal en declarabel, budget van een gekoppelde uurtarief-afspraak, laatste registraties, handmatig toevoegen |
 | **Notities** | Soorten: notitie, meeting, telefoon, e-mail, besluit, info, idee. Te koppelen aan klant, project, gebied |
@@ -128,6 +138,9 @@ Verder: een **timerbalk** op elke pagina zolang er een timer loopt (telefoon: bo
 | Afspraak (`agreements`) | klant, soort (boekhouding/website/hosting/beheer/sparringpartner/maatwerk), omschrijving, website, project, bedrag (centen excl. btw; bij uurtarief per uur), prijsvorm (vast per periode/eenmalig/uurtarief), periode (maand/kwartaal/jaar), budget, sessies per maand, start, einde, opzegtermijn (maanden), indexatie %, status (concept/actief/opgezegd/beëindigd), notitie |
 | Termijn (`installments`) | klant, afspraak, project, omschrijving, bedrag (centen excl. btw), moment (op datum/bij akkoord/bij oplevering), datum, status (gepland/klaar om te factureren/concept in Moneybird/verzonden/betaald), klaar sinds, gefactureerd op, betaald op, Moneybird-factuurnummer, volgorde, notitie |
 | Uren (`time_entries`) | gebied, klant, project, taak, afspraak, soort werk, omschrijving, datum, begin, eind, duur in minuten (leeg = timer loopt), declarabel, gefactureerd, termijn (waarmee gefactureerd) |
+| Lead (`leads`) | onderwerp, bedrijfsnaam, klant (bestaand of na akkoord), contactnaam/-e-mail/-telefoon, bron, interesse (soorten dienst), geschatte waarde, kans %, volgende stap + datum, status (nieuw/in gesprek/offerte verstuurd/gewonnen/verloren), reden verloren, gesloten op, notities |
+| Offerte (`quotes`) | lead, klant, nummer, titel, datum, geldig tot, status (concept/verstuurd/akkoord/afgewezen/verlopen), verstuurd op, besloten op, link naar document, notitie |
+| Offerteregel (`quote_lines`) | offerte, soort dienst, omschrijving, bedrag, prijsvorm, periode, budget, sessies per maand, domein, start, volgorde, afspraak (na akkoord) |
 | Document (`client_documents`) | klant, soort (offerte/overeenkomst/verwerkersovereenkomst/overig), titel, link, datum, notitie |
 | Project (`projects`) | naam, gebied, klant, status (idee/gepland/actief/wacht/afgerond/gearchiveerd), start, deadline, omschrijving |
 | Taak (`tasks`) | titel, gebied, klant, project, status (te doen/bezig/wacht op/klaar), plannen op, deadline, prioriteit (1-3), inschatting, herhaling, notities |
@@ -159,6 +172,7 @@ src/db/schema.ts      datamodel
 src/db/connect.ts     databaseverbinding
 src/lib/data.ts       alle data-logica (gedeeld door app en MCP)
 src/lib/agreements.ts afspraken, termijnen, MRR en verwachte omzet (via data.ts geëxporteerd)
+src/lib/pipeline.ts   leads, offertes, akkoord, pipeline-overzicht en signalen (via data.ts geëxporteerd)
 src/lib/time.ts       uren: timer, registraties, weekoverzicht, te factureren, budget, effectief uurtarief (via data.ts geëxporteerd)
 src/lib/duration.ts   tijdsduren: invoer "1:30"/"1,5"/"90m", notatie
 src/lib/money.ts      bedragen: centen, euro-notatie, invoer "1.250,50"
@@ -216,7 +230,7 @@ Open http://localhost:3000, wachtwoord `marc-os`. Data staat in `.local-pg`. Sto
 
 Na installatie: in Claude → Instellingen → Connectors → Custom connector, met URL `https://os.marclonsain.nl/api/mcp/<MCP_TOKEN>`.
 
-Beschikbare tools: `get_overview` (inclusief domeinen die binnen 30 dagen verlopen, MRR, te factureren termijnen, aflopende afspraken, uren deze week, lopende timer en budgetwaarschuwingen), `list_tasks`, `create_task`, `update_task`, `complete_task`, `delete_task`, `completed_tasks`, `capture`, `inbox_to_task`, `list_notes`, `get_note`, `create_note`, `update_note`, `list_clients` (filter op status en tag), `get_client` (volledig dossier, inclusief afspraken, termijnen en MRR), `create_client` (met optioneel primaire contactpersoon), `update_client`, `add_contact`, `update_contact`, `delete_contact`, `list_websites` (met `expiringWithinDays`), `add_website`, `update_website`, `delete_website`, `add_document`, `delete_document`, `list_projects`, `get_project`, `create_project`, `update_project`, `list_agreements`, `create_agreement`, `update_agreement`, `deliver_agreement`, `delete_agreement`, `list_installments`, `add_installment`, `update_installment`, `delete_installment`, `get_revenue` (MRR, per dienst/klant, verwachte omzet), `get_timer`, `start_timer`, `stop_timer`, `log_time` (duur als tekst, bijv. "2u"), `list_time_entries`, `update_time_entry`, `delete_time_entry`, `get_hours` (weekoverzicht, te factureren uren, budgetten, effectief uurtarief), `invoice_hours`, `get_calendar`, `save_review` (met `append` om onder een bestaande review toe te voegen), `list_reviews`.
+Beschikbare tools: `get_overview` (inclusief pipeline-signalen, domeinen die binnen 30 dagen verlopen, MRR, te factureren termijnen, aflopende afspraken, uren deze week, lopende timer en budgetwaarschuwingen), `list_tasks`, `create_task`, `update_task`, `complete_task`, `delete_task`, `completed_tasks`, `capture`, `inbox_to_task`, `list_notes`, `get_note`, `create_note`, `update_note`, `list_clients` (filter op status en tag), `get_client` (volledig dossier, inclusief afspraken, termijnen en MRR), `create_client` (met optioneel primaire contactpersoon), `update_client`, `add_contact`, `update_contact`, `delete_contact`, `list_websites` (met `expiringWithinDays`), `add_website`, `update_website`, `delete_website`, `add_document`, `delete_document`, `list_projects`, `get_project`, `create_project`, `update_project`, `list_agreements`, `create_agreement`, `update_agreement`, `deliver_agreement`, `delete_agreement`, `list_installments`, `add_installment`, `update_installment`, `delete_installment`, `get_revenue` (MRR, per dienst/klant, verwachte omzet), `get_timer`, `start_timer`, `stop_timer`, `log_time` (duur als tekst, bijv. "2u"), `list_time_entries`, `update_time_entry`, `delete_time_entry`, `get_hours` (weekoverzicht, te factureren uren, budgetten, effectief uurtarief), `invoice_hours`, `get_pipeline`, `list_leads`, `get_lead`, `create_lead`, `update_lead`, `delete_lead`, `list_quotes`, `get_quote`, `create_quote` (maakt zo nodig eerst een lead), `update_quote`, `add_quote_line`, `update_quote_line`, `delete_quote_line`, `set_quote_status`, `accept_quote`, `get_calendar`, `save_review` (met `append` om onder een bestaande review toe te voegen), `list_reviews`.
 
 ### Vaste taken om in te plannen
 
@@ -227,7 +241,7 @@ Beschikbare tools: `get_overview` (inclusief domeinen die binnen 30 dagen verlop
 > Gebruik Marc OS. Haal get_overview, completed_tasks en list_time_entries voor vandaag op. Vat samen wat gedaan is en wat is blijven liggen, en hoeveel uren er vandaag geschreven zijn (meld het als de timer nog loopt of als er voor afgeronde klanttaken geen uren staan). Verplaats onafgemaakte taken van vandaag naar morgen. Sla op met save_review (kind=day, append=true).
 
 **Weekreview** (vrijdag 15:00)
-> Gebruik Marc OS. Haal completed_tasks voor deze week, list_projects, list_tasks (view=open) en get_hours (period=month) op. Maak een weekreview: wat is bereikt per klant en privé, uren per klant (declarabel/totaal), te factureren uren en budgetten boven 80%, opvallend lage effectieve uurtarieven, welke projecten lopen achter, wat blijft structureel liggen, en een voorstel voor de focus van volgende week. Sla op met save_review (kind=week).
+> Gebruik Marc OS. Haal completed_tasks voor deze week, list_projects, list_tasks (view=open), get_hours (period=month) en get_pipeline op. Maak een weekreview: wat is bereikt per klant en privé, de pipeline (open leads zonder volgende stap, offertes zonder reactie, gewonnen en verloren), uren per klant (declarabel/totaal), te factureren uren en budgetten boven 80%, opvallend lage effectieve uurtarieven, welke projecten lopen achter, wat blijft structureel liggen, en een voorstel voor de focus van volgende week. Sla op met save_review (kind=week).
 
 ## Routine (advies)
 
