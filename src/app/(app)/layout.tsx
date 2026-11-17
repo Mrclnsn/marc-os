@@ -6,6 +6,7 @@ import { getModules, parseTheme, THEME_COOKIE } from "@/lib/settings";
 import { TimerBar } from "@/components/timer";
 import { ModulesProvider } from "@/components/modules-context";
 import { ThemeSwitch } from "@/components/theme-switch";
+import { MainFrame } from "@/components/main-frame";
 import { logoutAction } from "../actions";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -38,7 +39,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               }}
             />
           )}
-          <main className={`mx-auto max-w-6xl px-5 pt-8 md:px-12 md:pb-16 md:pt-12 ${timer ? "pb-44" : "pb-28"}`}>{children}</main>
+          <MainFrame timer={!!timer}>{children}</MainFrame>
         </div>
       </div>
     </ModulesProvider>

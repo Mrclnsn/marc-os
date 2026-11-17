@@ -9,7 +9,7 @@ import { SESSION_COOKIE } from "@/lib/session";
 import { parseEuro } from "@/lib/money";
 import { parseDuration } from "@/lib/duration";
 import { today } from "@/lib/dates";
-import { MODULE_KEYS, THEME_COOKIE, getHiddenKpis, parseTheme, setHiddenKpis, setModule, type KpiKey, type ModuleKey, type Theme } from "@/lib/settings";
+import { COCKPIT_COOKIE, MODULE_KEYS, THEME_COOKIE, getHiddenKpis, parseCockpitStyle, parseTheme, setHiddenKpis, setModule, type CockpitStyle, type KpiKey, type ModuleKey, type Theme } from "@/lib/settings";
 
 /* Hulpjes om FormData om te zetten */
 function s(fd: FormData, key: string): string | null {
@@ -804,6 +804,18 @@ export async function setThemeAction(theme: Theme) {
   await requireSession();
   const store = await cookies();
   store.set(THEME_COOKIE, parseTheme(theme), {
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365 * 5,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
+  refresh();
+}
+
+export async function setCockpitStyleAction(style: CockpitStyle) {
+  await requireSession();
+  const store = await cookies();
+  store.set(COCKPIT_COOKIE, parseCockpitStyle(style), {
     path: "/",
     maxAge: 60 * 60 * 24 * 365 * 5,
     sameSite: "lax",

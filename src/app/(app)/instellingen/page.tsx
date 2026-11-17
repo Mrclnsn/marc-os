@@ -3,12 +3,15 @@ import Link from "next/link";
 import { PageHeader, SectionTitle } from "@/components/brand";
 import { KpiSwitch, ModuleSwitch } from "@/components/settings-parts";
 import { ThemeChoice } from "@/components/theme-switch";
+import { CockpitStyleSwitch } from "@/components/cockpit-client";
 import { calendarConfigured } from "@/lib/calendar";
-import { KPI_KEYS, KPIS, MODULE_KEYS, MODULES, THEME_COOKIE, getHiddenKpis, getModules, parseTheme } from "@/lib/settings";
+import { COCKPIT_COOKIE, KPI_KEYS, KPIS, MODULE_KEYS, MODULES, THEME_COOKIE, getHiddenKpis, getModules, parseCockpitStyle, parseTheme } from "@/lib/settings";
 
 export default async function SettingsPage() {
   const [modules, hidden] = await Promise.all([getModules(), getHiddenKpis()]);
-  const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
+  const store = await cookies();
+  const theme = parseTheme(store.get(THEME_COOKIE)?.value);
+  const cockpitStyle = parseCockpitStyle(store.get(COCKPIT_COOKIE)?.value);
   const onCount = MODULE_KEYS.filter((k) => modules[k]).length;
 
   return (
@@ -23,6 +26,13 @@ export default async function SettingsPage() {
             <p className="text-sm text-steen">Donkere cockpitmodus (Nacht en Grafiet) of licht. &quot;Volg systeem&quot; wisselt mee met je Mac of telefoon. Geldt per apparaat.</p>
           </div>
           <ThemeChoice theme={theme} />
+        </div>
+        <div className="card flex flex-wrap items-center justify-between gap-4 p-4">
+          <div>
+            <p className="font-bold text-nacht">Cockpitstijl op Vandaag</p>
+            <p className="text-sm text-steen">Strak in MLC-stijl, of Iron Man: donker HUD met gloed, raster en een bewegende Hermes-bol. Geldt per apparaat; ook te wisselen bovenaan Vandaag.</p>
+          </div>
+          <CockpitStyleSwitch style={cockpitStyle} />
         </div>
       </section>
 

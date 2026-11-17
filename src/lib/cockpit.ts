@@ -113,8 +113,26 @@ function buildTimeline(events: CalendarEvent[], planned: TaskWithRefs[], now: nu
   };
 }
 
+/** Tijdlijn voor de komende uren met echte tijdas (minuten vanaf middernacht vandaag; morgen = +1440). */
+export type HourWindow = {
+  start: number;
+  end: number;
+  now: number;
+  events: { title: string; calendar: string; location: string | null; from: number; to: number; label: string; past: boolean; current: boolean }[];
+};
+
+export type Goal = { title: string; value: number; target: number; unit: string; note: string; provisional: boolean };
+
 export type Cockpit = {
   date: string;
+  nowLabel: string;
+  window: HourWindow;
+  focus: TaskWithRefs[];
+  rest: TaskWithRefs[];
+  goal: Goal;
+  doneCount: number;
+  autoBriefing: string;
+  briefingAt: string | null;
   modules: Modules;
   kpis: Kpi[];
   signals: Signal[];
@@ -123,6 +141,17 @@ export type Cockpit = {
   upcoming: TaskWithRefs[];
   briefing: { body: string } | null;
 };
+
+/** Wat er bovenaan moet: achterstallig en hoge prioriteit eerst, dan deadline, dan plandatum. */
+function byFocus(a: TaskWithRefs, b: TaskWithRefs, t: string) {
+  const late = (x: TaskWithRefs) => ((x.planDate ?? x.dueDate)! < t ? 0 : 1);
+  return (
+    a.priority - b.priority ||
+    late(a) - late(b) ||
+    (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999") ||
+    (a.planDate ?? "9999").localeCompare(b.planDate ?? "9999")
+  );
+}
 
 /** Alles voor het Vandaag-scherm. Onderdelen van uitgeschakelde modules worden niet opgehaald. */
 export async function getCockpit(area?: "zakelijk" | "prive"): Promise<Cockpit> {
@@ -137,7 +166,7 @@ export async function getCockpit(area?: "zakelijk" | "prive"): Promise<Cockpit> 
     listTasks({ view: "today", area }),
     listTasks({ view: "upcoming", days: 7, area }),
     inboxCount(),
-    configured ? getEvents(t, t) : Promise.resolve({ events: [] as CalendarEvent[], errors: [] as string[] }),
+    configured ? getEvents(t, tomorrow) : Promise.resolve({ events: [] as CalendarEvent[], errors: [] as string[] }),
     listReviews("day", 1),
     completedBetween(t, t),
     modules.uren ? weekHours(t) : none,
@@ -152,7 +181,8 @@ export async function getCockpit(area?: "zakelijk" | "prive"): Promise<Cockpit> 
   const overdue = todayTasks.filter((x) => (x.planDate ?? x.dueDate)! < t);
   const planned = todayTasks.filter((x) => (x.planDate ?? x.dueDate)! >= t);
   const now = nowMinutes();
-  const timeline = buildTimeline(cal.events, planned, now, configured, cal.errors);
+  const eventsToday = cal.events.filter((e) => e.date === t);
+  const timeline = buildTimeline(eventsToday, planned, now, configured, cal.errors);
   const doneCount = doneToday.filter((x) => !area || x.area === area).length;
 
   /* ---------------- KPI-tegels ---------------- */
@@ -166,7 +196,7 @@ export async function getCockpit(area?: "zakelijk" | "prive"): Promise<Cockpit> 
     inbox: { key: "inbox", value: inbox, label: KPIS.inbox.label, sub: inbox ? "te verwerken" : "leeg", href: "/inbox" },
     agenda: {
       key: "agenda",
-      value: configured ? cal.events.length : "–",
+      value: configured ? eventsToday.length : "–",
       label: KPIS.agenda.label,
       sub: !configured
         ? "niet gekoppeld"
@@ -236,7 +266,82 @@ export async function getCockpit(area?: "zakelijk" | "prive"): Promise<Cockpit> 
   // Eerst wat aandacht vraagt, de volgorde binnen een niveau blijft staan
   signals.sort((a, b) => (a.level === b.level ? 0 : a.level === "alert" ? -1 : 1));
 
-  const briefing = lastDay[0]?.periodDate === t ? { body: lastDay[0].body } : null;
+  const today_ = lastDay[0]?.periodDate === t ? lastDay[0] : null;
+  const briefing = today_ ? { body: today_.body } : null;
+  const clock = new Intl.DateTimeFormat("nl-NL", { timeZone: TIMEZONE, hour: "2-digit", minute: "2-digit" });
 
-  return { date: t, modules, kpis, signals, timeline, overdue, upcoming, briefing };
+  /* ---------------- Tijdlijn komende 8 uur ---------------- */
+
+  const winStart = Math.floor(now / 60) * 60 - 60;
+  const winEnd = winStart + 9 * 60;
+  const window: HourWindow = {
+    start: winStart,
+    end: winEnd,
+    now,
+    events: cal.events
+      .filter((e) => !e.allDay && e.time && (e.date === t || e.date === tomorrow))
+      .map((e) => {
+        const shift = e.date === tomorrow ? 1440 : 0;
+        const from = toMin(e.time!) + shift;
+        let to = (e.endTime ? toMin(e.endTime) : toMin(e.time!) + 30) + shift;
+        if (to <= from) to += 1440; // loopt over middernacht
+        return { title: e.title, calendar: e.calendar, location: e.location, from, to, label: `${e.time} tot ${e.endTime}`, past: to <= now, current: from <= now && to > now };
+      })
+      .filter((e) => e.to > winStart && e.from < winEnd),
+  };
+
+  /* ---------------- Focus ---------------- */
+
+  const open = [...overdue, ...planned].sort((a, b) => byFocus(a, b, t));
+  const focus = open.slice(0, 3);
+  const rest = open.slice(3);
+
+  /* ---------------- Doelbalk ---------------- */
+
+  // Tot de doelen er zijn (gesprek 10): de dag zelf als doel
+  const goal: Goal = {
+    title: "Taken van vandaag afgerond",
+    value: doneCount,
+    target: doneCount + open.length,
+    unit: "taken",
+    note: "Voorlopig doel. In gesprek 10 kies je hier je eigen hoofddoel (bijv. MRR of omzet).",
+    provisional: true,
+  };
+
+  /* ---------------- Briefing zonder Hermes ---------------- */
+
+  const parts: string[] = [];
+  const next = timeline.items.find((i) => i.kind === "event" && !i.past && !i.current);
+  const cur = timeline.items.find((i) => i.kind === "event" && i.current);
+  parts.push(
+    open.length
+      ? `Je hebt vandaag ${planned.length} ${planned.length === 1 ? "taak" : "taken"} gepland${overdue.length ? ` en ${overdue.length} achterstallig` : ""}.`
+      : "Er staat vandaag niets meer open.",
+  );
+  if (focus[0]) parts.push(`Begin met: ${focus[0].title}.`);
+  if (cur && cur.kind === "event") parts.push(`Nu bezig: ${cur.event.title} (tot ${cur.event.endTime}).`);
+  else if (next && next.kind === "event") parts.push(`Volgende afspraak: ${next.event.time} ${next.event.title}.`);
+  if (timeline.freeMin !== null) parts.push(`Nog ${formatDuration(timeline.freeMin)} vrij tot ${WORKDAY.end}${timeline.plannedMin > timeline.freeMin ? ", minder dan je hebt ingeschat" : ""}.`);
+  const alerts = signals.filter((x) => x.level === "alert").length;
+  if (alerts) parts.push(`${alerts} ${alerts === 1 ? "signaal vraagt" : "signalen vragen"} aandacht.`);
+  if (inbox) parts.push(`${inbox} in je inbox.`);
+
+  return {
+    date: t,
+    nowLabel: clock.format(new Date()),
+    window,
+    focus,
+    rest,
+    goal,
+    doneCount,
+    autoBriefing: parts.join(" "),
+    briefingAt: today_ ? clock.format(today_.createdAt) : null,
+    modules,
+    kpis,
+    signals,
+    timeline,
+    overdue,
+    upcoming,
+    briefing,
+  };
 }

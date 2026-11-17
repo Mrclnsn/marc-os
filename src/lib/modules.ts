@@ -81,3 +81,12 @@ export const THEME_COOKIE = "marc-os-thema";
 export function parseTheme(v: string | undefined | null): Theme {
   return v === "licht" || v === "donker" || v === "systeem" ? v : "systeem";
 }
+
+/* ---------------- Cockpitstijl ---------------- */
+
+export const COCKPIT_STYLES = { strak: "Strak (MLC)", ironman: "Iron Man" } as const;
+export type CockpitStyle = keyof typeof COCKPIT_STYLES;
+export const COCKPIT_COOKIE = "marc-os-cockpit";
+export function parseCockpitStyle(v: string | undefined | null): CockpitStyle {
+  return v === "ironman" ? "ironman" : "strak";
+}

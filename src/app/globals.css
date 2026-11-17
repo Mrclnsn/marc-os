@@ -31,7 +31,8 @@
 }
 
 /* Donkere cockpitmodus: achtergrond Nacht, panelen Grafiet, tekst Parel en Steen */
-:root.donker {
+:root.donker,
+.hud {
   --nacht: #f4f4f4;
   --grafiet: #d6d5dc;
   --steen: #9a98a8;
@@ -45,7 +46,8 @@
   color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
-  :root.systeem {
+  :root.systeem,
+  .hud {
     --nacht: #f4f4f4;
     --grafiet: #d6d5dc;
     --steen: #9a98a8;
@@ -136,3 +138,122 @@ body {
     @apply border-b-2 border-nacht px-1 pb-1.5 text-sm font-bold text-nacht;
   }
 }
+
+/*
+ * Cockpitstijl "Iron Man": HUD met gloed, raster en rustige animaties.
+ * Zet de donkere kleuren (ook als het thema licht is) en een koele gloedkleur.
+ */
+.hud {
+  --hud: #67e8f9;
+  --hud-zacht: rgba(103, 232, 249, 0.12);
+  --nacht: #eafcff;
+  --grafiet: #cfe3ea;
+  --steen: #7f9aab;
+  --parel: rgba(103, 232, 249, 0.07);
+  --lijn: rgba(103, 232, 249, 0.14);
+  --vlak: rgba(9, 13, 32, 0.72);
+  --achtergrond: #05040f;
+  --op-nacht: #04121a;
+  position: relative;
+  isolation: isolate;
+  color: var(--grafiet);
+  background:
+    radial-gradient(1100px 520px at 50% -8%, rgba(103, 232, 249, 0.13), transparent 62%),
+    radial-gradient(700px 500px at 100% 100%, rgba(120, 90, 255, 0.10), transparent 60%),
+    #05040f;
+}
+.hud::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(103, 232, 249, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(103, 232, 249, 0.045) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse at 50% 20%, black 30%, transparent 85%);
+}
+.hud .card {
+  border-color: rgba(103, 232, 249, 0.18);
+  box-shadow: 0 0 0 1px rgba(103, 232, 249, 0.04), 0 0 32px rgba(103, 232, 249, 0.05), inset 0 0 40px rgba(103, 232, 249, 0.03);
+  backdrop-filter: blur(6px);
+}
+.hud .accent {
+  background: var(--hud) !important;
+  box-shadow: 0 0 12px var(--hud);
+}
+.hud .glow {
+  text-shadow: 0 0 18px rgba(103, 232, 249, 0.55);
+}
+.hud .btn-primary {
+  background: var(--hud);
+  box-shadow: 0 0 18px rgba(103, 232, 249, 0.35);
+}
+.hud .hud-mono {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  letter-spacing: 0.04em;
+}
+/* HUD-hoekjes op panelen */
+.hud .hoeken {
+  position: relative;
+}
+.hud .hoeken::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    linear-gradient(var(--hud), var(--hud)) top left / 14px 1.5px no-repeat,
+    linear-gradient(var(--hud), var(--hud)) top left / 1.5px 14px no-repeat,
+    linear-gradient(var(--hud), var(--hud)) top right / 14px 1.5px no-repeat,
+    linear-gradient(var(--hud), var(--hud)) top right / 1.5px 14px no-repeat,
+    linear-gradient(var(--hud), var(--hud)) bottom left / 14px 1.5px no-repeat,
+    linear-gradient(var(--hud), var(--hud)) bottom left / 1.5px 14px no-repeat,
+    linear-gradient(var(--hud), var(--hud)) bottom right / 14px 1.5px no-repeat,
+    linear-gradient(var(--hud), var(--hud)) bottom right / 1.5px 14px no-repeat;
+  opacity: 0.7;
+}
+
+/* Hermes-bol */
+@keyframes bol-adem {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+@keyframes bol-ring {
+  to { transform: rotate(360deg); }
+}
+@keyframes bol-golf {
+  0% { transform: scale(0.85); opacity: 0.6; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+@keyframes scan {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+.bol-kern { animation: bol-adem 4s ease-in-out infinite; }
+.bol-ring { animation: bol-ring 18s linear infinite; }
+.bol-ring-terug { animation: bol-ring 26s linear infinite reverse; }
+.bol-golf { animation: bol-golf 3.2s ease-out infinite; }
+.bol-golf-2 { animation: bol-golf 3.2s ease-out 1.6s infinite; }
+.hud .scanlijn {
+  animation: scan 7s linear infinite;
+  background: linear-gradient(to bottom, transparent, rgba(103, 232, 249, 0.06), transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .bol-kern, .bol-ring, .bol-ring-terug, .bol-golf, .bol-golf-2, .hud .scanlijn { animation: none; }
+}
+
+/* Focuslijst op de cockpit: 01, 02, 03 voor elke taak */
+.genummerd ul { counter-reset: focus; }
+.genummerd li { counter-increment: focus; }
+.genummerd li::before {
+  content: counter(focus, decimal-leading-zero);
+  flex-shrink: 0;
+  width: 2rem;
+  margin-top: -3px;
+  font: 700 22px/1 ui-monospace, "SF Mono", Menlo, monospace;
+  color: var(--steen);
+}
+.hud .genummerd li::before { color: var(--hud); text-shadow: 0 0 12px rgba(103, 232, 249, 0.5); }
