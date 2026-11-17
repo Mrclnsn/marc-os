@@ -1,3 +1,4 @@
+import { PageHeader, SectionTitle } from "@/components/brand";
 import Link from "next/link";
 import { AreaSelect, ClientSelect } from "@/components/forms";
 import { listProjects } from "@/lib/data";
@@ -17,13 +18,12 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
   ];
 
   return (
-    <div className="space-y-6">
-      <header className="flex items-end justify-between">
-        <h1 className="h1">Projecten</h1>
-        <Link href={alles ? "/projecten" : "/projecten?alles=1"} className="text-sm text-muted">
+    <div className="space-y-10">
+      <PageHeader eyebrow="Overzicht" title="Projecten">
+        <Link href={alles ? "/projecten" : "/projecten?alles=1"} className="tab">
           {alles ? "Alleen lopende" : "Toon ook afgerond"}
         </Link>
-      </header>
+      </PageHeader>
 
       <form action={createProjectAction} className="card grid grid-cols-2 gap-2 p-2 md:grid-cols-4">
         <input name="name" required placeholder="Nieuw project..." className="input col-span-2 md:col-span-1" />
@@ -34,27 +34,27 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
 
       {groups.map((g) => (
         <section key={g.title} className="space-y-2">
-          <h2 className="h2">{g.title}</h2>
+          <SectionTitle>{g.title}</SectionTitle>
           {g.items.length === 0 ? (
-            <p className="text-sm text-muted">Geen projecten.</p>
+            <p className="text-sm text-steen">Geen projecten.</p>
           ) : (
-            <div className="card divide-y divide-line">
+            <div className="card divide-y divide-lijn">
               {g.items.map(({ project, clientName, openTasks, doneTasks }) => {
                 const total = openTasks + doneTasks;
                 return (
-                  <Link key={project.id} href={`/projecten/${project.id}`} className="flex items-center gap-3 px-3 py-2.5 hover:bg-bg">
+                  <Link key={project.id} href={`/projecten/${project.id}`} className="flex items-center gap-3 px-3 py-2.5 hover:bg-parel">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium">{project.name}</p>
-                      <p className="text-xs text-muted">
+                      <p className="text-xs text-steen">
                         {[clientName, PROJECT_STATUS[project.status], project.dueDate && `deadline ${formatShort(project.dueDate)}`].filter(Boolean).join(" · ")}
                       </p>
                     </div>
                     {total > 0 && (
                       <div className="w-24 text-right">
-                        <div className="h-1.5 rounded bg-line">
-                          <div className="h-1.5 rounded bg-accent" style={{ width: `${(doneTasks / total) * 100}%` }} />
+                        <div className="h-1.5 rounded bg-lijn">
+                          <div className="h-1.5 rounded bg-nacht" style={{ width: `${(doneTasks / total) * 100}%` }} />
                         </div>
-                        <p className="mt-1 text-xs text-muted">{openTasks} open</p>
+                        <p className="mt-1 text-xs text-steen">{openTasks} open</p>
                       </div>
                     )}
                   </Link>

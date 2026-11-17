@@ -28,9 +28,12 @@ export function TaskRow({ task, today, tomorrow, showClient = true, showProject 
   const when = task.planDate ?? task.dueDate;
   const overdue = !done && when != null && when < today;
   const deadlineSoon = !done && task.dueDate != null && task.dueDate <= tomorrow;
+  const high = task.priority === 1 && !done;
+  const meta = [showClient && task.clientName, showProject && task.projectName].filter(Boolean) as string[];
 
   return (
-    <li className={`group flex items-start gap-3 px-3 py-2 ${pending ? "opacity-60" : ""}`}>
+    <li className={`group relative flex items-start gap-4 px-4 py-3 transition-colors hover:bg-parel/70 ${pending ? "opacity-50" : ""}`}>
+      {overdue && <span className="absolute inset-y-0 left-0 w-[3px] bg-nacht" title="Achterstallig" />}
       <button
         aria-label={done ? "Heropenen" : "Afronden"}
         onClick={() =>
@@ -39,33 +42,40 @@ export function TaskRow({ task, today, tomorrow, showClient = true, showProject 
             await toggleTaskAction(task.id, !done);
           })
         }
-        className={`mt-0.5 h-5 w-5 shrink-0 rounded-full border-2 grid place-items-center text-[11px] ${
-          done ? "border-accent bg-accent text-white" : task.priority === 1 ? "border-danger" : "border-line hover:border-accent"
+        className={`mt-[3px] grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[3px] text-[11px] font-bold transition-colors ${
+          done ? "border-[1.5px] border-nacht bg-nacht text-white" : high ? "border-2 border-nacht" : "border-[1.5px] border-nacht/35 hover:border-nacht"
         }`}
       >
         {done ? "✓" : ""}
       </button>
+
       <div className="min-w-0 flex-1">
-        <Link href={`/taken/${task.id}`} className={`block text-sm leading-snug ${done ? "line-through text-muted" : ""}`}>
+        <Link
+          href={`/taken/${task.id}`}
+          className={`block text-[15px] leading-snug ${done ? "text-steen line-through" : high ? "font-bold text-nacht" : "text-grafiet hover:text-nacht"}`}
+        >
           {task.title}
         </Link>
-        <div className="mt-1 flex flex-wrap items-center gap-1.5">
-          <span className={`h-1.5 w-1.5 rounded-full ${task.area === "prive" ? "bg-emerald-500" : "bg-accent"}`} title={task.area === "prive" ? "Privé" : "Zakelijk"} />
-          {showClient && task.clientName && <span className="chip">{task.clientName}</span>}
-          {showProject && task.projectName && <span className="chip">◫ {task.projectName}</span>}
-          {when && (
-            <span className={`text-xs ${overdue ? "text-danger font-medium" : "text-muted"}`}>{label(when, today, tomorrow)}</span>
-          )}
+        <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-steen">
+          <span
+            className={`inline-block h-2 w-2 rounded-full border border-nacht ${task.area === "prive" ? "bg-transparent" : "bg-nacht"}`}
+            title={task.area === "prive" ? "Privé" : "Zakelijk"}
+          />
+          {meta.map((m) => (
+            <span key={m} className="text-grafiet">{m}</span>
+          ))}
+          {when && <span className={overdue ? "font-bold text-nacht" : ""}>{label(when, today, tomorrow)}</span>}
           {task.dueDate && task.planDate && task.dueDate !== task.planDate && (
-            <span className={`text-xs ${deadlineSoon ? "text-warn font-medium" : "text-muted"}`}>deadline {label(task.dueDate, today, tomorrow)}</span>
+            <span className={deadlineSoon ? "font-bold text-nacht" : ""}>deadline {label(task.dueDate, today, tomorrow)}</span>
           )}
-          {task.recurrence !== "none" && <span className="text-xs text-muted" title="Terugkerend">↻</span>}
+          {task.recurrence !== "none" && <span title="Terugkerend">↻</span>}
           {task.status === "waiting" && <span className="chip">wacht op</span>}
-          {task.estimateMin ? <span className="text-xs text-muted">{task.estimateMin} min</span> : null}
+          {task.estimateMin ? <span>{task.estimateMin} min</span> : null}
         </div>
       </div>
+
       {!done && (
-        <div className="flex shrink-0 gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100">
+        <div className="flex shrink-0 gap-1 md:opacity-0 md:transition-opacity md:group-hover:opacity-100">
           {when !== today && (
             <button className="btn-ghost text-xs" onClick={() => start(() => planTaskAction(task.id, today))}>
               Vandaag
@@ -83,9 +93,9 @@ export function TaskRow({ task, today, tomorrow, showClient = true, showProject 
 }
 
 export function TaskList({ tasks, today, tomorrow, empty, showClient, showProject }: { tasks: TaskWithRefs[]; today: string; tomorrow: string; empty?: string; showClient?: boolean; showProject?: boolean }) {
-  if (!tasks.length) return <p className="px-3 py-3 text-sm text-muted">{empty ?? "Niets hier."}</p>;
+  if (!tasks.length) return <p className="px-4 py-4 text-sm text-steen">{empty ?? "Niets hier."}</p>;
   return (
-    <ul className="divide-y divide-line">
+    <ul className="divide-y divide-lijn">
       {tasks.map((t) => (
         <TaskRow key={t.id} task={t} today={today} tomorrow={tomorrow} showClient={showClient} showProject={showProject} />
       ))}

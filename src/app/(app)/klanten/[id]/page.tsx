@@ -1,3 +1,4 @@
+import { PageHeader, SectionTitle } from "@/components/brand";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ClientStatusSelect, Field, NoteTypeSelect } from "@/components/forms";
@@ -25,33 +26,30 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   const clientProjects = options.projects.filter((p) => p.clientId === id);
 
   return (
-    <div className="space-y-6">
-      <Link href="/klanten" className="text-sm text-muted">← Klanten</Link>
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="h1">{client.name}</h1>
-          <p className="text-sm text-muted">
-            {[client.contactPerson, client.email, client.phone].filter(Boolean).join(" · ") || "Nog geen contactgegevens"}
-          </p>
-        </div>
+    <div className="space-y-10">
+      <Link href="/klanten" className="mb-6 inline-block text-sm text-steen hover:text-nacht">← Klanten</Link>
+      <PageHeader
+        eyebrow={[client.contactPerson, client.email, client.phone].filter(Boolean).join(" · ") || "Nog geen contactgegevens"}
+        title={client.name}
+      >
         <span className="chip">{CLIENT_STATUS[client.status]}</span>
-      </header>
+      </PageHeader>
 
       {client.info && (
         <section className="card p-4">
-          <h2 className="h2 mb-2">Informatie</h2>
+          <SectionTitle>Informatie</SectionTitle>
           <p className="whitespace-pre-wrap text-sm leading-relaxed">{client.info}</p>
         </section>
       )}
 
       <section className="space-y-2">
-        <h2 className="h2">Projecten</h2>
-        <div className="card divide-y divide-line">
-          {projectsRows.length === 0 && <p className="px-3 py-3 text-sm text-muted">Nog geen projecten.</p>}
+        <SectionTitle>Projecten</SectionTitle>
+        <div className="card divide-y divide-lijn">
+          {projectsRows.length === 0 && <p className="px-3 py-3 text-sm text-steen">Nog geen projecten.</p>}
           {projectsRows.map(({ project, openTasks }) => (
-            <Link key={project.id} href={`/projecten/${project.id}`} className="flex items-center justify-between px-3 py-2 text-sm hover:bg-bg">
-              <span className={project.status === "done" || project.status === "archived" ? "text-muted line-through" : ""}>{project.name}</span>
-              <span className="text-xs text-muted">
+            <Link key={project.id} href={`/projecten/${project.id}`} className="flex items-center justify-between px-3 py-2 text-sm hover:bg-parel">
+              <span className={project.status === "done" || project.status === "archived" ? "text-steen line-through" : ""}>{project.name}</span>
+              <span className="text-xs text-steen">
                 {PROJECT_STATUS[project.status]}
                 {project.dueDate ? ` · ${formatShort(project.dueDate)}` : ""} · {openTasks} open
               </span>
@@ -67,13 +65,13 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       </section>
 
       <section className="space-y-2">
-        <h2 className="h2">Taken</h2>
+        <SectionTitle>Taken</SectionTitle>
         <div className="card"><TaskList tasks={tasks} today={t} tomorrow={addDaysIso(t, 1)} showClient={false} empty="Geen open taken." /></div>
         <QuickAddTask clients={options.clients} projects={clientProjects} defaults={{ clientId: id, area: "zakelijk" }} placeholder="Taak voor deze klant..." />
       </section>
 
       <section className="space-y-2">
-        <h2 className="h2">Dossier</h2>
+        <SectionTitle>Dossier</SectionTitle>
         <div className="card"><NoteList rows={notesRows} showClient={false} empty="Nog geen notities voor deze klant." /></div>
         <form action={createNoteAction} className="flex flex-wrap gap-2">
           <input type="hidden" name="clientId" value={id} />
@@ -101,7 +99,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           <button className="btn-primary">Opslaan</button>
         </form>
         <form action={deleteClientAction.bind(null, id)} className="mt-3">
-          <button className="btn-ghost text-xs text-danger">Klant verwijderen (taken en notities blijven bestaan)</button>
+          <button className="btn-ghost text-xs text-nacht">Klant verwijderen (taken en notities blijven bestaan)</button>
         </form>
       </details>
     </div>

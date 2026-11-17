@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.16",
+    "@fontsource/carlito": "^5.3.0",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.4",

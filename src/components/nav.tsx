@@ -2,54 +2,78 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Beeldmerk } from "./brand";
 
 const items = [
-  { href: "/", label: "Vandaag", icon: "☀" },
-  { href: "/inbox", label: "Inbox", icon: "✎" },
-  { href: "/taken", label: "Taken", icon: "✓" },
-  { href: "/projecten", label: "Projecten", icon: "◫" },
-  { href: "/klanten", label: "Klanten", icon: "◎" },
-  { href: "/notities", label: "Notities", icon: "≡" },
-  { href: "/reviews", label: "Reviews", icon: "↺" },
+  { href: "/", label: "Vandaag" },
+  { href: "/inbox", label: "Inbox" },
+  { href: "/taken", label: "Taken" },
+  { href: "/projecten", label: "Projecten" },
+  { href: "/klanten", label: "Klanten" },
+  { href: "/notities", label: "Notities" },
+  { href: "/reviews", label: "Reviews" },
 ];
 
-export function Nav({ inbox }: { inbox: number }) {
+export function Nav({ inbox, logout }: { inbox: number; logout: React.ReactNode }) {
   const path = usePathname();
   const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
+
   return (
     <>
-      {/* Desktop: zijbalk */}
-      <nav className="hidden md:flex fixed inset-y-0 left-0 w-52 flex-col gap-1 border-r border-line bg-surface p-3">
-        <div className="px-2 py-3 text-base font-semibold">Marc OS</div>
-        {items.map((i) => (
-          <Link
-            key={i.href}
-            href={i.href}
-            className={`flex items-center justify-between rounded-md px-2 py-1.5 text-sm ${
-              active(i.href) ? "bg-accent-soft text-accent font-medium" : "text-fg hover:bg-bg"
-            }`}
-          >
-            <span className="flex items-center gap-2">
-              <span className="w-4 text-center text-muted">{i.icon}</span>
-              {i.label}
-            </span>
-            {i.href === "/inbox" && inbox > 0 && <span className="chip">{inbox}</span>}
-          </Link>
-        ))}
+      {/* Desktop: Nacht-zijbalk */}
+      <nav className="fixed inset-y-0 left-0 hidden w-60 flex-col bg-nacht text-white md:flex">
+        <Link href="/" className="flex items-center gap-3 px-6 pb-8 pt-7">
+          <Beeldmerk className="h-7 w-auto" color="#fff" strokeWidth={22} />
+          <span className="leading-tight">
+            <span className="block text-lg font-bold tracking-tight">Marc OS</span>
+            <span className="block text-[10px] uppercase tracking-[0.2em] text-white/50">Marc Lonsain Consultancy</span>
+          </span>
+        </Link>
+        <div className="flex flex-1 flex-col gap-0.5 px-3">
+          {items.map((i) => {
+            const on = active(i.href);
+            return (
+              <Link
+                key={i.href}
+                href={i.href}
+                className={`relative flex items-center justify-between rounded-sm px-3 py-2 text-[15px] transition-colors ${
+                  on ? "bg-white/10 font-bold text-white" : "text-white/65 hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                {on && <span className="absolute inset-y-1.5 left-0 w-[3px] bg-white" />}
+                {i.label}
+                {i.href === "/inbox" && inbox > 0 && (
+                  <span className="min-w-5 rounded-sm bg-white px-1.5 text-center text-xs font-bold text-nacht">{inbox}</span>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+        <div className="border-t border-white/10 px-6 py-4">{logout}</div>
       </nav>
-      {/* Mobiel: onderbalk */}
-      <nav className="md:hidden fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]">
-        {items.slice(0, 5).map((i) => (
-          <Link
-            key={i.href}
-            href={i.href}
-            className={`flex flex-col items-center py-2 text-[11px] ${active(i.href) ? "text-accent" : "text-muted"}`}
-          >
-            <span className="text-base leading-none">{i.icon}</span>
-            {i.label}
-            {i.href === "/inbox" && inbox > 0 ? ` (${inbox})` : ""}
-          </Link>
-        ))}
+
+      {/* Mobiel: compacte kop en onderbalk */}
+      <div className="sticky top-0 z-10 flex items-center justify-between bg-nacht px-4 py-3 text-white md:hidden">
+        <Link href="/" className="flex items-center gap-2">
+          <Beeldmerk className="h-5 w-auto" color="#fff" strokeWidth={22} />
+          <span className="font-bold">Marc OS</span>
+        </Link>
+        <div className="flex gap-4 text-sm text-white/70">
+          <Link href="/notities" className={active("/notities") ? "font-bold text-white" : ""}>Notities</Link>
+          <Link href="/reviews" className={active("/reviews") ? "font-bold text-white" : ""}>Reviews</Link>
+        </div>
+      </div>
+      <nav className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 bg-nacht pb-[env(safe-area-inset-bottom)] text-white md:hidden">
+        {items.slice(0, 5).map((i) => {
+          const on = active(i.href);
+          return (
+            <Link key={i.href} href={i.href} className={`relative py-3 text-center text-[13px] ${on ? "font-bold text-white" : "text-white/60"}`}>
+              {on && <span className="absolute inset-x-4 top-0 h-[3px] bg-white" />}
+              {i.label}
+              {i.href === "/inbox" && inbox > 0 ? <span className="ml-1 rounded-sm bg-white px-1 text-[11px] font-bold text-nacht">{inbox}</span> : null}
+            </Link>
+          );
+        })}
       </nav>
     </>
   );

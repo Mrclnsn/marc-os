@@ -17,7 +17,7 @@ export function QuickAddTask({ clients, projects, defaults = {}, placeholder = "
         <button className="btn-primary">Toevoegen</button>
       </div>
       <details className="mt-1 px-1">
-        <summary className="cursor-pointer select-none text-xs text-muted">Meer</summary>
+        <summary className="cursor-pointer select-none text-xs text-steen">Meer</summary>
         <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-4">
           <AreaSelect value={defaults.area} />
           <ClientSelect clients={clients} value={defaults.clientId} />

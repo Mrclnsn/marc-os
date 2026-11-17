@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/brand";
 import Link from "next/link";
 import { AreaSelect, ClientSelect, NoteTypeSelect } from "@/components/forms";
 import { NoteList } from "@/components/note-list";
@@ -18,8 +19,8 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
   ]);
 
   return (
-    <div className="space-y-5">
-      <h1 className="h1">Notities</h1>
+    <div className="space-y-6">
+      <PageHeader eyebrow="Dossier" title="Notities" />
 
       <form action={createNoteAction} className="card grid grid-cols-2 gap-2 p-2 md:grid-cols-5">
         <input name="title" required placeholder="Nieuwe notitie..." className="input col-span-2" />

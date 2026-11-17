@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/brand";
 import { CaptureBar } from "@/components/quick-add";
 import { AreaSelect, ClientSelect, NoteTypeSelect, ProjectSelect } from "@/components/forms";
 import { listNotes } from "@/lib/data";
@@ -10,21 +11,19 @@ export default async function InboxPage() {
   const t = today();
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="h1">Inbox</h1>
-        <p className="text-sm text-muted">Alles wat je snel hebt vastgelegd. Maak er een taak of notitie van, of gooi het weg.</p>
-      </header>
+    <div className="space-y-8">
+      <PageHeader eyebrow="Braindump" title="Inbox" />
+      <p className="-mt-4 text-[15px] text-grafiet">Alles wat je snel hebt vastgelegd. Maak er een taak of notitie van, of gooi het weg.</p>
       <CaptureBar />
 
-      {items.length === 0 && <p className="text-sm text-muted">Je inbox is leeg.</p>}
+      {items.length === 0 && <p className="text-sm text-steen">Je inbox is leeg.</p>}
 
       <ul className="space-y-3">
         {items.map(({ note }) => (
           <li key={note.id} className="card p-3 space-y-3">
             <div>
               <p className="font-medium">{note.title}</p>
-              {note.body && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{note.body}</p>}
+              {note.body && <p className="mt-1 whitespace-pre-wrap text-sm text-steen">{note.body}</p>}
             </div>
 
             <form action={inboxToTaskAction.bind(null, note.id)} className="grid grid-cols-2 gap-2 md:grid-cols-5">
@@ -44,7 +43,7 @@ export default async function InboxPage() {
             </form>
 
             <form action={deleteNoteAction.bind(null, note.id, "/inbox")}>
-              <button className="btn-ghost text-xs text-danger">Weggooien</button>
+              <button className="btn-ghost text-xs text-nacht">Weggooien</button>
             </form>
           </li>
         ))}

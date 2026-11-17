@@ -1,3 +1,4 @@
+import { PageHeader, SectionTitle } from "@/components/brand";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AreaSelect, ClientSelect, Field, ProjectStatusSelect } from "@/components/forms";
@@ -23,23 +24,21 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const t = today();
 
   return (
-    <div className="space-y-6">
-      <Link href="/projecten" className="text-sm text-muted">← Projecten</Link>
-      <header>
-        <h1 className="h1">{project.name}</h1>
-        {clientName && project.clientId && (
-          <Link href={`/klanten/${project.clientId}`} className="text-sm text-accent">{clientName}</Link>
-        )}
-      </header>
+    <div className="space-y-10">
+      <Link href="/projecten" className="mb-6 inline-block text-sm text-steen hover:text-nacht">← Projecten</Link>
+      <PageHeader
+        eyebrow={clientName && project.clientId ? <Link href={`/klanten/${project.clientId}`} className="hover:text-nacht">{clientName}</Link> : project.area === "prive" ? "Privé" : "Bedrijf algemeen"}
+        title={project.name}
+      />
 
       <section className="space-y-2">
-        <h2 className="h2">Open taken</h2>
+        <SectionTitle>Open taken</SectionTitle>
         <div className="card"><TaskList tasks={open} today={t} tomorrow={addDaysIso(t, 1)} showProject={false} empty="Geen open taken." /></div>
         <QuickAddTask clients={options.clients} projects={options.projects} defaults={{ projectId: id, clientId: project.clientId, area: project.area }} />
       </section>
 
       <section className="space-y-2">
-        <h2 className="h2">Notities</h2>
+        <SectionTitle>Notities</SectionTitle>
         <div className="card"><NoteList rows={notesRows} showClient={false} /></div>
         <form action={createNoteAction} className="flex gap-2">
           <input type="hidden" name="projectId" value={id} />
@@ -67,13 +66,13 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           <button className="btn-primary">Opslaan</button>
         </form>
         <form action={deleteProjectAction.bind(null, id)} className="mt-3">
-          <button className="btn-ghost text-xs text-danger">Project verwijderen (taken blijven bestaan)</button>
+          <button className="btn-ghost text-xs text-nacht">Project verwijderen (taken blijven bestaan)</button>
         </form>
       </details>
 
       {done.length > 0 && (
         <details>
-          <summary className="cursor-pointer text-sm text-muted">Afgeronde taken ({done.length})</summary>
+          <summary className="cursor-pointer text-sm text-steen">Afgeronde taken ({done.length})</summary>
           <div className="card mt-2"><TaskList tasks={done} today={t} tomorrow={addDaysIso(t, 1)} showProject={false} /></div>
         </details>
       )}

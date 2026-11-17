@@ -1,76 +1,88 @@
 @import "tailwindcss";
 
+/*
+ * MLC huisstijl: "een lijn, geen ruis."
+ * Palet: Nacht, Grafiet, Steen, Parel + wit. Geen accentkleur.
+ * Lettertype: Calibri (Carlito als webfont-terugval, zelfde maten).
+ */
 :root {
-  --bg: #f7f7f5;
-  --surface: #ffffff;
-  --fg: #1c1c1a;
-  --muted: #6b6b66;
-  --line: #e6e5e0;
-  --accent: #1f4e79;
-  --accent-soft: #e8eff6;
-  --danger: #b42318;
-  --warn: #b54708;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #141413;
-    --surface: #1d1d1b;
-    --fg: #ececea;
-    --muted: #9a9a94;
-    --line: #2e2e2b;
-    --accent: #7fb0dc;
-    --accent-soft: #1e2a36;
-    --danger: #f97066;
-    --warn: #fdb022;
-  }
+  --nacht: #16112b;
+  --grafiet: #2c2c2c;
+  --steen: #aaaaaa;
+  --parel: #f4f4f4;
+  --wit: #ffffff;
+  --lijn: #e4e3e8; /* haarlijn: Parel net iets dieper, voor scheidingen */
 }
 
 @theme inline {
-  --color-bg: var(--bg);
-  --color-surface: var(--surface);
-  --color-fg: var(--fg);
-  --color-muted: var(--muted);
-  --color-line: var(--line);
-  --color-accent: var(--accent);
-  --color-accent-soft: var(--accent-soft);
-  --color-danger: var(--danger);
-  --color-warn: var(--warn);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --color-nacht: var(--nacht);
+  --color-grafiet: var(--grafiet);
+  --color-steen: var(--steen);
+  --color-parel: var(--parel);
+  --color-lijn: var(--lijn);
+  --font-sans: Calibri, Carlito, "Segoe UI", system-ui, sans-serif;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
 }
 
 body {
-  background: var(--bg);
-  color: var(--fg);
+  background: var(--wit);
+  color: var(--grafiet);
   font-family: var(--font-sans);
+  font-size: 16px;
+}
+
+::selection {
+  background: var(--nacht);
+  color: var(--wit);
 }
 
 @layer components {
-  .input {
-    @apply min-w-0 rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-accent;
+  /* De lijn: terugkerend ankerpunt onder paginatitels */
+  .rule {
+    @apply h-[3px] w-full bg-nacht;
   }
-  .btn {
-    @apply inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-md border border-line bg-surface px-3 py-2 text-sm font-medium hover:bg-bg disabled:opacity-50;
-  }
-  .btn-primary {
-    @apply inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-md bg-accent px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 dark:text-black;
-  }
-  .btn-ghost {
-    @apply inline-flex items-center justify-center rounded-md px-2 py-1 text-sm text-muted hover:bg-line/50 hover:text-fg;
-  }
-  .card {
-    @apply rounded-lg border border-line bg-surface;
-  }
-  .chip {
-    @apply inline-flex items-center rounded px-1.5 py-0.5 text-xs text-muted bg-bg border border-line whitespace-nowrap;
-  }
-  .label {
-    @apply block text-xs font-medium text-muted mb-1;
+
+  .eyebrow {
+    @apply text-xs font-normal uppercase tracking-[0.18em] text-steen;
   }
   .h1 {
-    @apply text-2xl font-semibold tracking-tight;
+    @apply text-4xl font-bold leading-none tracking-tight text-nacht md:text-5xl;
   }
   .h2 {
-    @apply text-sm font-semibold uppercase tracking-wide text-muted;
+    @apply text-lg font-bold text-nacht;
+  }
+
+  .input {
+    @apply min-w-0 rounded-sm border border-lijn bg-white px-3 py-2 text-[15px] text-grafiet outline-none transition-colors placeholder:text-steen focus:border-nacht;
+  }
+  .btn {
+    @apply inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-sm border border-nacht bg-white px-3.5 py-2 text-sm font-bold text-nacht transition-colors hover:bg-parel disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-sm bg-nacht px-3.5 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded-sm px-2 py-1 text-sm text-steen transition-colors hover:bg-parel hover:text-nacht;
+  }
+  .card {
+    @apply rounded-sm border border-lijn bg-white;
+  }
+  .panel {
+    @apply rounded-sm bg-parel;
+  }
+  .chip {
+    @apply inline-flex items-center whitespace-nowrap rounded-sm bg-parel px-1.5 py-0.5 text-xs text-grafiet;
+  }
+  .label {
+    @apply mb-1 block text-xs uppercase tracking-wider text-steen;
+  }
+  .tab {
+    @apply border-b-2 border-transparent px-1 pb-1.5 text-sm text-steen transition-colors hover:text-nacht;
+  }
+  .tab-active {
+    @apply border-b-2 border-nacht px-1 pb-1.5 text-sm font-bold text-nacht;
   }
 }

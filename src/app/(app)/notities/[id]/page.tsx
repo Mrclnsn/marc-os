@@ -14,7 +14,7 @@ export default async function NotePage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="space-y-5">
-      <Link href={back} className="text-sm text-muted">← Terug</Link>
+      <Link href={back} className="mb-6 inline-block text-sm text-steen hover:text-nacht">← Terug</Link>
       <form action={updateNoteAction.bind(null, id)} className="space-y-4">
         <input name="title" defaultValue={note.title} required className="input w-full text-lg font-medium" />
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -28,7 +28,7 @@ export default async function NotePage({ params }: { params: Promise<{ id: strin
         <button className="btn-primary">Opslaan</button>
       </form>
       <form action={deleteNoteAction.bind(null, id, back)}>
-        <button className="btn-ghost text-xs text-danger">Notitie verwijderen</button>
+        <button className="btn-ghost text-xs text-nacht">Notitie verwijderen</button>
       </form>
     </div>
   );

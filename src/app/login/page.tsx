@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { Beeldmerk } from "@/components/brand";
 import { verifyPassword } from "@/lib/password";
 import { SESSION_COOKIE, createSessionToken, sessionCookieOptions } from "@/lib/session";
 
@@ -18,20 +19,23 @@ async function login(formData: FormData) {
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ fout?: string }> }) {
   const { fout } = await searchParams;
   return (
-    <main className="min-h-dvh grid place-items-center p-6">
-      <form action={login} className="w-full max-w-xs space-y-4">
-        <h1 className="text-xl font-semibold">Marc OS</h1>
+    <main className="grid min-h-dvh place-items-center bg-nacht p-6 text-white">
+      <form action={login} className="w-full max-w-sm">
+        <Beeldmerk className="mb-10 h-14 w-auto" color="#fff" strokeWidth={20} />
+        <p className="mb-3 text-xs uppercase tracking-[0.2em] text-white/50">Marc Lonsain Consultancy</p>
+        <h1 className="text-5xl font-bold leading-none tracking-tight">Marc OS</h1>
+        <div className="my-8 h-[3px] w-full bg-white" />
         <input
           type="password"
           name="password"
           autoFocus
           required
           placeholder="Wachtwoord"
-          className="input w-full"
           autoComplete="current-password"
+          className="w-full rounded-sm border border-white/20 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-white/40 focus:border-white"
         />
-        {fout && <p className="text-sm text-red-600">Onjuist wachtwoord.</p>}
-        <button className="btn-primary w-full">Inloggen</button>
+        {fout && <p className="mt-3 text-sm text-white/80">Dat wachtwoord klopt niet.</p>}
+        <button className="mt-4 w-full rounded-sm bg-white px-4 py-3 font-bold text-nacht transition-opacity hover:opacity-90">Inloggen</button>
       </form>
     </main>
   );

@@ -1,3 +1,4 @@
+import { PageHeader, SectionTitle } from "@/components/brand";
 import Link from "next/link";
 import { TaskList } from "@/components/task-row";
 import { QuickAddTask } from "@/components/quick-add";
@@ -54,19 +55,19 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   }
 
   return (
-    <div className="space-y-5">
-      <h1 className="h1">Taken</h1>
-
-      <div className="flex flex-wrap gap-1">
-        {VIEWS.map((v) => (
-          <Link key={v.key} href={href({ weergave: v.key })} className={`rounded-md px-2.5 py-1 text-sm ${view === v.key ? "bg-accent-soft text-accent font-medium" : "text-muted hover:text-fg"}`}>
-            {v.label}
-          </Link>
-        ))}
-      </div>
+    <div className="space-y-6">
+      <PageHeader eyebrow="Zakelijk en privé" title="Taken">
+        <div className="flex flex-wrap gap-4">
+          {VIEWS.map((v) => (
+            <Link key={v.key} href={href({ weergave: v.key })} className={view === v.key ? "tab-active" : "tab"}>
+              {v.label}
+            </Link>
+          ))}
+        </div>
+      </PageHeader>
       <div className="flex flex-wrap items-center gap-1">
         {SCOPES.map((s) => (
-          <Link key={s.key} href={href({ scope: s.key, klant: undefined })} className={`rounded-md border px-2.5 py-1 text-xs ${scope === s.key && !sp.klant ? "border-accent text-accent" : "border-line text-muted hover:text-fg"}`}>
+          <Link key={s.key} href={href({ scope: s.key, klant: undefined })} className={`rounded-md border px-2.5 py-1 text-xs ${scope === s.key && !sp.klant ? "border-nacht text-nacht" : "border-lijn text-steen hover:text-nacht"}`}>
             {s.label}
           </Link>
         ))}
@@ -92,7 +93,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       {groups.size > 0 ? (
         [...groups.entries()].map(([name, list]) => (
           <section key={name} className="space-y-2">
-            <h2 className="h2">{name}</h2>
+            <SectionTitle>{name}</SectionTitle>
             <div className="card">
               <TaskList tasks={list} today={t} tomorrow={addDaysIso(t, 1)} showClient={false} />
             </div>

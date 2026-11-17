@@ -12,7 +12,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="space-y-5">
-      <Link href="/taken" className="text-sm text-muted">← Taken</Link>
+      <Link href="/taken" className="mb-6 inline-block text-sm text-steen hover:text-nacht">← Taken</Link>
       <form action={updateTaskAction.bind(null, id)} className="space-y-4">
         <input name="title" defaultValue={task.title} className="input w-full text-lg font-medium" required />
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
@@ -36,7 +36,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
         </div>
       </form>
       <form action={deleteTaskAction.bind(null, id, "/taken")}>
-        <button className="btn-ghost text-xs text-danger">Taak verwijderen</button>
+        <button className="btn-ghost text-xs text-nacht">Taak verwijderen</button>
       </form>
     </div>
   );

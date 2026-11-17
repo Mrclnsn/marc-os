@@ -6,14 +6,16 @@ import { logoutAction } from "../actions";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   await requireSession();
   const inbox = await inboxCount();
+  const logout = (
+    <form action={logoutAction}>
+      <button className="text-xs text-white/50 transition-colors hover:text-white">Uitloggen</button>
+    </form>
+  );
   return (
     <div className="min-h-dvh">
-      <Nav inbox={inbox} />
-      <div className="md:pl-52">
-        <main className="mx-auto max-w-4xl px-4 pb-28 pt-6 md:px-8 md:pb-12">{children}</main>
-        <form action={logoutAction} className="mx-auto max-w-4xl px-4 pb-24 md:px-8 md:pb-8">
-          <button className="btn-ghost text-xs">Uitloggen</button>
-        </form>
+      <Nav inbox={inbox} logout={logout} />
+      <div className="md:pl-60">
+        <main className="mx-auto max-w-5xl px-5 pb-28 pt-8 md:px-12 md:pb-16 md:pt-12">{children}</main>
       </div>
     </div>
   );
