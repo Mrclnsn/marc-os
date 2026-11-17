@@ -1,6 +1,8 @@
 # Marc OS
 
 Eén plek voor taken, projecten, klanten, notities en reviews, zakelijk en privé.
+Achtergrond, keuzes en openstaande punten: zie [docs/PROJECTCONTEXT.md](docs/PROJECTCONTEXT.md).
+
 Met een MCP-koppeling, zodat een AI-assistent (Claude) je kan helpen met de dagplanning, ochtendbriefings, dagafsluitingen en het verwerken van je braindump.
 
 ## Wat zit erin
