@@ -15,8 +15,10 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="nl" className="h-full">
-      <body className="min-h-full">{children}</body>
+    // suppressHydrationWarning: browserextensies (vertalen, lezen) passen attributen op html/body aan
+    // vóór React laadt. Dit onderdrukt alleen die attribuutverschillen op deze twee elementen.
+    <html lang="nl" className="h-full" suppressHydrationWarning>
+      <body className="min-h-full" suppressHydrationWarning>{children}</body>
     </html>
   );
 }
