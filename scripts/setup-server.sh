@@ -62,7 +62,12 @@ fi
 ssh-keyscan -t ed25519 github.com >>/root/.ssh/known_hosts 2>/dev/null
 sort -u -o /root/.ssh/known_hosts /root/.ssh/known_hosts
 
-until ssh -o BatchMode=yes -T github-marc-os 2>&1 | grep -q "successfully authenticated"; do
+github_ok() {
+  local out
+  out=$(ssh -o BatchMode=yes -T github-marc-os 2>&1 || true) # GitHub geeft altijd exit 1
+  grep -q "successfully authenticated" <<<"$out"
+}
+until github_ok; do
   echo
   echo "  Voeg deze sleutel toe op GitHub:"
   echo "  github.com/Mrclnsn/marc-os → Settings → Deploy keys → Add deploy key"
