@@ -9,6 +9,7 @@ import { SESSION_COOKIE } from "@/lib/session";
 import { parseEuro } from "@/lib/money";
 import { parseDuration } from "@/lib/duration";
 import { today } from "@/lib/dates";
+import { MODULE_KEYS, THEME_COOKIE, getHiddenKpis, parseTheme, setHiddenKpis, setModule, type KpiKey, type ModuleKey, type Theme } from "@/lib/settings";
 
 /* Hulpjes om FormData om te zetten */
 function s(fd: FormData, key: string): string | null {
@@ -781,4 +782,32 @@ export async function logoutAction() {
   const store = await cookies();
   store.delete(SESSION_COOKIE);
   redirect("/login");
+}
+
+/* ---------------- Instellingen ---------------- */
+
+export async function setModuleAction(key: ModuleKey, on: boolean) {
+  await requireSession();
+  if (!(MODULE_KEYS as readonly string[]).includes(key)) throw new Error("Onbekende module");
+  await setModule(key, on);
+  refresh();
+}
+
+export async function setKpiVisibleAction(key: KpiKey, visible: boolean) {
+  await requireSession();
+  const hidden = await getHiddenKpis();
+  await setHiddenKpis(visible ? hidden.filter((k) => k !== key) : [...hidden, key]);
+  refresh();
+}
+
+export async function setThemeAction(theme: Theme) {
+  await requireSession();
+  const store = await cookies();
+  store.set(THEME_COOKIE, parseTheme(theme), {
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365 * 5,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
+  refresh();
 }

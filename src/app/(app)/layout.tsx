@@ -1,35 +1,46 @@
+import { cookies } from "next/headers";
 import { Nav } from "@/components/nav";
 import { requireSession } from "@/lib/auth";
 import { getRunningTimer, inboxCount } from "@/lib/data";
+import { getModules, parseTheme, THEME_COOKIE } from "@/lib/settings";
 import { TimerBar } from "@/components/timer";
+import { ModulesProvider } from "@/components/modules-context";
+import { ThemeSwitch } from "@/components/theme-switch";
 import { logoutAction } from "../actions";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   await requireSession();
-  const [inbox, timer] = await Promise.all([inboxCount(), getRunningTimer()]);
-  const logout = (
-    <form action={logoutAction}>
-      <button className="text-xs text-white/50 transition-colors hover:text-white">Uitloggen</button>
-    </form>
+  const modules = await getModules();
+  const [inbox, timer] = await Promise.all([inboxCount(), modules.uren ? getRunningTimer() : Promise.resolve(null)]);
+  const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
+  const footer = (
+    <div className="flex items-center justify-between gap-3">
+      <form action={logoutAction}>
+        <button className="text-xs text-white/50 transition-colors hover:text-white">Uitloggen</button>
+      </form>
+      <ThemeSwitch theme={theme} />
+    </div>
   );
   return (
-    <div className="min-h-dvh">
-      <Nav inbox={inbox} logout={logout} />
-      <div className="md:pl-60">
-        {timer && (
-          <TimerBar
-            timer={{
-              id: timer.id,
-              startedAt: timer.startedAt!.toISOString(),
-              description: timer.description,
-              clientName: timer.clientName,
-              projectName: timer.projectName,
-              billable: timer.billable,
-            }}
-          />
-        )}
-        <main className={`mx-auto max-w-5xl px-5 pt-8 md:px-12 md:pb-16 md:pt-12 ${timer ? "pb-44" : "pb-28"}`}>{children}</main>
+    <ModulesProvider modules={modules}>
+      <div className="min-h-dvh">
+        <Nav inbox={inbox} footer={footer} modules={modules} />
+        <div className="md:pl-60">
+          {timer && (
+            <TimerBar
+              timer={{
+                id: timer.id,
+                startedAt: timer.startedAt!.toISOString(),
+                description: timer.description,
+                clientName: timer.clientName,
+                projectName: timer.projectName,
+                billable: timer.billable,
+              }}
+            />
+          )}
+          <main className={`mx-auto max-w-6xl px-5 pt-8 md:px-12 md:pb-16 md:pt-12 ${timer ? "pb-44" : "pb-28"}`}>{children}</main>
+        </div>
       </div>
-    </div>
+    </ModulesProvider>
   );
 }

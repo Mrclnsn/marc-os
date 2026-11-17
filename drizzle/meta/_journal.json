@@ -50,6 +50,13 @@
       "when": 1794952078976,
       "tag": "0006_aangiftecyclus",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794954892758,
+      "tag": "0007_instellingen",
+      "breakpoints": true
     }
   ]
 }

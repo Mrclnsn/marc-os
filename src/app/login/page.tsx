@@ -19,7 +19,7 @@ async function login(formData: FormData) {
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ fout?: string }> }) {
   const { fout } = await searchParams;
   return (
-    <main className="grid min-h-dvh place-items-center bg-nacht p-6 text-white">
+    <main className="grid min-h-dvh place-items-center bg-zijbalk p-6 text-white">
       <form action={login} className="w-full max-w-sm">
         <Beeldmerk className="mb-10 h-14 w-auto" color="#fff" strokeWidth={20} />
         <p className="mb-3 text-xs uppercase tracking-[0.2em] text-white/50">Marc Lonsain Consultancy</p>
@@ -35,7 +35,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           className="w-full rounded-sm border border-white/20 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-white/40 focus:border-white"
         />
         {fout && <p className="mt-3 text-sm text-white/80">Dat wachtwoord klopt niet.</p>}
-        <button className="mt-4 w-full rounded-sm bg-white px-4 py-3 font-bold text-nacht transition-opacity hover:opacity-90">Inloggen</button>
+        <button className="mt-4 w-full rounded-sm bg-white px-4 py-3 font-bold text-zijbalk transition-opacity hover:opacity-90">Inloggen</button>
       </form>
     </main>
   );

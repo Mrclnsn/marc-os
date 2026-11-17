@@ -7,6 +7,7 @@ import * as data from "./data";
 import { getEvents, calendarConfigured } from "./calendar";
 import { addDaysIso, today, weekStart } from "./dates";
 import { formatDuration, parseDuration } from "./duration";
+import { getModules, MODULES, type ModuleKey, type Modules } from "./settings";
 
 /* ---------------- Authenticatie ---------------- */
 
@@ -108,27 +109,105 @@ function minutesFrom(duration?: string | null, durationMin?: number | null): num
 
 /* ---------------- Server ---------------- */
 
-const INSTRUCTIONS = `Dit is Marc OS: Marc's centrale systeem voor taken, projecten, klanten, notities en reviews.
-- Taken hebben een gebied (zakelijk/prive), optioneel een klant en project. Zakelijk zonder klant = algemeen bedrijfswerk.
-- planDate = wanneer Marc het wil doen; dueDate = deadline.
-- Klanten hebben een dossier (get_client) met meerdere contactpersonen, websites, documentlinks, afspraken en termijnen. Sla nooit wachtwoorden op; vaultRef is alleen een verwijzing.
-- Afspraken zijn diensten per klant (boekhouding, website, hosting, beheer, sparringpartner, maatwerk). Bedragen zijn in centen en exclusief btw. MRR = som van lopende vaste afspraken omgerekend naar per maand (get_revenue).
-- Termijnen zijn te factureren regels. Een eenmalige website-afspraak maakt zelf 2 termijnen van 50% (bij akkoord, bij oplevering). Facturen maakt Marc zelf in Moneybird; zet een termijn alleen op een andere status als Marc dat vraagt.
-- Uren: alles mag uren krijgen (klantwerk, bedrijf algemeen, privé, leren). Er loopt hooguit één timer; start_timer stopt een lopende timer. Voor achteraf schrijven gebruik log_time ("2 uur aan Vobis, SEO-analyse" → client "Vobis", duration "2u", description "SEO-analyse"). Declarabel gaat automatisch als de uren onder een afspraak met uurtarief vallen. get_hours geeft het weekoverzicht, te factureren uren, budgetten (waarschuwing vanaf 80%) en het effectief uurtarief per klant.
-- Pipeline: een lead is een kans (nieuw bedrijf of bestaande klant) met status new/contact/quoted/won/lost, kans in procenten en een volgende stap. Een offerte hoort altijd bij een lead en heeft regels per dienst (zelfde velden als een afspraak). accept_quote verwerkt een akkoord met één aanroep: klant aanmaken of activeren, websites per domein, elke regel een actieve afspraak, websiteproject en termijnen (eerste termijn klaar om te factureren), lead gewonnen. Doe accept_quote, set_quote_status en delete-acties alleen als Marc daarom vraagt.
-- Aangiftecyclus: per boekhoudklant staat ingesteld welke aangiftes Marc doet (btw per maand/kwartaal/jaar, IB, Vpb, ICP, loonheffingen, overig) met eventueel uitstel (individueel of becon). Daaruit ontstaat per periode automatisch een aangifte-item met wettelijke deadline, datum waarop de stukken binnen moeten zijn en (na afloop van de periode) een taak. Statussen: todo, waiting_docs (wacht op stukken), in_progress, review (klaar voor controle), filed (ingediend), done (afgerond: betaald of ontvangen). list_filings en get_overview tonen signalen (deadline binnen 14 dagen, te laat, stukken ontbreken). draft_docs_reminder geeft een conceptmail om stukken op te vragen; verstuur nooit zelf, Marc verstuurt na akkoord. Wijzig statussen of instellingen alleen als Marc daarom vraagt.
-- Inbox-items zijn notities van het type "inbox" (braindump). Verwerk ze met inbox_to_task of update_note.
-- Begin een briefing altijd met get_overview. Sla briefings en samenvattingen op met save_review zodat Marc ze in de app ziet.
-- Tijdzone: Europe/Amsterdam. Schrijf in het Nederlands.`;
+/** Welke MCP-tools bij welke module horen. Tools van een uitgeschakelde module worden niet aangeboden. */
+const TOOL_MODULE: Record<string, ModuleKey> = {
+  add_document: "dossier",
+  delete_document: "dossier",
+  list_websites: "websites",
+  add_website: "websites",
+  update_website: "websites",
+  delete_website: "websites",
+  list_agreements: "afspraken",
+  create_agreement: "afspraken",
+  update_agreement: "afspraken",
+  deliver_agreement: "afspraken",
+  delete_agreement: "afspraken",
+  list_installments: "afspraken",
+  add_installment: "afspraken",
+  update_installment: "afspraken",
+  delete_installment: "afspraken",
+  get_revenue: "afspraken",
+  get_timer: "uren",
+  start_timer: "uren",
+  stop_timer: "uren",
+  log_time: "uren",
+  list_time_entries: "uren",
+  update_time_entry: "uren",
+  delete_time_entry: "uren",
+  get_hours: "uren",
+  invoice_hours: "uren",
+  get_pipeline: "pipeline",
+  list_leads: "pipeline",
+  get_lead: "pipeline",
+  create_lead: "pipeline",
+  update_lead: "pipeline",
+  delete_lead: "pipeline",
+  list_quotes: "pipeline",
+  get_quote: "pipeline",
+  create_quote: "pipeline",
+  update_quote: "pipeline",
+  add_quote_line: "pipeline",
+  update_quote_line: "pipeline",
+  delete_quote_line: "pipeline",
+  set_quote_status: "pipeline",
+  accept_quote: "pipeline",
+  list_filings: "aangiftes",
+  get_filing: "aangiftes",
+  update_filing: "aangiftes",
+  create_filing: "aangiftes",
+  draft_docs_reminder: "aangiftes",
+  list_filing_schedules: "aangiftes",
+  set_filing_schedule: "aangiftes",
+  delete_filing_schedule: "aangiftes",
+};
 
-export function buildServer() {
-  const server = new McpServer({ name: "marc-os", version: "0.1.0" }, { instructions: INSTRUCTIONS });
+/** Uitleg per onderdeel; regels van uitgeschakelde modules vallen weg. */
+const INSTRUCTION_LINES: { text: string; module?: ModuleKey }[] = [
+  { text: "- Taken hebben een gebied (zakelijk/prive), optioneel een klant en project. Zakelijk zonder klant = algemeen bedrijfswerk." },
+  { text: "- planDate = wanneer Marc het wil doen; dueDate = deadline." },
+  { text: "- Klanten hebben een dossier (get_client) met contactpersonen, vaste informatie, projecten, taken en notities. Sla nooit wachtwoorden op; vaultRef is alleen een verwijzing." },
+  { text: "- Uitgebreid dossier: ook registratie (KvK, btw), adressen, facturatie, verwerkersovereenkomst, tags en documentlinks (add_document).", module: "dossier" },
+  { text: "- Websites zijn eigen objecten per klant met domein, registrar, verloopdatum en of hosting en beheer door Marc gebeuren (list_websites).", module: "websites" },
+  { text: "- Afspraken zijn diensten per klant (boekhouding, website, hosting, beheer, sparringpartner, maatwerk). Bedragen zijn in centen en exclusief btw. MRR = som van lopende vaste afspraken omgerekend naar per maand (get_revenue).", module: "afspraken" },
+  { text: "- Termijnen zijn te factureren regels. Een eenmalige website-afspraak maakt zelf 2 termijnen van 50% (bij akkoord, bij oplevering). Facturen maakt Marc zelf in Moneybird; zet een termijn alleen op een andere status als Marc dat vraagt.", module: "afspraken" },
+  { text: "- Uren: alles mag uren krijgen (klantwerk, bedrijf algemeen, privé, leren). Er loopt hooguit één timer; start_timer stopt een lopende timer. Voor achteraf schrijven gebruik log_time (\"2 uur aan Vobis, SEO-analyse\" → client \"Vobis\", duration \"2u\", description \"SEO-analyse\"). Declarabel gaat automatisch als de uren onder een afspraak met uurtarief vallen. get_hours geeft het weekoverzicht, te factureren uren, budgetten (waarschuwing vanaf 80%) en het effectief uurtarief per klant.", module: "uren" },
+  { text: "- Pipeline: een lead is een kans (nieuw bedrijf of bestaande klant) met status new/contact/quoted/won/lost, kans in procenten en een volgende stap. Een offerte hoort altijd bij een lead en heeft regels per dienst (zelfde velden als een afspraak). accept_quote verwerkt een akkoord met één aanroep: klant aanmaken of activeren, websites per domein, elke regel een actieve afspraak, websiteproject en termijnen (eerste termijn klaar om te factureren), lead gewonnen. Doe accept_quote, set_quote_status en delete-acties alleen als Marc daarom vraagt.", module: "pipeline" },
+  { text: "- Aangiftecyclus: per boekhoudklant staat ingesteld welke aangiftes Marc doet (btw per maand/kwartaal/jaar, IB, Vpb, ICP, loonheffingen, overig) met eventueel uitstel (individueel of becon). Daaruit ontstaat per periode automatisch een aangifte-item met wettelijke deadline, datum waarop de stukken binnen moeten zijn en (na afloop van de periode) een taak. Statussen: todo, waiting_docs (wacht op stukken), in_progress, review (klaar voor controle), filed (ingediend), done (afgerond: betaald of ontvangen). list_filings en get_overview tonen signalen (deadline binnen 14 dagen, te laat, stukken ontbreken). draft_docs_reminder geeft een conceptmail om stukken op te vragen; verstuur nooit zelf, Marc verstuurt na akkoord. Wijzig statussen of instellingen alleen als Marc daarom vraagt.", module: "aangiftes" },
+  { text: "- Inbox-items zijn notities van het type \"inbox\" (braindump). Verwerk ze met inbox_to_task of update_note." },
+  { text: "- Begin een briefing altijd met get_overview. Sla briefings en samenvattingen op met save_review zodat Marc ze in de app ziet." },
+  { text: "- Tijdzone: Europe/Amsterdam. Schrijf in het Nederlands." },
+];
+
+function instructions(modules: Modules) {
+  const off = (Object.keys(MODULES) as ModuleKey[]).filter((k) => !modules[k]);
+  const lines = [
+    "Dit is Marc OS: Marc's centrale systeem voor taken, projecten, klanten, notities en reviews.",
+    ...INSTRUCTION_LINES.filter((l) => !l.module || modules[l.module]).map((l) => l.text),
+  ];
+  if (off.length) {
+    lines.push(
+      `- Tijdelijk uitgeschakeld (MVP): ${off.map((k) => MODULES[k].label).join(", ")}. Daar zijn geen tools voor. Vraagt Marc ernaar, zeg dan dat de module uit staat en dat hij hem aanzet via Instellingen → Modules.`,
+    );
+  }
+  return lines.join("\n");
+}
+
+export function buildServer(modules: Modules) {
+  const server = new McpServer({ name: "marc-os", version: "0.1.0" }, { instructions: instructions(modules) });
+
+  // Tools van uitgeschakelde modules worden niet geregistreerd, zodat Claude (en straks Hermes) er niet mee werkt
+  const register = server.registerTool.bind(server);
+  server.registerTool = ((name: string, config: unknown, cb: unknown) => {
+    const m = TOOL_MODULE[name];
+    if (m && !modules[m]) return undefined;
+    return (register as (n: string, c: unknown, f: unknown) => unknown)(name, config, cb);
+  }) as typeof server.registerTool;
 
   server.registerTool(
     "get_overview",
     {
       title: "Dagoverzicht",
-      description: "Alles voor een briefing: agenda, pipeline (volgende stappen van leads en offertes die bijna verlopen), taken van vandaag, achterstallig, komende 7 dagen, inbox, lopende projecten, domeinen die binnen 30 dagen verlopen, MRR, termijnen klaar om te factureren, afspraken die binnen 30 dagen aflopen, aangiftes (te laat, deadline binnen 14 dagen, stukken ontbreken) en wat gisteren is afgerond.",
+      description: "Alles voor een briefing: agenda, taken van vandaag, achterstallig, komende 7 dagen, inbox, lopende projecten en wat gisteren is afgerond. Plus, als die modules aan staan: pipeline, domeinen die binnen 30 dagen verlopen, MRR, termijnen klaar om te factureren, aflopende afspraken, uren deze week, budgetten en aangiftes. modulesOff noemt wat tijdelijk uit staat.",
       inputSchema: { date: isoDate.optional().describe("Standaard vandaag") },
       annotations: { readOnlyHint: true },
     },
@@ -143,18 +222,21 @@ export function buildServer() {
         calendarConfigured() ? getEvents(t, addDaysIso(t, 1)) : Promise.resolve(null),
         data.listReviews(undefined, 3),
       ]);
+      const none = Promise.resolve(null);
       const [domains, money, revenue, hours, timer, budgets, pipeline, filingSig] = await Promise.all([
-        data.expiringDomains(),
-        data.revenueSignals(),
-        data.revenueOverview(3),
-        data.weekHours(t),
-        data.getRunningTimer(),
-        data.hourlyBudgets({ onlyWarnings: true }),
-        data.pipelineSignals(),
-        data.filingSignals(),
+        modules.websites ? data.expiringDomains() : none,
+        modules.afspraken ? data.revenueSignals() : none,
+        modules.afspraken ? data.revenueOverview(3) : none,
+        modules.uren ? data.weekHours(t) : none,
+        modules.uren ? data.getRunningTimer() : none,
+        modules.uren && modules.afspraken ? data.hourlyBudgets({ onlyWarnings: true }) : none,
+        modules.pipeline ? data.pipelineSignals() : none,
+        modules.aangiftes ? data.filingSignals() : none,
       ]);
+      // Onderdelen van uitgeschakelde modules blijven weg (undefined valt weg in JSON)
       return json({
         date: t,
+        modulesOff: (Object.keys(MODULES) as ModuleKey[]).filter((k) => !modules[k]).map((k) => MODULES[k].label),
         calendar: cal ? { events: cal.events, errors: cal.errors } : "Geen agenda gekoppeld",
         overdue: todayTasks.filter((x) => (x.planDate ?? x.dueDate)! < t).map(slimTask),
         today: todayTasks.filter((x) => (x.planDate ?? x.dueDate)! >= t).map(slimTask),
@@ -162,24 +244,28 @@ export function buildServer() {
         inbox: inbox.map((r) => ({ id: r.note.id, title: r.note.title, body: r.note.body })),
         activeProjects: projects.map((p) => ({ id: p.project.id, name: p.project.name, client: p.clientName, area: p.project.area, status: p.project.status, dueDate: p.project.dueDate, openTasks: p.openTasks })),
         completedYesterday: doneYesterday.map((x) => ({ title: x.title, client: x.clientName })),
-        expiringDomains: domains.map((r) => ({ domain: r.website.domain, client: r.clientName, expiresAt: r.website.domainExpiresAt })),
-        revenue: { mrrCents: revenue.mrrCents, readyToInvoice: revenue.ready, invoicedUnpaid: revenue.invoicedOpen },
-        readyToInvoice: money.ready.map((i) => ({ id: i.id, client: i.clientName, description: i.description, amountCents: i.amountCents })),
-        agreementsEnding: money.ending.map((a) => ({ id: a.id, client: a.clientName, agreement: a.label, endDate: a.endDate })),
-        hoursThisWeek: { total: formatDuration(hours.totalMin), billable: formatDuration(hours.billableMin), totalMin: hours.totalMin, billableMin: hours.billableMin },
-        runningTimer: timer ? slimEntry(timer) : null,
-        budgetWarnings: budgets.map((b) => ({ agreementId: b.agreementId, client: b.clientName, agreement: b.label, pct: b.pct, usedCents: b.usedCents, budgetCents: b.budgetCents })),
-        pipeline: {
-          openQuotes: pipeline.openQuotes,
-          nextStepsDue: pipeline.nextSteps.map((l) => ({ leadId: l.id, company: l.clientName ?? l.companyName, title: l.title, nextStep: l.nextStep, nextStepDate: l.nextStepDate })),
-          quotesExpiringSoon: pipeline.expiringQuotes.map((q) => ({ quoteId: q.id, number: q.number, company: q.companyName, validUntil: q.validUntil })),
-        },
-        filings: {
-          overdue: filingSig.overdue.map(data.slimFiling),
-          deadlineWithin14d: filingSig.dueSoon.map(data.slimFiling),
-          docsMissing: filingSig.docsMissing.map(data.slimFiling),
-          filedAwaitingPayment: filingSig.awaitingPayment.length,
-        },
+        expiringDomains: domains?.map((r) => ({ domain: r.website.domain, client: r.clientName, expiresAt: r.website.domainExpiresAt })),
+        revenue: revenue ? { mrrCents: revenue.mrrCents, readyToInvoice: revenue.ready, invoicedUnpaid: revenue.invoicedOpen } : undefined,
+        readyToInvoice: money?.ready.map((i) => ({ id: i.id, client: i.clientName, description: i.description, amountCents: i.amountCents })),
+        agreementsEnding: money?.ending.map((a) => ({ id: a.id, client: a.clientName, agreement: a.label, endDate: a.endDate })),
+        hoursThisWeek: hours ? { total: formatDuration(hours.totalMin), billable: formatDuration(hours.billableMin), totalMin: hours.totalMin, billableMin: hours.billableMin } : undefined,
+        runningTimer: modules.uren ? (timer ? slimEntry(timer) : null) : undefined,
+        budgetWarnings: budgets?.map((b) => ({ agreementId: b.agreementId, client: b.clientName, agreement: b.label, pct: b.pct, usedCents: b.usedCents, budgetCents: b.budgetCents })),
+        pipeline: pipeline
+          ? {
+              openQuotes: pipeline.openQuotes,
+              nextStepsDue: pipeline.nextSteps.map((l) => ({ leadId: l.id, company: l.clientName ?? l.companyName, title: l.title, nextStep: l.nextStep, nextStepDate: l.nextStepDate })),
+              quotesExpiringSoon: pipeline.expiringQuotes.map((q) => ({ quoteId: q.id, number: q.number, company: q.companyName, validUntil: q.validUntil })),
+            }
+          : undefined,
+        filings: filingSig
+          ? {
+              overdue: filingSig.overdue.map(data.slimFiling),
+              deadlineWithin14d: filingSig.dueSoon.map(data.slimFiling),
+              docsMissing: filingSig.docsMissing.map(data.slimFiling),
+              filedAwaitingPayment: filingSig.awaitingPayment.length,
+            }
+          : undefined,
         recentReviews: lastReviews,
       });
     },
@@ -389,7 +475,7 @@ export function buildServer() {
     "get_client",
     {
       title: "Klantdossier",
-      description: "Volledig klantdossier: alle klantgegevens, contactpersonen, websites, documenten, afspraken, termijnen, MRR van de klant, projecten, open taken en recente notities.",
+      description: "Klantdossier: gegevens, contactpersonen, vaste informatie, projecten, open taken en recente notities. Met de modules aan ook uitgebreide gegevens, websites, documenten, afspraken, termijnen en MRR van de klant.",
       inputSchema: { client: z.string().describe("Id of naam") },
       annotations: { readOnlyHint: true },
     },
@@ -401,8 +487,18 @@ export function buildServer() {
         data.listTasks({ clientId: id, view: "open" }),
         data.listNotes({ clientId: id, excludeInbox: true, limit: 20 }),
       ]);
+      if (!dossier) throw new Error("Klant niet gevonden");
+      const { client: c, contacts, websites, documents, agreements, installments, mrrCents } = dossier;
+      // Alleen de onderdelen van modules die aan staan
+      const basic = { id: c.id, name: c.name, status: c.status, info: c.info, vaultRef: c.vaultRef, createdAt: c.createdAt, updatedAt: c.updatedAt };
       return json({
-        ...dossier,
+        client: modules.dossier ? c : basic,
+        contacts,
+        websites: modules.websites ? websites : undefined,
+        documents: modules.dossier ? documents : undefined,
+        agreements: modules.afspraken ? agreements : undefined,
+        installments: modules.afspraken ? installments : undefined,
+        mrrCents: modules.afspraken ? mrrCents : undefined,
         projects: projects.map((p) => ({ id: p.project.id, name: p.project.name, status: p.project.status, dueDate: p.project.dueDate, openTasks: p.openTasks })),
         openTasks: tasks.map(slimTask),
         recentNotes: notes.map((r) => ({ id: r.note.id, title: r.note.title, type: r.note.type, date: r.note.noteDate, preview: r.note.body?.slice(0, 300) })),
@@ -1258,7 +1354,7 @@ export function buildServer() {
 
 /** Stateless: per request een nieuwe server en transport. */
 export async function handleMcp(req: Request): Promise<Response> {
-  const server = buildServer();
+  const server = buildServer(await getModules());
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
   await server.connect(transport);
   try {

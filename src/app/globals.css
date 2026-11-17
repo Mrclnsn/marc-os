@@ -5,13 +5,59 @@
  * Palet: Nacht, Grafiet, Steen, Parel + wit. Geen accentkleur.
  * Lettertype: Calibri (Carlito als webfont-terugval, zelfde maten).
  */
+/*
+ * Kleuren als rollen, zodat de donkere cockpitmodus dezelfde klassen kan gebruiken:
+ * - nacht:    sterkste tekst, lijnen en accenten (licht: Nacht, donker: Parel)
+ * - grafiet:  lopende tekst
+ * - steen:    secundaire tekst
+ * - parel:    zachte vulling (hover, panelen)
+ * - lijn:     haarlijnen
+ * - vlak:     kaarten en invoervelden (licht: wit, donker: Grafiet)
+ * - op-nacht: tekst op een vlak in de kleur nacht (licht: wit, donker: Nacht)
+ * - zijbalk:  navigatie, login en timerbalk; blijft altijd donker
+ */
 :root {
   --nacht: #16112b;
   --grafiet: #2c2c2c;
   --steen: #aaaaaa;
   --parel: #f4f4f4;
-  --wit: #ffffff;
   --lijn: #e4e3e8; /* haarlijn: Parel net iets dieper, voor scheidingen */
+  --vlak: #ffffff;
+  --achtergrond: #ffffff;
+  --op-nacht: #ffffff;
+  --zijbalk: #16112b;
+  --balk: #2c2c2c;
+  color-scheme: light;
+}
+
+/* Donkere cockpitmodus: achtergrond Nacht, panelen Grafiet, tekst Parel en Steen */
+:root.donker {
+  --nacht: #f4f4f4;
+  --grafiet: #d6d5dc;
+  --steen: #9a98a8;
+  --parel: #36343f;
+  --lijn: #3a3846;
+  --vlak: #2c2c2c;
+  --achtergrond: #16112b;
+  --op-nacht: #16112b;
+  --zijbalk: #0f0b1f;
+  --balk: #2c2c2c;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root.systeem {
+    --nacht: #f4f4f4;
+    --grafiet: #d6d5dc;
+    --steen: #9a98a8;
+    --parel: #36343f;
+    --lijn: #3a3846;
+    --vlak: #2c2c2c;
+    --achtergrond: #16112b;
+    --op-nacht: #16112b;
+    --zijbalk: #0f0b1f;
+    --balk: #2c2c2c;
+    color-scheme: dark;
+  }
 }
 
 @theme inline {
@@ -20,6 +66,10 @@
   --color-steen: var(--steen);
   --color-parel: var(--parel);
   --color-lijn: var(--lijn);
+  --color-vlak: var(--vlak);
+  --color-op-nacht: var(--op-nacht);
+  --color-zijbalk: var(--zijbalk);
+  --color-balk: var(--balk);
   --font-sans: Calibri, Carlito, "Segoe UI", system-ui, sans-serif;
 }
 
@@ -28,7 +78,7 @@ html {
 }
 
 body {
-  background: var(--wit);
+  background: var(--achtergrond);
   color: var(--grafiet);
   font-family: var(--font-sans);
   font-size: 16px;
@@ -36,7 +86,7 @@ body {
 
 ::selection {
   background: var(--nacht);
-  color: var(--wit);
+  color: var(--op-nacht);
 }
 
 @layer components {
@@ -56,19 +106,19 @@ body {
   }
 
   .input {
-    @apply min-w-0 rounded-sm border border-lijn bg-white px-3 py-2 text-[15px] text-grafiet outline-none transition-colors placeholder:text-steen focus:border-nacht;
+    @apply min-w-0 rounded-sm border border-lijn bg-vlak px-3 py-2 text-[15px] text-grafiet outline-none transition-colors placeholder:text-steen focus:border-nacht;
   }
   .btn {
-    @apply inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-sm border border-nacht bg-white px-3.5 py-2 text-sm font-bold text-nacht transition-colors hover:bg-parel disabled:opacity-50;
+    @apply inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-sm border border-nacht bg-vlak px-3.5 py-2 text-sm font-bold text-nacht transition-colors hover:bg-parel disabled:opacity-50;
   }
   .btn-primary {
-    @apply inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-sm bg-nacht px-3.5 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50;
+    @apply inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-sm bg-nacht px-3.5 py-2 text-sm font-bold text-op-nacht transition-opacity hover:opacity-90 disabled:opacity-50;
   }
   .btn-ghost {
     @apply inline-flex items-center justify-center rounded-sm px-2 py-1 text-sm text-steen transition-colors hover:bg-parel hover:text-nacht;
   }
   .card {
-    @apply rounded-sm border border-lijn bg-white;
+    @apply rounded-sm border border-lijn bg-vlak;
   }
   .panel {
     @apply rounded-sm bg-parel;

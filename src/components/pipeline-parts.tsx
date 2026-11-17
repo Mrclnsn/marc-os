@@ -20,7 +20,7 @@ export function totalsText(t: QuoteTotals) {
 
 export function QuoteStatusChip({ status }: { status: QuoteStatus }) {
   const strong = status === "sent" || status === "accepted";
-  return <span className={`chip ${strong ? "bg-nacht text-white" : ""}`}>{QUOTE_STATUS[status]}</span>;
+  return <span className={`chip ${strong ? "bg-nacht text-op-nacht" : ""}`}>{QUOTE_STATUS[status]}</span>;
 }
 
 /* ---------------- Leads ---------------- */

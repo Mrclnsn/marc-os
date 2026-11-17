@@ -3,6 +3,7 @@ import Link from "next/link";
 import { listClients, listClientTags } from "@/lib/data";
 import { CLIENT_STATUS, type ClientStatus } from "@/lib/labels";
 import { createClientAction } from "../../actions";
+import { getModules } from "@/lib/settings";
 
 type Search = { alles?: string; tag?: string; status?: string };
 
@@ -15,12 +16,14 @@ function href(current: Search, patch: Partial<Search>) {
 export default async function ClientsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
   const status = sp.status && sp.status in CLIENT_STATUS ? (sp.status as ClientStatus) : undefined;
-  const [rows, tags] = await Promise.all([listClients({ includePast: !!sp.alles, tag: sp.tag, status }), listClientTags()]);
+  const modules = await getModules();
+  const [rows, allTags] = await Promise.all([listClients({ includePast: !!sp.alles, tag: modules.dossier ? sp.tag : undefined, status }), listClientTags()]);
+  const tags = modules.dossier ? allTags : [];
 
   return (
     <div className="space-y-8">
       <PageHeader eyebrow="Zakelijk" title="Klanten">
-        <Link href="/websites" className="tab">Websites</Link>
+        {modules.websites && <Link href="/websites" className="tab">Websites</Link>}
         {!status && (
           <Link href={href(sp, { alles: sp.alles ? undefined : "1" })} className="tab">
             {sp.alles ? "Verberg oud-klanten" : "Toon oud-klanten"}
@@ -35,7 +38,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
         ))}
         {tags.length > 0 && <span className="mx-1 h-4 w-px bg-lijn" />}
         {tags.map((t) => (
-          <Link key={t} href={href(sp, { tag: sp.tag === t ? undefined : t })} className={`chip ${sp.tag === t ? "bg-nacht text-white" : "hover:bg-lijn"}`}>{t}</Link>
+          <Link key={t} href={href(sp, { tag: sp.tag === t ? undefined : t })} className={`chip ${sp.tag === t ? "bg-nacht text-op-nacht" : "hover:bg-lijn"}`}>{t}</Link>
         ))}
       </div>
 
@@ -53,17 +56,17 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="font-medium">{client.name}</p>
-                {(primaryContact || client.city) && (
-                  <p className="text-sm text-steen">{[primaryContact, client.city].filter(Boolean).join(" · ")}</p>
+                {(primaryContact || (modules.dossier && client.city)) && (
+                  <p className="text-sm text-steen">{[primaryContact, modules.dossier && client.city].filter(Boolean).join(" · ")}</p>
                 )}
               </div>
               <span className="chip">{CLIENT_STATUS[client.status]}</span>
             </div>
             <p className="mt-3 text-xs text-steen">
               {activeProjects} {activeProjects === 1 ? "project" : "projecten"} · {openTasks} open {openTasks === 1 ? "taak" : "taken"}
-              {websiteCount > 0 ? ` · ${websiteCount} ${websiteCount === 1 ? "website" : "websites"}` : ""}
+              {modules.websites && websiteCount > 0 ? ` · ${websiteCount} ${websiteCount === 1 ? "website" : "websites"}` : ""}
             </p>
-            {client.tags.length > 0 && (
+            {modules.dossier && client.tags.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">
                 {client.tags.map((t) => (
                   <span key={t} className="chip">{t}</span>

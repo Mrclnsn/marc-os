@@ -1,4 +1,5 @@
 import "server-only";
+import { isModuleOn } from "./settings";
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
@@ -159,6 +160,8 @@ function itemValues(s: FilingSchedule, p: Period) {
  * Goedkoop en idempotent; wordt aangeroepen vóór elk overzicht.
  */
 export async function ensureFilings() {
+  // Module Aangiftes uit: geen automatische items en taken. Bij weer aanzetten wordt alles aangevuld.
+  if (!(await isModuleOn("aangiftes"))) return;
   const t = today();
   const rows = await db
     .select({ s: filingSchedules, aStatus: agreements.status, aEnd: agreements.endDate })

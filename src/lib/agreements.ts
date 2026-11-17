@@ -1,4 +1,5 @@
 import "server-only";
+import { isModuleOn } from "./settings";
 import { and, asc, eq, gte, inArray, isNotNull, lte, ne, or, sql } from "drizzle-orm";
 import { addMonths, endOfMonth, format, parseISO } from "date-fns";
 import { z } from "zod";
@@ -96,6 +97,8 @@ export function agreementLabel(a: Pick<Agreement, "kind" | "title">, domain?: st
  * Goedkoop en idempotent; wordt aangeroepen vóór elk overzicht.
  */
 export async function settleByDate() {
+  // Module Afspraken uit: termijnen en afspraken blijven staan zoals ze zijn; bij weer aanzetten wordt bijgewerkt
+  if (!(await isModuleOn("afspraken"))) return;
   const t = today();
   await db
     .update(installments)
@@ -201,6 +204,8 @@ export async function createAgreement(input: AgreementInput, opts: { createProje
   const parsed = agreementInput.parse(input);
   let data = fillEndDate(normalize(parsed, parsed.kind));
   if (data.amountCents === undefined) throw new Error("Bedrag ontbreekt");
+  // Module Afspraken uit: geen automatische websiteprojecten of termijnen
+  if (!(await isModuleOn("afspraken"))) opts = { ...opts, createProject: false, createInstallments: false };
 
   const oneOff = data.pricing === "one_off";
   if (oneOff && data.kind === "website" && !data.projectId && opts.createProject !== false) {
@@ -308,6 +313,8 @@ export async function deleteAgreement(id: string) {
  * Wordt aangeroepen als een project op afgerond gaat.
  */
 export async function markProjectDelivered(projectId: string) {
+  // Module Afspraken uit: geen termijnen klaarzetten bij oplevering
+  if (!(await isModuleOn("afspraken"))) return [];
   const linked = db.select({ id: agreements.id }).from(agreements).where(eq(agreements.projectId, projectId));
   return db
     .update(installments)

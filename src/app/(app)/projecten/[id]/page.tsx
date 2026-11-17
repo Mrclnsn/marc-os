@@ -11,6 +11,7 @@ import { StartTimerButton } from "@/components/timer";
 import { formatHours } from "@/lib/duration";
 import { addDaysIso, today } from "@/lib/dates";
 import { getOptions } from "@/lib/options";
+import { getModules } from "@/lib/settings";
 import { createNoteAction, deleteProjectAction, updateProjectAction } from "../../../actions";
 
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
@@ -18,6 +19,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const row = await getProject(id);
   if (!row) notFound();
   const { project, clientName } = row;
+  const modules = await getModules();
   const [open, done, notesRows, options, hours, descriptions] = await Promise.all([
     listTasks({ projectId: id, view: "open" }),
     listTasks({ projectId: id, view: "done", limit: 20 }),
@@ -35,7 +37,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         eyebrow={clientName && project.clientId ? <Link href={`/klanten/${project.clientId}`} className="hover:text-nacht">{clientName}</Link> : project.area === "prive" ? "Privé" : "Bedrijf algemeen"}
         title={project.name}
       >
-        <StartTimerButton projectId={id} label="▶ Start timer" className="btn" />
+        {modules.uren && <StartTimerButton projectId={id} label="▶ Start timer" className="btn" />}
       </PageHeader>
 
       <section className="space-y-2">
@@ -44,16 +46,18 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         <QuickAddTask clients={options.clients} projects={options.projects} defaults={{ projectId: id, clientId: project.clientId, area: project.area }} />
       </section>
 
+      {modules.uren && (
       <section className="space-y-3">
         <SectionTitle>Uren</SectionTitle>
         <div className="flex flex-wrap gap-6 text-sm">
           <p><span className="text-steen">Totaal </span><span className="font-bold tabular-nums text-nacht">{formatHours(hours.minutes)}</span></p>
           <p><span className="text-steen">Declarabel </span><span className="font-bold tabular-nums text-nacht">{formatHours(hours.billableMinutes)}</span></p>
         </div>
-        {hours.budgets.map((b) => <BudgetLine key={b.agreementId} b={b} />)}
+        {modules.afspraken && hours.budgets.map((b) => <BudgetLine key={b.agreementId} b={b} />)}
         <RecentEntries entries={hours.recent} />
         <ManualTimeForm clients={options.clients} projects={options.projects} descriptions={descriptions} today={t} clientId={project.clientId ?? undefined} projectId={id} />
       </section>
+      )}
 
       <section className="space-y-2">
         <SectionTitle>Notities</SectionTitle>

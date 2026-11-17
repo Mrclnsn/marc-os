@@ -6,8 +6,8 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Marc OS",
     start_url: "/",
     display: "standalone",
-    background_color: "#f7f7f5",
-    theme_color: "#1f4e79",
+    background_color: "#16112b",
+    theme_color: "#16112b",
     icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml" }],
   };
 }

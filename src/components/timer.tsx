@@ -35,7 +35,7 @@ export function TimerBar({ timer }: { timer: RunningTimer }) {
   const [pending, start] = useTransition();
   const meta = [timer.clientName, timer.projectName, timer.billable ? "declarabel" : null].filter(Boolean).join(" · ");
   return (
-    <div className="fixed inset-x-0 bottom-[calc(46px+env(safe-area-inset-bottom))] z-20 border-t border-white/10 bg-grafiet text-white md:sticky md:top-0 md:bottom-auto md:border-t-0">
+    <div className="fixed inset-x-0 bottom-[calc(46px+env(safe-area-inset-bottom))] z-20 border-t border-white/10 bg-balk text-white md:sticky md:top-0 md:bottom-auto md:border-t-0">
       <div className="mx-auto flex max-w-5xl items-center gap-4 px-5 py-2.5 md:px-12">
         <span className="h-2 w-2 shrink-0 rounded-full bg-white" aria-hidden />
         <Link href="/uren" className="min-w-0 flex-1">
@@ -46,7 +46,7 @@ export function TimerBar({ timer }: { timer: RunningTimer }) {
         <button
           onClick={() => start(() => stopTimerAction())}
           disabled={pending}
-          className="inline-flex shrink-0 items-center rounded-sm bg-white px-3.5 py-1.5 text-sm font-bold text-nacht transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="inline-flex shrink-0 items-center rounded-sm bg-white px-3.5 py-1.5 text-sm font-bold text-zijbalk transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           Stop
         </button>

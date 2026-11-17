@@ -5,6 +5,7 @@ import { useOptimistic, useTransition } from "react";
 import { planTaskAction, toggleTaskAction } from "@/app/actions";
 import type { TaskWithRefs } from "@/lib/data";
 import { StartTimerButton } from "./timer";
+import { useModules } from "./modules-context";
 
 type Props = {
   task: TaskWithRefs;
@@ -25,6 +26,7 @@ function label(iso: string, today: string, tomorrow: string) {
 export function TaskRow({ task, today, tomorrow, showClient = true, showProject = true }: Props) {
   const [pending, start] = useTransition();
   const [done, setDone] = useOptimistic(task.status === "done");
+  const modules = useModules();
 
   const when = task.planDate ?? task.dueDate;
   const overdue = !done && when != null && when < today;
@@ -44,7 +46,7 @@ export function TaskRow({ task, today, tomorrow, showClient = true, showProject 
           })
         }
         className={`mt-[3px] grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[3px] text-[11px] font-bold transition-colors ${
-          done ? "border-[1.5px] border-nacht bg-nacht text-white" : high ? "border-2 border-nacht" : "border-[1.5px] border-nacht/35 hover:border-nacht"
+          done ? "border-[1.5px] border-nacht bg-nacht text-op-nacht" : high ? "border-2 border-nacht" : "border-[1.5px] border-nacht/35 hover:border-nacht"
         }`}
       >
         {done ? "✓" : ""}
@@ -77,7 +79,7 @@ export function TaskRow({ task, today, tomorrow, showClient = true, showProject 
 
       {!done && (
         <div className="flex shrink-0 gap-1 md:opacity-0 md:transition-opacity md:group-hover:opacity-100">
-          <StartTimerButton taskId={task.id} />
+          {modules.uren && <StartTimerButton taskId={task.id} />}
           {when !== today && (
             <button className="btn-ghost text-xs" onClick={() => start(() => planTaskAction(task.id, today))}>
               Vandaag

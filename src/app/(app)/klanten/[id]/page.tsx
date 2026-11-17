@@ -2,7 +2,8 @@ import { PageHeader, SectionTitle } from "@/components/brand";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ClientAgreements } from "@/components/agreement-parts";
-import { ClientDetails, ClientEditForm, ContactList, DocumentList, WebsiteList } from "@/components/client-parts";
+import { ClientBasicForm, ClientDetails, ClientEditForm, ContactList, DocumentList, WebsiteList } from "@/components/client-parts";
+import { getModules } from "@/lib/settings";
 import { NoteTypeSelect } from "@/components/forms";
 import { NoteList } from "@/components/note-list";
 import { QuickAddTask } from "@/components/quick-add";
@@ -20,7 +21,7 @@ import { createLeadAction, createNoteAction, createProjectAction, deleteClientAc
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const dossier = await getClientDossierFull(id);
+  const [dossier, modules] = await Promise.all([getClientDossierFull(id), getModules()]);
   if (!dossier) notFound();
   const { client, contacts, websites, documents, agreements, installments, mrrCents } = dossier;
   const primary = contacts.find((c) => c.isPrimary) ?? contacts[0];
@@ -61,34 +62,39 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     <div className="space-y-10">
       <Link href="/klanten" className="mb-6 inline-block text-sm text-steen hover:text-nacht">← Klanten</Link>
       <PageHeader
-        eyebrow={[client.legalForm, client.city, primary && `${primary.name}${primary.role ? ` (${primary.role})` : ""}`].filter(Boolean).join(" · ") || "Nog geen gegevens"}
+        eyebrow={[modules.dossier && client.legalForm, modules.dossier && client.city, primary && `${primary.name}${primary.role ? ` (${primary.role})` : ""}`].filter(Boolean).join(" · ") || "Nog geen gegevens"}
         title={client.name}
       >
-        {client.tags.map((tag) => (
+        {modules.dossier && client.tags.map((tag) => (
           <Link key={tag} href={`/klanten?tag=${encodeURIComponent(tag)}`} className="chip hover:bg-lijn">{tag}</Link>
         ))}
         <span className="chip">{CLIENT_STATUS[client.status]}</span>
       </PageHeader>
 
-      <section className="space-y-2">
-        <SectionTitle>Gegevens</SectionTitle>
-        <ClientDetails client={client} />
-        <details className="card p-4">
-          <summary className="cursor-pointer text-sm font-medium">Klantgegevens bewerken</summary>
-          <ClientEditForm client={client} />
-        </details>
-      </section>
+      {modules.dossier ? (
+        <section className="space-y-2">
+          <SectionTitle>Gegevens</SectionTitle>
+          <ClientDetails client={client} />
+          <details className="card p-4">
+            <summary className="cursor-pointer text-sm font-medium">Klantgegevens bewerken</summary>
+            <ClientEditForm client={client} />
+          </details>
+        </section>
+      ) : null}
 
       <section>
         <SectionTitle>Contactpersonen</SectionTitle>
         <ContactList clientId={id} contacts={contacts} />
       </section>
 
-      <section>
-        <SectionTitle>Websites</SectionTitle>
-        <WebsiteList clientId={id} sites={websites} />
-      </section>
+      {modules.websites && (
+        <section>
+          <SectionTitle>Websites</SectionTitle>
+          <WebsiteList clientId={id} sites={websites} />
+        </section>
+      )}
 
+      {modules.afspraken && (
       <section>
         <SectionTitle>Afspraken en termijnen</SectionTitle>
         <ClientAgreements
@@ -101,8 +107,9 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           budgets={hours.budgets}
         />
       </section>
+      )}
 
-      {showFilings ? (
+      {!modules.aangiftes ? null : showFilings ? (
         <section id="aangiftes" className="scroll-mt-8">
           <SectionTitle aside={<Link href="/aangiftes" className="text-xs text-steen hover:text-nacht">Alle aangiftes</Link>}>Aangiftes</SectionTitle>
           {filingsBlock}
@@ -114,6 +121,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         </details>
       )}
 
+      {modules.pipeline && (
       <section className="space-y-2">
         <SectionTitle aside={<Link href="/pipeline" className="text-xs text-steen hover:text-nacht">Pipeline</Link>}>Leads en offertes</SectionTitle>
         {leadRows.length > 0 ? (
@@ -127,7 +135,9 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           <button className="btn">Lead toevoegen</button>
         </form>
       </section>
+      )}
 
+      {modules.uren && (
       <section className="space-y-3">
         <SectionTitle aside={<Link href={`/uren?klant=${id}`} className="text-xs text-steen hover:text-nacht">Alle uren</Link>}>Uren</SectionTitle>
         <div className="flex flex-wrap gap-6 text-sm">
@@ -149,16 +159,25 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         <StartTimerForm clients={options.clients} projects={clientProjects} descriptions={descriptions} clientId={id} />
         <ManualTimeForm clients={options.clients} projects={clientProjects} descriptions={descriptions} today={t} clientId={id} />
       </section>
+      )}
 
-      <section>
-        <SectionTitle>Documenten</SectionTitle>
-        <DocumentList clientId={id} documents={documents} />
-      </section>
-
-      {client.info && (
+      {modules.dossier && (
         <section>
+          <SectionTitle>Documenten</SectionTitle>
+          <DocumentList clientId={id} documents={documents} />
+        </section>
+      )}
+
+      {(client.info || !modules.dossier) && (
+        <section className="space-y-2">
           <SectionTitle>Vaste informatie</SectionTitle>
-          <p className="card whitespace-pre-wrap p-4 text-sm leading-relaxed">{client.info}</p>
+          {client.info ? <p className="card whitespace-pre-wrap p-4 text-sm leading-relaxed">{client.info}</p> : <p className="text-sm text-steen">Nog geen vaste informatie.</p>}
+          {!modules.dossier && (
+            <details className="card p-4">
+              <summary className="cursor-pointer text-sm font-medium">Naam, status en vaste informatie bewerken</summary>
+              <ClientBasicForm client={client} />
+            </details>
+          )}
         </section>
       )}
 

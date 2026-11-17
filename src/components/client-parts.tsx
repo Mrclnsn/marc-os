@@ -162,6 +162,22 @@ export function ClientEditForm({ client }: { client: Client }) {
   );
 }
 
+/** Bewerken zolang het uitgebreide dossier uit staat: alleen naam, status en vaste informatie. */
+export function ClientBasicForm({ client }: { client: Client }) {
+  return (
+    <form action={updateClientAction.bind(null, client.id)} className="mt-4 space-y-3">
+      <div className="grid gap-3 md:grid-cols-[2fr_1fr]">
+        <Field label="Bedrijfsnaam"><input name="name" defaultValue={client.name} required className="input w-full" /></Field>
+        <Field label="Status"><ClientStatusSelect value={client.status} /></Field>
+      </div>
+      <Field label="Vaste informatie (pakket, afspraken, bijzonderheden)">
+        <textarea name="info" rows={5} defaultValue={client.info ?? ""} className="input w-full" />
+      </Field>
+      <button className="btn-primary">Opslaan</button>
+    </form>
+  );
+}
+
 /* ---------------- Contactpersonen ---------------- */
 
 function ContactFields({ contact }: { contact?: ClientContact }) {

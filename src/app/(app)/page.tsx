@@ -1,13 +1,11 @@
 import Link from "next/link";
-import { PageHeader, SectionTitle } from "@/components/brand";
+import { getISOWeek, parseISO } from "date-fns";
+import { PageHeader } from "@/components/brand";
 import { TaskList } from "@/components/task-row";
 import { CaptureBar, QuickAddTask } from "@/components/quick-add";
-import { expiringDomains, filingSignals, hourlyBudgets, listTasks, inboxCount, listReviews, pipelineSignals, revenueSignals, weekHours } from "@/lib/data";
-import { formatDuration } from "@/lib/duration";
-import { formatEuro, formatEuroRound } from "@/lib/money";
-import { domainState } from "@/components/client-parts";
-import { TIMEZONE, addDaysIso, formatDate, formatLong, today } from "@/lib/dates";
-import { calendarConfigured, getEvents } from "@/lib/calendar";
+import { GoalBar, HabitsPanel, HermesPanel, KpiTiles, Panel, SignalPanel, TimelineView } from "@/components/cockpit";
+import { getCockpit } from "@/lib/cockpit";
+import { TIMEZONE, addDaysIso, formatLong } from "@/lib/dates";
 import { getOptions } from "@/lib/options";
 
 function greeting() {
@@ -18,54 +16,20 @@ function greeting() {
   return "Goedenavond";
 }
 
-function Stat({ value, label, href, sub }: { value: number | string; label: string; href?: string; sub?: string }) {
-  const inner = (
-    <>
-      <span className="block text-4xl font-bold leading-none text-nacht tabular-nums">{value}</span>
-      <span className="mt-2 block text-xs uppercase tracking-wider text-steen">{label}</span>
-      {sub && <span className="block text-xs text-steen">{sub}</span>}
-    </>
-  );
-  return href ? (
-    <Link href={href} className="block border-l border-lijn pl-4 transition-colors hover:border-nacht">{inner}</Link>
-  ) : (
-    <div className="border-l border-lijn pl-4">{inner}</div>
-  );
+function isoWeek(iso: string) {
+  return getISOWeek(parseISO(iso));
 }
 
+/**
+ * Vandaag: de cockpit. Volgorde op de telefoon: doel, tegels, braindump, briefing, signalen,
+ * achterstallig, tijdlijn met taken, komende dagen. Op de Mac staan signalen en gewoontes rechts.
+ */
 export default async function TodayPage({ searchParams }: { searchParams: Promise<{ gebied?: string }> }) {
   const { gebied } = await searchParams;
   const area = gebied === "zakelijk" || gebied === "prive" ? gebied : undefined;
-  const t = today();
+  const [c, options] = await Promise.all([getCockpit(area), getOptions()]);
+  const t = c.date;
   const tomorrow = addDaysIso(t, 1);
-
-  const [todayTasks, upcoming, inbox, options, cal, lastDay, domains, money, hours, budgets, pipeline, filingSig] = await Promise.all([
-    listTasks({ view: "today", area }),
-    listTasks({ view: "upcoming", days: 7, area }),
-    inboxCount(),
-    getOptions(),
-    calendarConfigured() ? getEvents(t, t) : Promise.resolve(null),
-    listReviews("day", 1),
-    area === "prive" ? Promise.resolve([]) : expiringDomains(),
-    area === "prive" ? Promise.resolve({ ready: [], ending: [] }) : revenueSignals(),
-    weekHours(t),
-    area === "prive" ? Promise.resolve([]) : hourlyBudgets({ onlyWarnings: true }),
-    area === "prive" ? Promise.resolve(null) : pipelineSignals(),
-    area === "prive" ? Promise.resolve(null) : filingSignals(),
-  ]);
-  // Aangiftes: eerst deadlines binnen 14 dagen, dan ontbrekende stukken (zonder dubbelingen)
-  const filingAlerts = filingSig
-    ? [
-        ...[...filingSig.overdue, ...filingSig.dueSoon].map((f) => ({ f, why: f.state === "overdue" ? `te laat, deadline ${formatDate(f.deadline)}` : `deadline ${formatDate(f.deadline)}` })),
-        ...filingSig.docsMissing
-          .filter((f) => f.state !== "overdue" && f.state !== "due_soon")
-          .map((f) => ({ f, why: `stukken ${f.docsRequestedAt ? "opgevraagd, nog niet binnen" : "nog niet opgevraagd"} (uiterlijk ${formatDate(f.docsDueDate)})` })),
-      ]
-    : [];
-
-  const overdue = todayTasks.filter((x) => (x.planDate ?? x.dueDate)! < t);
-  const now = todayTasks.filter((x) => (x.planDate ?? x.dueDate)! >= t);
-  const briefing = lastDay[0]?.periodDate === t ? lastDay[0] : null;
 
   const tabs = [
     { key: undefined, label: "Alles" },
@@ -74,8 +38,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   ];
 
   return (
-    <div>
-      <PageHeader eyebrow={<span className="capitalize">{formatLong(t)}</span>} title={`${greeting()}, Marc`}>
+    <div className="space-y-6">
+      <PageHeader eyebrow={<span><span className="capitalize">{formatLong(t)}</span> · week {isoWeek(t)}</span>} title={`${greeting()}, Marc`}>
         <div className="flex gap-4">
           {tabs.map((tab) => (
             <Link key={tab.label} href={tab.key ? `/?gebied=${tab.key}` : "/"} className={area === tab.key ? "tab-active" : "tab"}>
@@ -85,179 +49,45 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         </div>
       </PageHeader>
 
-      <div className="mb-10 grid grid-cols-2 gap-6 md:grid-cols-5">
-        <Stat value={now.length} label="Vandaag" />
-        <Stat value={overdue.length} label="Achterstallig" />
-        <Stat value={cal?.events.length ?? 0} label="Afspraken" />
-        <Stat value={inbox} label="In je inbox" href="/inbox" />
-        <Stat value={formatDuration(hours.totalMin)} label="Uren deze week" sub={`${formatDuration(hours.billableMin)} declarabel`} href="/uren" />
-      </div>
+      {/* Gesprek 10: hoofddoel met on-track-status */}
+      <GoalBar goal={null} />
 
-      <div className="mb-10">
-        <CaptureBar />
-      </div>
+      <KpiTiles kpis={c.kpis} />
 
-      {briefing && (
-        <section className="mb-10 rounded-sm bg-nacht p-6 text-white">
-          <p className="mb-3 text-xs uppercase tracking-[0.2em] text-white/50">Briefing</p>
-          <div className="whitespace-pre-wrap text-[15px] leading-relaxed text-white/90">{briefing.body}</div>
-        </section>
-      )}
+      <CaptureBar />
 
-      <div className="grid gap-10 lg:grid-cols-[1fr_300px]">
-        <div className="space-y-10">
-          {overdue.length > 0 && (
-            <section>
-              <SectionTitle>Achterstallig</SectionTitle>
-              <div className="card">
-                <TaskList tasks={overdue} today={t} tomorrow={tomorrow} />
-              </div>
-            </section>
-          )}
+      {/* Gesprek 12/13: Hermes met akkoordwachtrij en routinestatus */}
+      <HermesPanel briefing={c.briefing} />
 
-          <section>
-            <SectionTitle>Taken voor vandaag</SectionTitle>
-            <div className="card">
-              <TaskList tasks={now} today={t} tomorrow={tomorrow} empty="Niets gepland. Kies iets uit de komende dagen of je takenlijst." />
-            </div>
-            <div className="mt-3">
-              <QuickAddTask clients={options.clients} projects={options.projects} defaults={{ planDate: t, area }} placeholder="Taak voor vandaag..." />
-            </div>
-          </section>
-
-          <section>
-            <SectionTitle>Komende 7 dagen</SectionTitle>
-            <div className="card">
-              <TaskList tasks={upcoming} today={t} tomorrow={tomorrow} empty="Niets gepland voor de komende week." />
-            </div>
-          </section>
-        </div>
-
-        <aside>
-          <SectionTitle>Agenda</SectionTitle>
-          {!cal ? (
-            <p className="text-sm text-steen">Nog geen agenda gekoppeld. Voeg een ICS-link toe in de instellingen.</p>
-          ) : cal.events.length === 0 ? (
-            <p className="text-sm text-steen">Geen afspraken vandaag.</p>
-          ) : (
-            <ol className="relative space-y-4 border-l-[3px] border-nacht pl-5">
-              {cal.events.map((e, i) => (
-                <li key={i}>
-                  <p className="text-xs uppercase tracking-wider text-steen tabular-nums">{e.allDay ? "Hele dag" : `${e.time} – ${e.endTime}`}</p>
-                  <p className="text-[15px] font-bold leading-snug text-nacht">{e.title}</p>
-                  <p className="text-xs text-steen">{e.calendar}{e.location ? ` · ${e.location}` : ""}</p>
-                </li>
-              ))}
-            </ol>
-          )}
-          {cal?.errors.map((err) => (
-            <p key={err} className="mt-3 text-xs text-steen">{err}</p>
-          ))}
-
-          {pipeline && (pipeline.nextSteps.length > 0 || pipeline.expiringQuotes.length > 0) && (
-            <div className="mt-10">
-              <SectionTitle aside={<Link href="/pipeline" className="text-xs text-steen hover:text-nacht">{pipeline.openQuotes.count} open · {formatEuroRound(pipeline.openQuotes.cents)}</Link>}>Pipeline</SectionTitle>
-              <ul className="space-y-2">
-                {pipeline.nextSteps.map((l) => (
-                  <li key={l.id}>
-                    <Link href={`/pipeline/${l.id}`} className="block border-l-[3px] border-nacht pl-3 hover:bg-parel">
-                      <span className="block text-[15px] font-bold text-nacht">{l.clientName ?? l.companyName}</span>
-                      <span className="block text-xs text-steen">{l.nextStep ?? l.title}{l.nextStepDate && l.nextStepDate < t ? ` · sinds ${formatDate(l.nextStepDate)}` : ""}</span>
-                    </Link>
-                  </li>
-                ))}
-                {pipeline.expiringQuotes.map((q) => (
-                  <li key={q.id}>
-                    <Link href={`/pipeline/offertes/${q.id}`} className="block border-l-[3px] border-nacht pl-3 hover:bg-parel">
-                      <span className="block text-[15px] font-bold text-nacht">{q.companyName} · {q.number}</span>
-                      <span className="block text-xs text-steen">Offerte geldig tot {formatDate(q.validUntil)}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {filingAlerts.length > 0 && (
-            <div className="mt-10">
-              <SectionTitle aside={<Link href="/aangiftes" className="text-xs text-steen hover:text-nacht">Aangiftes</Link>}>Aangiftes</SectionTitle>
-              <ul className="space-y-2">
-                {filingAlerts.map(({ f, why }) => (
-                  <li key={f.id}>
-                    <Link href={`/aangiftes/${f.id}`} className="block border-l-[3px] border-nacht pl-3 hover:bg-parel">
-                      <span className="block text-[15px] font-bold text-nacht">{f.clientName} · {f.title}</span>
-                      <span className="block text-xs text-steen">{why}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {money.ready.length > 0 && (
-            <div className="mt-10">
-              <SectionTitle aside={<Link href="/afspraken" className="text-xs text-steen hover:text-nacht">Afspraken</Link>}>Te factureren</SectionTitle>
-              <ul className="space-y-2">
-                {money.ready.map((i) => (
-                  <li key={i.id}>
-                    <Link href={`/klanten/${i.clientId}`} className="block border-l-[3px] border-nacht pl-3 hover:bg-parel">
-                      <span className="block text-[15px] font-bold text-nacht">{i.clientName} · <span className="tabular-nums">{formatEuro(i.amountCents)}</span></span>
-                      <span className="block text-xs text-steen">{i.description}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {budgets.length > 0 && (
-            <div className="mt-10">
-              <SectionTitle aside={<Link href="/uren" className="text-xs text-steen hover:text-nacht">Uren</Link>}>Budget maatwerk</SectionTitle>
-              <ul className="space-y-2">
-                {budgets.map((b) => (
-                  <li key={b.agreementId}>
-                    <Link href={`/klanten/${b.clientId}`} className="block border-l-[3px] border-nacht pl-3 hover:bg-parel">
-                      <span className="block text-[15px] font-bold text-nacht">{b.clientName} · <span className="tabular-nums">{b.pct}%</span></span>
-                      <span className="block text-xs text-steen">{b.label} · {b.over ? "budget overschreden" : "meer dan 80% besteed"}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {money.ending.length > 0 && (
-            <div className="mt-10">
-              <SectionTitle>Afspraken die aflopen</SectionTitle>
-              <ul className="space-y-2">
-                {money.ending.map((a) => (
-                  <li key={a.id}>
-                    <Link href={`/klanten/${a.clientId}`} className="block border-l-[3px] border-nacht pl-3 hover:bg-parel">
-                      <span className="block text-[15px] font-bold text-nacht">{a.label}</span>
-                      <span className="block text-xs text-steen">{a.clientName} · tot {formatDate(a.endDate)}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {domains.length > 0 && (
-            <div className="mt-10">
-              <SectionTitle>Domeinen</SectionTitle>
-              <ul className="space-y-2">
-                {domains.map(({ website, clientName }) => (
-                  <li key={website.id}>
-                    <Link href={`/klanten/${website.clientId}`} className="block border-l-[3px] border-nacht pl-3 hover:bg-parel">
-                      <span className="block text-[15px] font-bold text-nacht">{website.domain}</span>
-                      <span className="block text-xs text-steen">{clientName} · {domainState(website.domainExpiresAt)?.label}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <aside className="space-y-6 lg:order-2">
+          <SignalPanel signals={c.signals} />
+          {/* Gesprek 8: gewoontes van vandaag */}
+          <HabitsPanel habits={null} />
         </aside>
+
+        <div className="min-w-0 space-y-6 lg:order-1">
+          {c.overdue.length > 0 && (
+            <Panel id="achterstallig" title="Achterstallig" aside={`${c.overdue.length}`}>
+              <TaskList tasks={c.overdue} today={t} tomorrow={tomorrow} />
+            </Panel>
+          )}
+
+          <Panel id="tijdlijn" title="Vandaag" aside={`${c.timeline.planned.length} ${c.timeline.planned.length === 1 ? "taak" : "taken"}`}>
+            <TimelineView timeline={c.timeline} />
+            <div id="vandaag" className="scroll-mt-20 border-t border-lijn">
+              <p className="px-4 pt-3 text-[10px] uppercase tracking-[0.14em] text-steen">Ingepland voor vandaag</p>
+              <TaskList tasks={c.timeline.planned} today={t} tomorrow={tomorrow} empty="Niets gepland. Kies iets uit de komende dagen of je takenlijst." />
+              <div className="border-t border-lijn p-2">
+                <QuickAddTask clients={options.clients} projects={options.projects} defaults={{ planDate: t, area }} placeholder="Taak voor vandaag..." />
+              </div>
+            </div>
+          </Panel>
+
+          <Panel title="Komende 7 dagen" aside={<Link href="/taken" className="hover:text-nacht">Alle taken</Link>}>
+            <TaskList tasks={c.upcoming} today={t} tomorrow={tomorrow} empty="Niets gepland voor de komende week." />
+          </Panel>
+        </div>
       </div>
     </div>
   );

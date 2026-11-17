@@ -10,6 +10,7 @@ import {
   index,
   uniqueIndex,
   numeric,
+  jsonb,
 } from "drizzle-orm/pg-core";
 
 export const areaEnum = pgEnum("area", ["zakelijk", "prive"]);
@@ -569,6 +570,13 @@ export const reviews = pgTable("reviews", {
   periodDate: date("period_date").notNull(), // dag, maandag van de week, of 1e van de maand
   body: text("body").notNull(),
   ...timestamps,
+});
+
+/** Instellingen van de app als sleutel/waarde (bijv. welke modules aan staan). */
+export const settings = pgTable("settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
 export type Client = typeof clients.$inferSelect;

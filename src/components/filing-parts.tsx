@@ -35,7 +35,7 @@ const STATE_TEXT: Record<FilingState, string | null> = {
 /** Statuschip; "te laat" en "deadline nadert" vallen op (Nacht), de rest is rustig. */
 export function FilingStatusChip({ f }: { f: Pick<FilingRow, "status" | "state"> }) {
   const strong = f.state === "overdue" || f.state === "due_soon";
-  return <span className={`chip ${strong ? "bg-nacht text-white" : ""}`}>{STATE_TEXT[f.state] ?? FILING_STATUS[f.status]}</span>;
+  return <span className={`chip ${strong ? "bg-nacht text-op-nacht" : ""}`}>{STATE_TEXT[f.state] ?? FILING_STATUS[f.status]}</span>;
 }
 
 /** De logische volgende stap per status. */
