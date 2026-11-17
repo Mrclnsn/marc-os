@@ -47,4 +47,6 @@ backups/
 
 # lokale ingebouwde database
 .local-db/
+.local-pg/
+.local-pg-seeded
 .local-seeded

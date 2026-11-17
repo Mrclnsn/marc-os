@@ -1,26 +1,19 @@
-import { drizzle as drizzlePg } from "drizzle-orm/postgres-js";
-import { drizzle as drizzleLite } from "drizzle-orm/pglite";
+import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
 
-export type Db = ReturnType<typeof drizzlePg<typeof schema>>;
+export type Db = ReturnType<typeof drizzle<typeof schema>>;
 
 /**
- * DATABASE_URL=postgres://...   → echte Postgres (productie)
- * DATABASE_URL=pglite:./.local-db → ingebouwde Postgres in een map (lokaal, niets te installeren)
+ * Verbindt met Postgres via DATABASE_URL.
+ * Lokaal (npm run local) is dat een ingebouwde PGlite-server die als apart proces draait,
+ * zodat er altijd maar één proces de databasebestanden open heeft.
  */
-export function connect(url = process.env.DATABASE_URL ?? ""): { db: Db; close: () => Promise<void>; kind: "pg" | "pglite" } {
-  if (url.startsWith("pglite:")) {
-    const dir = url.slice("pglite:".length) || "./.local-db";
-    // PGlite wordt pas geladen als het echt nodig is
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { PGlite } = require("@electric-sql/pglite") as typeof import("@electric-sql/pglite");
-    const client = new PGlite(dir);
-    const db = drizzleLite({ client, schema }) as unknown as Db;
-    return { db, close: () => client.close(), kind: "pglite" };
-  }
+export function connect(url = process.env.DATABASE_URL ?? "", max = Number(process.env.DATABASE_POOL ?? 10)) {
   // postgres() verbindt pas bij de eerste query, dus dit faalt niet tijdens de build
-  const sql = postgres(url, { max: 10 });
-  const db = drizzlePg({ client: sql, schema });
-  return { db, close: () => sql.end(), kind: "pg" };
+  // Lokale PGlite-server: geen type-ophaalquery en geen named prepared statements
+  const local = process.env.DATABASE_LOCAL === "1";
+  const sql = postgres(url, local ? { max: 1, fetch_types: false, prepare: false, onnotice: () => {} } : { max });
+  const db: Db = drizzle({ client: sql, schema });
+  return { db, close: () => sql.end() };
 }
