@@ -127,6 +127,10 @@ Web Push met een service worker (`public/sw.js`). Op de iPhone werkt het alleen 
 
 Installeren na de gewone installatie: `bash /opt/marc-os/scripts/hermes-setup.sh` (vraagt om een Anthropic API-sleutel). Hermes draait als dienst `hermes` (Compose-profiel `hermes`) met de image `nousresearch/hermes-agent:stable`. Configuratie en persoonlijkheid staan in `hermes/` en worden bij elke update door `scripts/hermes-config.sh` naar `hermes-data/` geschreven. Lokaal testen zonder sleutel: `npm run hermes-mock` naast `npm run local`.
 
+Vaste routines (gesprek 13): ochtendbriefing, dagafsluiting, weekreview, maandafsluiting en aangiftecheck. Marc OS plant ze (cron, elke 5 minuten), Hermes schrijft de tekst, Marc OS slaat hem op bij Reviews en stuurt hem naar WhatsApp en/of als pushmelding. Instellen op Hermes → Routines.
+
+WhatsApp (gesprek 13): `bash /opt/marc-os/scripts/whatsapp-setup.sh`, met een apart nummer voor Hermes. Alleen je eigen nummer mag met Hermes praten. Antwoorden op voorstellen (`ja`, `ja 12`, `ja alles`, `nee 12: reden`) handelt Marc OS zelf af via de plugin `hermes/plugins/marcos-akkoord`; Hermes kan niets goedkeuren. Spraakberichten worden op de VPS omgezet. Lokaal: `npm run hermes-mock` start ook een nep-webhook op poort 8644 (zet `HERMES_WHATSAPP=true`, `HERMES_WEBHOOK_URL=http://127.0.0.1:8644` en `HERMES_WEBHOOK_SECRET` in `.env.local`).
+
 ## Agenda koppelen
 
 In de app: **Instellingen → Agenda → Agenda toevoegen**. Plak de geheime iCal-link (https of webcal), de app test hem meteen en toont daarna alleen het begin van de link. Per agenda aan/uit, testen, hernoemen en verwijderen.
