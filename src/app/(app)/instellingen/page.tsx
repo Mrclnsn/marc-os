@@ -4,7 +4,8 @@ import { PageHeader, SectionTitle } from "@/components/brand";
 import { KpiSwitch, ModuleSwitch } from "@/components/settings-parts";
 import { ThemeChoice } from "@/components/theme-switch";
 import { CockpitStyleSwitch } from "@/components/cockpit-client";
-import { calendarConfigured } from "@/lib/calendar";
+import { listCalendarFeeds } from "@/lib/calendar";
+import { AddFeedForm, FeedItem } from "@/components/calendar-parts";
 import { searchStatus } from "@/lib/data";
 import { syncSearchIndexAction } from "../../actions";
 import { PushPrefSwitch, PushThisDevice, RemoveDeviceButton } from "@/components/push-settings";
@@ -12,7 +13,7 @@ import { PUSH_KIND_KEYS, PUSH_KINDS, getPushPrefs, lastBackupPull, listBackups, 
 import { COCKPIT_COOKIE, KPI_KEYS, KPIS, MODULE_KEYS, MODULES, THEME_COOKIE, getHiddenKpis, getModules, parseCockpitStyle, parseTheme } from "@/lib/settings";
 
 export default async function SettingsPage() {
-  const [modules, hidden, brain, devices, pushPrefs, publicKey, pull] = await Promise.all([
+  const [modules, hidden, brain, devices, pushPrefs, publicKey, pull, feeds] = await Promise.all([
     getModules(),
     getHiddenKpis(),
     searchStatus(),
@@ -20,6 +21,7 @@ export default async function SettingsPage() {
     getPushPrefs(),
     vapidPublicKey(),
     lastBackupPull(),
+    listCalendarFeeds(),
   ]);
   const backups = listBackups();
   const host = process.env.DOMAIN ?? (await headers()).get("host") ?? "os.marclonsain.nl";
@@ -150,7 +152,9 @@ export default async function SettingsPage() {
             </li>
           ))}
         </ul>
-        <p className="text-xs text-steen">Herinneringen bij het begin van een dagritmeblok komen erbij met het dagritme.</p>
+        <p className="text-xs text-steen">
+          Welke blokken een herinnering geven, kies je per blok op <Link href="/planning/dagritme" className="underline decoration-lijn underline-offset-2 hover:decoration-nacht">Planning → Dagritme</Link>.
+        </p>
       </section>
 
       <section id="backups" className="scroll-mt-8 space-y-3">
@@ -218,17 +222,20 @@ export default async function SettingsPage() {
         </ul>
       </section>
 
-      <section className="space-y-3">
-        <SectionTitle>Agenda</SectionTitle>
-        <div className="card p-4 text-sm">
-          {calendarConfigured() ? (
-            <p className="text-grafiet">Agenda gekoppeld via ICS (alleen lezen). De tijdlijn op Vandaag toont je afspraken.</p>
-          ) : (
-            <p className="text-grafiet">Nog geen agenda gekoppeld.</p>
+      <section id="agenda" className="scroll-mt-8 space-y-3">
+        <SectionTitle aside={<span className="text-xs text-steen">{feeds.filter((f) => f.active).length} actief</span>}>Agenda</SectionTitle>
+        <p className="max-w-2xl text-sm text-steen">
+          Je afspraken uit Google Agenda, iCloud of Outlook verschijnen op de tijdlijn van Vandaag, in Planning en in de briefing. Alleen lezen, elke 5 minuten ververst.
+        </p>
+        <div className="card divide-y divide-lijn">
+          {feeds.length > 0 && (
+            <ul className="divide-y divide-lijn">
+              {feeds.map((f) => (
+                <FeedItem key={f.id} feed={{ id: f.id, name: f.name, masked: f.masked, active: f.active, lastOkAt: f.lastOkAt ? f.lastOkAt.toISOString() : null, lastError: f.lastError, source: f.source }} />
+              ))}
+            </ul>
           )}
-          <p className="mt-1 text-steen">
-            Agenda-links staan in <code className="chip">CALENDAR_ICS_URLS</code> in het bestand <code className="chip">.env</code> op de server (lokaal <code className="chip">.env.local</code>), bijvoorbeeld <code className="chip">Werk|https://...ics,Privé|https://...ics</code>. Daarna de app herstarten.
-          </p>
+          <AddFeedForm />
         </div>
       </section>
     </div>

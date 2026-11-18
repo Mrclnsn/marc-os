@@ -10,6 +10,7 @@ Met een MCP-koppeling, zodat een AI-assistent (Claude) je kan helpen met de dagp
 | Onderdeel | Wat het doet |
 |---|---|
 | **Vandaag** | Agenda, achterstallige taken, taken voor vandaag, komende 7 dagen en de briefing van vandaag. Filter op Zakelijk of Privé. |
+| **Planning** | Dag- en weekweergave met dagritme, agenda en taken in blokken (timeblocking): slepen op de Mac, "Plan in" op de telefoon. Dagritmes als sjablonen (werkdag, vrijdag, weekend) met vaste blokken en pushherinneringen; per dag een ander ritme of een vrije dag. Gewoontes met reeks en percentage per week en maand, af te vinken in de cockpit. |
 | **Inbox** | Braindump. Snel iets vastleggen en later omzetten naar een taak of notitie. |
 | **Taken** | Alle taken met filters: klantwerk, bedrijf algemeen, privé, per klant, zonder datum, afgerond. |
 | **Projecten** | Gegroepeerd in Klanten, Bedrijf algemeen en Privé, met voortgang. |
@@ -122,7 +123,9 @@ Web Push met een service worker (`public/sw.js`). Op de iPhone werkt het alleen 
 
 ## Agenda koppelen
 
-Zet in `CALENDAR_ICS_URLS` één of meer ICS-links, komma-gescheiden, met optioneel een naam ervoor:
+In de app: **Instellingen → Agenda → Agenda toevoegen**. Plak de geheime iCal-link (https of webcal), de app test hem meteen en toont daarna alleen het begin van de link. Per agenda aan/uit, testen, hernoemen en verwijderen.
+
+Oude manier (blijft werken): zet in `CALENDAR_ICS_URLS` in `.env` één of meer ICS-links, komma-gescheiden, met optioneel een naam ervoor:
 
 ```
 CALENDAR_ICS_URLS=Werk|https://calendar.google.com/calendar/ical/.../basic.ics,Privé|webcal://p01-caldav.icloud.com/...
@@ -130,6 +133,7 @@ CALENDAR_ICS_URLS=Werk|https://calendar.google.com/calendar/ical/.../basic.ics,P
 
 - **Google Agenda**: Instellingen → je agenda → *Geheim adres in iCal-indeling*.
 - **iCloud**: agenda delen → *Openbare agenda* → link kopiëren.
+- **Outlook**: Instellingen → Agenda → Gedeelde agenda's → agenda publiceren → ICS-link.
 
 Afspraken worden 5 minuten gecachet. Alleen lezen, de app maakt geen afspraken aan.
 

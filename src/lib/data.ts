@@ -14,6 +14,8 @@ export * from "./time";
 export * from "./pipeline";
 export * from "./filings";
 export * from "./brain";
+export * from "./rhythm";
+export * from "./habits";
 export { searchKnowledge, searchStatus, syncEmbeddings, type SearchHit, type SearchResult } from "./search";
 
 /* ------------------------------------------------------------------ */
@@ -45,6 +47,8 @@ export const taskInput = z.object({
   dueDate: optDate,
   priority: z.number().int().min(1).max(3).optional(),
   estimateMin: z.number().int().positive().nullable().optional(),
+  planBlockId: optId,
+  planTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Tijd als HH:mm").nullable().optional(),
   recurrence: recurrenceSchema.optional(),
   notes: optText,
 });
@@ -263,6 +267,11 @@ export async function createTask(input: TaskInput) {
 
 export async function updateTask(id: string, patch: Partial<TaskInput>) {
   const data = await inheritFromProject(taskInput.partial().parse(patch));
+  // Zonder plandatum hoort een taak ook niet in een blok of op een tijd
+  if (data.planDate === null) {
+    data.planBlockId = null;
+    data.planTime = null;
+  }
   const [row] = await db.update(tasks).set(data).where(eq(tasks.id, id)).returning();
   if (!row) throw new Error("Taak niet gevonden");
   if (data.status === "done") return completeTask(id);
@@ -305,6 +314,9 @@ export async function completeTask(id: string) {
         recurrence: row.recurrence,
         notes: row.notes,
         planDate: row.planDate || !row.dueDate ? nextPlan : null,
+        // Vast blok en tijd gaan mee (blok kan op de volgende dag ontbreken: dan staat hij bij "zonder blok")
+        planBlockId: row.planDate ? row.planBlockId : null,
+        planTime: row.planDate ? row.planTime : null,
         dueDate: row.dueDate ? (shift !== null ? addDaysIso(nextPlan, shift) : nextPlan) : null,
       })
       .returning();

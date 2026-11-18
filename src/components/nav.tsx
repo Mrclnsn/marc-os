@@ -9,6 +9,7 @@ type Item = { href: string; label: string; module?: ModuleKey };
 
 const items: Item[] = [
   { href: "/", label: "Vandaag" },
+  { href: "/planning", label: "Planning" },
   { href: "/inbox", label: "Inbox" },
   { href: "/taken", label: "Taken" },
   { href: "/projecten", label: "Projecten" },
@@ -23,7 +24,7 @@ const items: Item[] = [
 ];
 
 /** Vijf vaste plekken in de onderbalk op de telefoon; de rest staat in de kop. */
-const BOTTOM = ["/", "/inbox", "/taken", "/projecten", "/klanten"];
+const BOTTOM = ["/", "/planning", "/inbox", "/taken", "/projecten"];
 
 export function Nav({ inbox, footer, modules }: { inbox: number; footer: React.ReactNode; modules: Modules }) {
   const path = usePathname();

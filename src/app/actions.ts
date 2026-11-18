@@ -43,6 +43,8 @@ function taskFromForm(fd: FormData) {
   if (has(fd, "dueDate")) out.dueDate = s(fd, "dueDate");
   if (has(fd, "priority")) out.priority = n(fd, "priority") ?? 2;
   if (has(fd, "estimateMin")) out.estimateMin = n(fd, "estimateMin");
+  if (has(fd, "planBlockId")) out.planBlockId = s(fd, "planBlockId");
+  if (has(fd, "planTime")) out.planTime = s(fd, "planTime")?.slice(0, 5) ?? null;
   if (has(fd, "recurrence")) out.recurrence = (s(fd, "recurrence") ?? "none") as data.TaskInput["recurrence"];
   if (has(fd, "notes")) out.notes = s(fd, "notes");
   return out;

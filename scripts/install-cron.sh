@@ -12,6 +12,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 45 3 * * *   root bash $DIR/scripts/cron.sh second-brain
 30 7 * * 1-5 root bash $DIR/scripts/cron.sh morning
 0 9 * * *    root bash $DIR/scripts/cron.sh deadlines
+*/5 * * * *  root bash $DIR/scripts/cron.sh blocks
 CRON
 chmod 644 /etc/cron.d/marc-os
 # Oude losse cron-bestanden (vóór gesprek 7)
@@ -27,4 +28,4 @@ $DIR/logs/*.log {
   notifempty
 }
 ROT
-echo "Vaste taken ingesteld: back-up 03:15, export 03:45, ochtendmelding 07:30 (werkdagen), deadlines 09:00"
+echo "Vaste taken ingesteld: back-up 03:15, export 03:45, ochtendmelding 07:30 (werkdagen), deadlines 09:00, dagritme elke 5 minuten"

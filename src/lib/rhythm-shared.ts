@@ -1,0 +1,85 @@
+/**
+ * Dagritme en gewoontes: vaste lijsten en rekenhulpjes zonder database (ook in de browser te gebruiken).
+ */
+
+export const BLOCK_KINDS = {
+  dagstart: "Dagstart",
+  diep_werk: "Diep werk",
+  klantwerk: "Klantwerk",
+  administratie: "Administratie",
+  sport: "Sport",
+  pauze: "Pauze",
+  dagafsluiting: "Dagafsluiting",
+  weekreview: "Weekreview",
+  leren: "Leren",
+  prive: "Privé",
+  overig: "Overig",
+} as const;
+export type BlockKind = keyof typeof BLOCK_KINDS;
+export const BLOCK_KIND_KEYS = Object.keys(BLOCK_KINDS) as BlockKind[];
+
+/** Blokken waar je taken in plant (timeblocking). Dagstart, pauze en dagafsluiting zijn momenten, geen werkblok. */
+export const PLANNABLE_KINDS: BlockKind[] = ["diep_werk", "klantwerk", "administratie", "leren", "prive", "overig", "weekreview", "sport"];
+
+export const WEEKDAYS = { 1: "ma", 2: "di", 3: "wo", 4: "do", 5: "vr", 6: "za", 7: "zo" } as const;
+export const WEEKDAYS_LONG = { 1: "maandag", 2: "dinsdag", 3: "woensdag", 4: "donderdag", 5: "vrijdag", 6: "zaterdag", 7: "zondag" } as const;
+export type Weekday = keyof typeof WEEKDAYS;
+
+export const HABIT_FREQUENCIES = {
+  daily: "Elke dag",
+  weekly: "Aantal keer per week",
+  days: "Vaste dagen",
+} as const;
+export type HabitFrequency = keyof typeof HABIT_FREQUENCIES;
+
+export const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+export function toMin(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+}
+
+export function fmtMin(min: number): string {
+  const m = ((min % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+}
+
+/** "9:00", "900", "9" en "09.00" worden "09:00"; onzin geeft null. */
+export function parseTime(input: string | null | undefined): string | null {
+  if (!input) return null;
+  const t = input.trim().replace(".", ":");
+  let h: number, m: number;
+  if (/^\d{1,2}:\d{2}$/.test(t)) [h, m] = t.split(":").map(Number);
+  else if (/^\d{3,4}$/.test(t)) [h, m] = [Number(t.slice(0, -2)), Number(t.slice(-2))];
+  else if (/^\d{1,2}$/.test(t)) [h, m] = [Number(t), 0];
+  else return null;
+  if (h > 23 || m > 59) return null;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/** ISO-weekdag (1 = maandag ... 7 = zondag) van een datum YYYY-MM-DD, onafhankelijk van de tijdzone. */
+export function isoWeekday(iso: string): Weekday {
+  const d = new Date(`${iso}T12:00:00Z`).getUTCDay();
+  return (d === 0 ? 7 : d) as Weekday;
+}
+
+/** Korte omschrijving van de frequentie, bijv. "elke dag", "3x per week", "ma, wo, vr". */
+export function frequencyLabel(h: { frequency: string; timesPerWeek: number | null; weekdays: number[] }): string {
+  if (h.frequency === "weekly") return `${h.timesPerWeek ?? 1}x per week`;
+  if (h.frequency === "days") {
+    const days = [...h.weekdays].sort((a, b) => a - b);
+    if (days.length === 5 && days.join() === "1,2,3,4,5") return "werkdagen";
+    return days.map((d) => WEEKDAYS[d as Weekday]).join(", ") || "geen dagen";
+  }
+  return "elke dag";
+}
+
+export function weekdaysLabel(days: number[]): string {
+  const s = [...days].sort((a, b) => a - b);
+  if (!s.length) return "geen vaste dagen";
+  if (s.join() === "1,2,3,4,5") return "ma t/m vr";
+  if (s.join() === "1,2,3,4") return "ma t/m do";
+  if (s.join() === "6,7") return "za en zo";
+  if (s.length > 2 && s.every((d, i) => i === 0 || d === s[i - 1] + 1)) return `${WEEKDAYS[s[0] as Weekday]} t/m ${WEEKDAYS[s[s.length - 1] as Weekday]}`;
+  return s.map((d) => WEEKDAYS[d as Weekday]).join(", ");
+}

@@ -1,5 +1,8 @@
 import "server-only";
 import { calendarConfigured, getEvents, type CalendarEvent } from "./calendar";
+import { blockTaskTitles, currentAndNext, dayRhythms, freeWithin, type DayRhythm } from "./rhythm";
+import { habitSummary, listHabits } from "./habits";
+import { fmtMin, toMin } from "./rhythm-shared";
 import {
   completedBetween,
   expiringDomains,
@@ -19,11 +22,6 @@ import { formatDuration } from "./duration";
 import { formatEuro, formatEuroRound } from "./money";
 import { getHiddenKpis, getModules, KPIS, type KpiKey, type Modules } from "./settings";
 
-/**
- * Werkdag voor de berekening van vrije tijd op de tijdlijn.
- * Wordt in gesprek 8 vervangen door de dagritme-sjablonen (werkdag, vrijdag, weekend).
- */
-export const WORKDAY = { start: "09:00", end: "17:30" };
 
 export type Kpi = { key: KpiKey; value: string | number; label: string; sub?: string; href?: string; alert?: boolean };
 
@@ -41,7 +39,10 @@ export type Timeline = {
   /** Agenda-items met tijd plus de "nu"-markering, op volgorde */
   items: ({ kind: "event"; event: CalendarEvent; past: boolean; current: boolean } | { kind: "now"; time: string })[];
   planned: TaskWithRefs[];
-  freeMin: number | null; // nog vrij binnen de werkdag; null als de werkdag voorbij is
+  freeMin: number | null; // nog vrij binnen de werkdag; null als de werkdag voorbij is of er geen werkdag is
+  /** Werkdag uit het dagritme van vandaag; null = geen werkdag (bijv. weekend) */
+  work: { start: string; end: string } | null;
+  rhythmName: string | null;
   plannedMin: number; // som van de inschattingen van de taken voor vandaag
   estimated: number; // aantal taken met een inschatting
   dayOver: boolean;
@@ -49,11 +50,6 @@ export type Timeline = {
   errors: string[];
 };
 
-const toMin = (hhmm: string) => {
-  const [h, m] = hhmm.split(":").map(Number);
-  return h * 60 + m;
-};
-const fmtMin = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
 
 function nowMinutes(): number {
   const parts = new Intl.DateTimeFormat("nl-NL", { timeZone: TIMEZONE, hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date());
@@ -63,28 +59,15 @@ function nowMinutes(): number {
 }
 
 /** Vrije minuten tussen nu (of het begin van de werkdag) en het einde, min de agenda-items daarbinnen. */
-function freeMinutes(events: CalendarEvent[], now: number): number | null {
-  const start = Math.max(toMin(WORKDAY.start), now);
-  const end = toMin(WORKDAY.end);
+function freeMinutes(events: CalendarEvent[], now: number, work: { start: string; end: string } | null): number | null {
+  if (!work) return null;
+  const start = Math.max(toMin(work.start), now);
+  const end = toMin(work.end);
   if (start >= end) return null;
-  const busy = events
-    .filter((e) => !e.allDay && e.time && e.endTime)
-    .map((e) => [Math.max(toMin(e.time!), start), Math.min(toMin(e.endTime!) || 24 * 60, end)] as const)
-    .filter(([a, b]) => b > a)
-    .sort((x, y) => x[0] - y[0]);
-  let taken = 0;
-  let cursor = start;
-  for (const [a, b] of busy) {
-    const from = Math.max(a, cursor);
-    if (b > from) {
-      taken += b - from;
-      cursor = b;
-    }
-  }
-  return end - start - taken;
+  return freeWithin(start, end, events);
 }
 
-function buildTimeline(events: CalendarEvent[], planned: TaskWithRefs[], now: number, configured: boolean, errors: string[]): Timeline {
+function buildTimeline(events: CalendarEvent[], planned: TaskWithRefs[], now: number, configured: boolean, errors: string[], day: DayRhythm): Timeline {
   const timed = events.filter((e) => !e.allDay && e.time);
   const items: Timeline["items"] = [];
   let nowPlaced = false;
@@ -98,7 +81,7 @@ function buildTimeline(events: CalendarEvent[], planned: TaskWithRefs[], now: nu
     items.push({ kind: "event", event: e, past: end <= now, current: s <= now && end > now });
   }
   if (!nowPlaced) items.push({ kind: "now", time: fmtMin(now) });
-  const free = freeMinutes(events, now);
+  const free = freeMinutes(events, now, day.work);
   const withEstimate = planned.filter((t) => t.estimateMin);
   return {
     allDay: events.filter((e) => e.allDay),
@@ -108,6 +91,8 @@ function buildTimeline(events: CalendarEvent[], planned: TaskWithRefs[], now: nu
     plannedMin: withEstimate.reduce((s, t) => s + (t.estimateMin ?? 0), 0),
     estimated: withEstimate.length,
     dayOver: free === null,
+    work: day.work,
+    rhythmName: day.rhythm?.name ?? null,
     calendar: configured ? "ok" : "none",
     errors,
   };
@@ -119,7 +104,13 @@ export type HourWindow = {
   end: number;
   now: number;
   events: { title: string; calendar: string; location: string | null; from: number; to: number; label: string; past: boolean; current: boolean }[];
+  /** Dagritmeblokken (vandaag en morgen) binnen het venster, met de taken die erin staan */
+  blocks: { id: string; title: string; kind: string; from: number; to: number; label: string; past: boolean; current: boolean; tasks: string[] }[];
+  /** Werkdag van vandaag als minuten, voor de band op de tijdas */
+  work: { from: number; to: number } | null;
 };
+
+export type HabitToday = { id: string; title: string; done: boolean; due: boolean; streak: number; streakUnit: string; weekPct: number | null; frequency: string; block: string | null };
 
 export type Goal = { title: string; value: number; target: number; unit: string; note: string; provisional: boolean };
 
@@ -140,6 +131,8 @@ export type Cockpit = {
   overdue: TaskWithRefs[];
   upcoming: TaskWithRefs[];
   briefing: { body: string } | null;
+  habits: HabitToday[];
+  rhythm: { name: string | null; current: string | null; next: string | null };
 };
 
 /** Wat er bovenaan moet: achterstallig en hoge prioriteit eerst, dan deadline, dan plandatum. */
@@ -160,7 +153,7 @@ export async function getCockpit(area?: "zakelijk" | "prive"): Promise<Cockpit> 
   const [modules, hidden] = await Promise.all([getModules(), getHiddenKpis()]);
   const work = area !== "prive"; // zakelijke signalen niet in de privé-weergave
   const none = Promise.resolve(null);
-  const configured = calendarConfigured();
+  const configured = await calendarConfigured();
 
   const [todayTasks, upcoming, inbox, cal, lastDay, doneToday, hours, revenue, money, budgets, pipeline, filings, domains] = await Promise.all([
     listTasks({ view: "today", area }),
@@ -177,12 +170,18 @@ export async function getCockpit(area?: "zakelijk" | "prive"): Promise<Cockpit> 
     modules.aangiftes && work ? filingSignals() : none,
     modules.websites && work ? expiringDomains() : none,
   ]);
+  const [rhythmsByDay, habitList, blockTitles, blockTitlesTomorrow] = await Promise.all([dayRhythms([t, tomorrow]), listHabits(), blockTaskTitles(t), blockTaskTitles(tomorrow)]);
+  const dayToday = rhythmsByDay.get(t)!;
+  const dayTomorrow = rhythmsByDay.get(tomorrow)!;
 
   const overdue = todayTasks.filter((x) => (x.planDate ?? x.dueDate)! < t);
   const planned = todayTasks.filter((x) => (x.planDate ?? x.dueDate)! >= t);
   const now = nowMinutes();
   const eventsToday = cal.events.filter((e) => e.date === t);
-  const timeline = buildTimeline(eventsToday, planned, now, configured, cal.errors);
+  const timeline = buildTimeline(eventsToday, planned, now, configured, cal.errors, dayToday);
+  const { current: blockNow, next: blockNext } = currentAndNext(dayToday.blocks, now);
+  const habitSum = habitSummary(habitList);
+  const visibleHabits = habitList.filter((h) => (!area || h.area === area) && (h.dueToday || h.doneToday));
   const doneCount = doneToday.filter((x) => !area || x.area === area).length;
 
   /* ---------------- KPI-tegels ---------------- */
@@ -207,6 +206,9 @@ export async function getCockpit(area?: "zakelijk" | "prive"): Promise<Cockpit> 
             : "geen afspraken meer",
       href: "#tijdlijn",
     },
+    gewoontes: habitSum.total
+      ? { key: "gewoontes", value: `${habitSum.done}/${habitSum.total}`, label: KPIS.gewoontes.label, sub: habitSum.weekPct !== null ? `${habitSum.weekPct}% deze week` : "vandaag", href: "#gewoontes", alert: false }
+      : null,
     uren: hours ? { key: "uren", value: formatDuration(hours.totalMin), label: KPIS.uren.label, sub: `${formatDuration(hours.billableMin)} declarabel`, href: "/uren" } : null,
     mrr: revenue ? { key: "mrr", value: formatEuroRound(revenue.mrrCents), label: KPIS.mrr.label, sub: `${revenue.activeRecurring} vaste afspraken`, href: "/afspraken" } : null,
     factureren: revenue ? { key: "factureren", value: revenue.ready.count, label: KPIS.factureren.label, sub: formatEuroRound(revenue.ready.cents), href: "/afspraken", alert: revenue.ready.count > 0 } : null,
@@ -288,6 +290,17 @@ export async function getCockpit(area?: "zakelijk" | "prive"): Promise<Cockpit> 
         return { title: e.title, calendar: e.calendar, location: e.location, from, to, label: `${e.time} tot ${e.endTime}`, past: to <= now, current: from <= now && to > now };
       })
       .filter((e) => e.to > winStart && e.from < winEnd),
+    blocks: [
+      ...dayToday.blocks.map((b) => ({ b, shift: 0, titles: blockTitles })),
+      ...dayTomorrow.blocks.map((b) => ({ b, shift: 1440, titles: blockTitlesTomorrow })),
+    ]
+      .map(({ b, shift, titles }) => {
+        const from = toMin(b.startTime) + shift;
+        const to = toMin(b.endTime) + shift;
+        return { id: b.id, title: b.title, kind: b.kind, from, to, label: `${b.startTime} tot ${b.endTime}`, past: to <= now, current: from <= now && to > now, tasks: titles.get(b.id) ?? [] };
+      })
+      .filter((b) => b.to > winStart && b.from < winEnd),
+    work: dayToday.work ? { from: toMin(dayToday.work.start), to: toMin(dayToday.work.end) } : null,
   };
 
   /* ---------------- Focus ---------------- */
@@ -319,12 +332,18 @@ export async function getCockpit(area?: "zakelijk" | "prive"): Promise<Cockpit> 
       : "Er staat vandaag niets meer open.",
   );
   if (focus[0]) parts.push(`Begin met: ${focus[0].title}.`);
+  if (blockNow) {
+    const inIt = blockTitles.get(blockNow.id) ?? [];
+    parts.push(`Nu in je dagritme: ${blockNow.title} tot ${blockNow.endTime}${inIt.length ? ` (${inIt.slice(0, 2).join(", ")})` : ""}.`);
+  } else if (blockNext) parts.push(`Volgende blok: ${blockNext.startTime} ${blockNext.title}.`);
+  else if (!dayToday.rhythm) parts.push("Vandaag staat er geen dagritme.");
   if (cur && cur.kind === "event") parts.push(`Nu bezig: ${cur.event.title} (tot ${cur.event.endTime}).`);
   else if (next && next.kind === "event") parts.push(`Volgende afspraak: ${next.event.time} ${next.event.title}.`);
-  if (timeline.freeMin !== null) parts.push(`Nog ${formatDuration(timeline.freeMin)} vrij tot ${WORKDAY.end}${timeline.plannedMin > timeline.freeMin ? ", minder dan je hebt ingeschat" : ""}.`);
+  if (timeline.freeMin !== null && timeline.work) parts.push(`Nog ${formatDuration(timeline.freeMin)} vrij tot ${timeline.work.end}${timeline.plannedMin > timeline.freeMin ? ", minder dan je hebt ingeschat" : ""}.`);
   const alerts = signals.filter((x) => x.level === "alert").length;
   if (alerts) parts.push(`${alerts} ${alerts === 1 ? "signaal vraagt" : "signalen vragen"} aandacht.`);
   if (inbox) parts.push(`${inbox} in je inbox.`);
+  if (habitSum.open.length) parts.push(`Gewoontes nog te doen: ${habitSum.open.map((h) => h.title).join(", ")}.`);
 
   return {
     date: t,
@@ -343,5 +362,7 @@ export async function getCockpit(area?: "zakelijk" | "prive"): Promise<Cockpit> 
     overdue,
     upcoming,
     briefing,
+    habits: visibleHabits.map((h) => ({ id: h.id, title: h.title, done: h.doneToday, due: h.dueToday, streak: h.streak, streakUnit: h.streakUnit, weekPct: h.week.pct, frequency: h.frequencyLabel, block: h.blockTitle })),
+    rhythm: { name: dayToday.rhythm?.name ?? null, current: blockNow ? `${blockNow.title} tot ${blockNow.endTime}` : null, next: blockNext ? `${blockNext.startTime} ${blockNext.title}` : null },
   };
 }

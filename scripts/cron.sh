@@ -5,6 +5,7 @@
 #   bash scripts/cron.sh second-brain  links, zoekindex en Obsidian-export bijwerken (03:45)
 #   bash scripts/cron.sh morning       pushmelding ochtendoverzicht (werkdagen 07:30)
 #   bash scripts/cron.sh deadlines     pushmelding deadlines (09:00)
+#   bash scripts/cron.sh blocks        herinneringen bij dagritmeblokken (elke 5 minuten; logt alleen als er iets verstuurd is)
 #
 # Logboek: /opt/marc-os/logs/cron.log. Mislukt de back-up of de export, dan volgt een systeemmelding op je telefoon.
 set -uo pipefail
@@ -76,8 +77,14 @@ case "$JOB" in
     log "$(notify "$JOB")"
     ;;
 
+  blocks)
+    out=$(notify blocks)
+    # Elke 5 minuten: alleen loggen als er een melding was of iets misging
+    if ! echo "$out" | grep -q '"messages":0'; then log "$out"; fi
+    ;;
+
   *)
-    echo "Gebruik: bash scripts/cron.sh backup|second-brain|morning|deadlines" >&2
+    echo "Gebruik: bash scripts/cron.sh backup|second-brain|morning|deadlines|blocks" >&2
     exit 2
     ;;
 esac

@@ -58,7 +58,7 @@ export const DEFAULT_MODULES: Modules = {
 
 /* ---------------- KPI-tegels op Vandaag ---------------- */
 
-export const KPI_KEYS = ["vandaag", "achterstallig", "inbox", "agenda", "uren", "mrr", "factureren", "offertes", "aangiftes"] as const;
+export const KPI_KEYS = ["vandaag", "achterstallig", "inbox", "agenda", "gewoontes", "uren", "mrr", "factureren", "offertes", "aangiftes"] as const;
 export type KpiKey = (typeof KPI_KEYS)[number];
 
 export const KPIS: Record<KpiKey, { label: string; module?: ModuleKey }> = {
@@ -66,6 +66,7 @@ export const KPIS: Record<KpiKey, { label: string; module?: ModuleKey }> = {
   achterstallig: { label: "Achterstallig" },
   inbox: { label: "Inbox" },
   agenda: { label: "Agenda vandaag" },
+  gewoontes: { label: "Gewoontes vandaag" },
   uren: { label: "Uren deze week", module: "uren" },
   mrr: { label: "MRR", module: "afspraken" },
   factureren: { label: "Te factureren", module: "afspraken" },

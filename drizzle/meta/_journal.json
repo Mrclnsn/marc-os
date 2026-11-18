@@ -71,6 +71,13 @@
       "when": 1795003428844,
       "tag": "0009_pushmeldingen",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795031923824,
+      "tag": "0010_leven_dagritme",
+      "breakpoints": true
     }
   ]
 }

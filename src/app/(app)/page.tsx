@@ -97,9 +97,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           {/* Rechts: tijdlijn en signalen */}
           <div className="min-w-0 space-y-5 min-[1360px]:order-3">
             <HourTimeline window={c.window} timeline={c.timeline} />
+            <HabitsPanel habits={c.habits} date={t} />
             <SignalPanel signals={c.signals} />
-            {/* Gesprek 8: gewoontes van vandaag */}
-            <HabitsPanel habits={null} />
           </div>
 
           {/* Links: Hermes en agents (op een smaller scherm onder de rest) */}

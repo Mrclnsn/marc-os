@@ -1,5 +1,5 @@
 import { tokenOk } from "@/lib/mcp";
-import { backupCheckMessages, deadlineMessages, morningMessage, sendPush, type PushMessage, type PushResult } from "@/lib/push";
+import { blockReminderMessages, backupCheckMessages, deadlineMessages, morningMessage, sendPush, type PushMessage, type PushResult } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
 
@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
  * Vaste pushmeldingen, aangeroepen door de cron op de VPS (scripts/cron.sh) met de MCP-token als Bearer.
  *   morning      ochtendoverzicht (werkdagen 07:30)
  *   deadlines    deadlines vandaag en te laat (09:00)
+ *   blocks       herinneringen bij dagritmeblokken (elke 5 minuten; stuurt alleen als er een blok begint)
  *   backupcheck  back-up van vannacht aanwezig en opgehaald door de Mac (na de back-up)
  *   system       vrije systeemmelding, body {"title","body"} (bijv. als de back-up mislukt)
  */
@@ -16,7 +17,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ kind: s
   const { kind } = await params;
 
   let messages: PushMessage[];
-  let pushKind: "morning" | "deadlines" | "system";
+  let pushKind: "morning" | "deadlines" | "blocks" | "system";
   switch (kind) {
     case "morning":
       messages = [await morningMessage()];
@@ -25,6 +26,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ kind: s
     case "deadlines":
       messages = await deadlineMessages();
       pushKind = "deadlines";
+      break;
+    case "blocks":
+      messages = await blockReminderMessages();
+      pushKind = "blocks";
       break;
     case "backupcheck":
       messages = await backupCheckMessages();
@@ -43,5 +48,5 @@ export async function POST(req: Request, { params }: { params: Promise<{ kind: s
 
   const results: PushResult[] = [];
   for (const m of messages) results.push(await sendPush(m, pushKind));
-  return Response.json({ kind, messages: messages.length, results });
+  return Response.json({ kind, messages: messages.length, titles: messages.map((m) => `${m.title}: ${m.body}`), results });
 }

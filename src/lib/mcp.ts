@@ -54,9 +54,56 @@ function slimTask(t: data.TaskWithRefs) {
     dueDate: t.dueDate,
     priority: t.priority,
     estimateMin: t.estimateMin,
+    planBlockId: t.planBlockId,
+    planTime: t.planTime,
     recurrence: t.recurrence,
     notes: t.notes,
     completedAt: t.completedAt,
+  };
+}
+
+const streakText = (n: number, unit: string) => `${n} ${n === 1 ? (unit === "weken" ? "week" : "dag") : unit} op rij`;
+
+function slimHabit(h: data.HabitStats) {
+  return {
+    id: h.id,
+    title: h.title,
+    area: h.area,
+    frequency: h.frequencyLabel,
+    block: h.blockTitle,
+    dueToday: h.dueToday,
+    doneToday: h.doneToday,
+    streak: streakText(h.streak, h.streakUnit),
+    week: h.week,
+    month: h.month,
+    archived: !!h.archivedAt,
+  };
+}
+
+function slimDay(d: data.DayPlan) {
+  return {
+    date: d.date,
+    rhythm: d.rhythm?.name ?? null,
+    rhythmIsOverride: d.override,
+    workday: d.work,
+    workMinutesFree: d.workMin,
+    plannedMinutes: d.plannedMin,
+    events: d.events.map((e) => ({ title: e.title, calendar: e.calendar, allDay: e.allDay, time: e.time, endTime: e.endTime, location: e.location })),
+    blocks: d.blocksPlanned.map((b) => ({
+      id: b.id,
+      title: b.title,
+      kind: b.kind,
+      start: b.startTime,
+      end: b.endTime,
+      minutes: b.minutes,
+      plannedMinutes: b.plannedMin,
+      remind: b.remind,
+      current: b.current,
+      past: b.past,
+      tasks: b.tasks.map((t) => ({ id: t.id, title: t.title, status: t.status, estimateMin: t.estimateMin, planTime: t.planTime, client: t.clientName })),
+    })),
+    withoutBlock: d.loose.map(slimTask),
+    completed: d.done,
   };
 }
 
@@ -166,6 +213,8 @@ const TOOL_MODULE: Record<string, ModuleKey> = {
 const INSTRUCTION_LINES: { text: string; module?: ModuleKey }[] = [
   { text: "- Taken hebben een gebied (zakelijk/prive), optioneel een klant en project. Zakelijk zonder klant = algemeen bedrijfswerk." },
   { text: "- planDate = wanneer Marc het wil doen; dueDate = deadline." },
+  { text: "- Dagritme en planning: elke dag heeft een dagritme (werkdag, vrijdag, weekend ...) met vaste blokken (dagstart, diep werk, administratie, sport, pauze, dagafsluiting). Taken plan je met plan_task op een dag en in een blok (timeblocking), eventueel op een tijd. get_day_plan geeft per blok de taken, de beschikbare werktijd en wat ingeschat is; get_week_plan de hele week plus taken zonder plek. Een voorstel voor de dagindeling (ochtendbriefing) zet zware taken in diep werk, klein werk in klantwerk of administratie, en past binnen de tijd van het blok (estimateMin). Verplaats taken alleen als Marc daarom vraagt of het voorstel goedkeurt." },
+  { text: "- Gewoontes: list_habits geeft per gewoonte of hij vandaag moet, of hij gedaan is, de reeks en het percentage van week en maand. Vink af met check_habit (op naam mag: \"sport\"). Noem in de briefing en dagafsluiting welke gewoontes nog open staan; in de weekreview de reeksen en percentages." },
   { text: "- Klanten hebben een dossier (get_client) met contactpersonen, vaste informatie, projecten, taken en notities. Sla nooit wachtwoorden op; vaultRef is alleen een verwijzing." },
   { text: "- Uitgebreid dossier: ook registratie (KvK, btw), adressen, facturatie, verwerkersovereenkomst, tags en documentlinks (add_document).", module: "dossier" },
   { text: "- Websites zijn eigen objecten per klant met domein, registrar, verloopdatum en of hosting en beheer door Marc gebeuren (list_websites).", module: "websites" },
@@ -212,19 +261,20 @@ export function buildServer(modules: Modules) {
     "get_overview",
     {
       title: "Dagoverzicht",
-      description: "Alles voor een briefing: agenda, taken van vandaag, achterstallig, komende 7 dagen, inbox, lopende projecten en wat gisteren is afgerond. Plus, als die modules aan staan: pipeline, domeinen die binnen 30 dagen verlopen, MRR, termijnen klaar om te factureren, aflopende afspraken, uren deze week, budgetten en aangiftes. modulesOff noemt wat tijdelijk uit staat.",
+      description: "Alles voor een briefing: agenda, dagritme van vandaag (blokken met taken, beschikbare werktijd), gewoontes van vandaag, taken van vandaag, achterstallig, komende 7 dagen, inbox, lopende projecten en wat gisteren is afgerond. Plus, als die modules aan staan: pipeline, domeinen die binnen 30 dagen verlopen, MRR, termijnen klaar om te factureren, aflopende afspraken, uren deze week, budgetten en aangiftes. modulesOff noemt wat tijdelijk uit staat.",
       inputSchema: { date: isoDate.optional().describe("Standaard vandaag") },
       annotations: { readOnlyHint: true },
     },
     async ({ date }) => {
       const t = date ?? today();
+      const [dayPlan, habitList] = await Promise.all([data.getDayPlan(t), data.listHabits({ date: t })]);
       const [todayTasks, upcoming, inbox, projects, doneYesterday, cal, lastReviews] = await Promise.all([
         data.listTasks({ view: "today" }),
         data.listTasks({ view: "upcoming", days: 7 }),
         data.listNotes({ type: "inbox" }),
         data.listProjects(),
         data.completedBetween(addDaysIso(t, -1), addDaysIso(t, -1)),
-        calendarConfigured() ? getEvents(t, addDaysIso(t, 1)) : Promise.resolve(null),
+        calendarConfigured().then((on) => (on ? getEvents(t, addDaysIso(t, 1)) : null)),
         data.listReviews(undefined, 3),
       ]);
       const none = Promise.resolve(null);
@@ -249,6 +299,14 @@ export function buildServer(modules: Modules) {
         inbox: inbox.map((r) => ({ id: r.note.id, title: r.note.title, body: r.note.body })),
         activeProjects: projects.map((p) => ({ id: p.project.id, name: p.project.name, client: p.clientName, area: p.project.area, status: p.project.status, dueDate: p.project.dueDate, openTasks: p.openTasks })),
         completedYesterday: doneYesterday.map((x) => ({ title: x.title, client: x.clientName })),
+        dayRhythm: {
+          rhythm: dayPlan.rhythm?.name ?? null,
+          workday: dayPlan.work,
+          workMinutesFree: dayPlan.workMin,
+          plannedMinutes: dayPlan.plannedMin,
+          blocks: dayPlan.blocksPlanned.map((b) => ({ id: b.id, title: b.title, kind: b.kind, start: b.startTime, end: b.endTime, current: b.current, past: b.past, tasks: b.tasks.filter((x) => x.status !== "done").map((x) => x.title) })),
+        },
+        habitsToday: habitList.filter((h) => h.dueToday || h.doneToday).map((h) => ({ id: h.id, title: h.title, done: h.doneToday, streak: streakText(h.streak, h.streakUnit), weekPct: h.week.pct })),
         expiringDomains: domains?.map((r) => ({ domain: r.website.domain, client: r.clientName, expiresAt: r.website.domainExpiresAt })),
         revenue: revenue ? { mrrCents: revenue.mrrCents, readyToInvoice: revenue.ready, invoicedUnpaid: revenue.invoicedOpen } : undefined,
         readyToInvoice: money?.ready.map((i) => ({ id: i.id, client: i.clientName, description: i.description, amountCents: i.amountCents })),
@@ -1463,12 +1521,189 @@ export function buildServer(modules: Modules) {
     async ({ id }) => json(await data.deleteSchedule(id)),
   );
 
+  /* ---- Dagritme en planning ---- */
+
+  server.registerTool(
+    "get_day_plan",
+    {
+      title: "Dagplanning",
+      description: "Dagritme van een dag met de blokken (begin, einde, soort) en de taken die erin staan, agenda, taken op die dag zonder blok, beschikbare werktijd (werkdag min agenda) en ingeschatte tijd. Plus achterstallig (alleen vandaag), deadlines komende 7 dagen zonder plandatum en taken zonder plek. Gebruik voor een voorstel voor de dagindeling.",
+      inputSchema: { date: isoDate.optional().describe("Standaard vandaag") },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ date }) => {
+      const d = await data.getDayPlan(date ?? today());
+      return json({
+        ...slimDay(d),
+        overdue: d.overdue.map(slimTask),
+        deadlinesNext7dWithoutPlanDate: d.deadlinesSoon.map(slimTask),
+        unplaced: d.unplaced.map(slimTask),
+        calendarErrors: d.calendarErrors,
+      });
+    },
+  );
+
+  server.registerTool(
+    "get_week_plan",
+    {
+      title: "Weekplanning",
+      description: "Zeven dagen (vanaf maandag) met ritme, agenda, blokken met taken, beschikbare werktijd en ingeschatte tijd per dag, plus taken zonder plek en achterstallig. Basis voor de weekplanning in de weekreview.",
+      inputSchema: { date: isoDate.optional().describe("Een dag in de week; standaard deze week") },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ date }) => {
+      const w = await data.getWeekPlan(weekStart(date ?? today()));
+      return json({ weekStart: w.start, days: w.days.map(slimDay), unplaced: w.unplaced.map(slimTask), overdue: w.overdue.map(slimTask), calendarErrors: w.calendarErrors });
+    },
+  );
+
+  server.registerTool(
+    "plan_task",
+    {
+      title: "Taak inplannen",
+      description: "Zet een taak op een dag en optioneel in een dagritmeblok en/of op een tijd (timeblocking). block mag het id of de naam van een blok van die dag zijn (\"diep werk\"; bij twee blokken met dezelfde naam het eerstvolgende). date null haalt de taak uit de planning (zonder plek). Alleen op verzoek of na akkoord van Marc.",
+      inputSchema: {
+        taskId: z.string().uuid(),
+        date: isoDate.nullable().describe("Dag; null = uit de planning"),
+        block: z.string().nullable().optional().describe("Blok-id of naam; null = zonder blok; weglaten = blok niet wijzigen"),
+        time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional().describe("Tijd HH:mm; null = geen tijd"),
+      },
+    },
+    async ({ taskId, date, block, time }) => {
+      let blockId: string | null | undefined = block === undefined ? undefined : null;
+      if (date && block) {
+        const b = await data.findBlockOnDate(date, block);
+        if (!b) {
+          const r = await data.dayRhythm(date);
+          throw new Error(`Blok "${block}" niet gevonden op ${date} (${r.rhythm?.name ?? "geen ritme"}). Blokken: ${r.blocks.map((x) => `${x.startTime} ${x.title}`).join(", ") || "geen"}.`);
+        }
+        blockId = b.id;
+      }
+      const row = await data.planTask(taskId, { date, blockId, time });
+      return json({ id: row.id, title: row.title, planDate: row.planDate, planBlockId: row.planBlockId, planTime: row.planTime });
+    },
+  );
+
+  server.registerTool(
+    "list_rhythms",
+    {
+      title: "Dagritmes",
+      description: "De dagritme-sjablonen met weekdagen (1 = maandag ... 7 = zondag), werkdag en blokken (met herinnering ja/nee), plus afwijkende dagen vanaf vandaag.",
+      inputSchema: {},
+      annotations: { readOnlyHint: true },
+    },
+    async () => {
+      const [rs, overrides] = await Promise.all([data.listRhythms(), data.listOverrides(today())]);
+      return json({
+        rhythms: rs.map((r) => ({ id: r.id, name: r.name, weekdays: r.weekdays, workday: r.workStart && r.workEnd ? { start: r.workStart, end: r.workEnd } : null, blocks: r.blocks.map((b) => ({ id: b.id, title: b.title, kind: b.kind, area: b.area, start: b.startTime, end: b.endTime, remind: b.remind, remindBefore: b.remindBefore })) })),
+        overrides: overrides.map((o) => ({ date: o.date, rhythm: o.name ?? "vrije dag", note: o.note })),
+      });
+    },
+  );
+
+  server.registerTool(
+    "set_day_rhythm",
+    {
+      title: "Ander dagritme voor één dag",
+      description: "Kies voor één datum een ander ritme (naam of id), een vrije dag (\"vrij\") of terug naar het standaardritme (\"standaard\"). Bijv. een vrije vrijdag of werken op zaterdag. Alleen op verzoek van Marc.",
+      inputSchema: { date: isoDate, rhythm: z.string().describe("Naam of id van een ritme, \"vrij\" of \"standaard\""), note: z.string().nullable().optional() },
+    },
+    async ({ date, rhythm, note }) => {
+      const q = rhythm.trim().toLowerCase();
+      if (q === "standaard" || q === "default") {
+        await data.setDayRhythm(date, "default");
+      } else if (q === "vrij" || q === "vrije dag" || q === "free") {
+        await data.setDayRhythm(date, null, note);
+      } else {
+        const r = (await data.listRhythms()).find((x) => x.id === rhythm || x.name.toLowerCase() === q);
+        if (!r) throw new Error(`Ritme "${rhythm}" niet gevonden. Gebruik list_rhythms.`);
+        await data.setDayRhythm(date, r.id, note);
+      }
+      const d = await data.dayRhythm(date);
+      return json({ date, rhythm: d.rhythm?.name ?? "vrije dag", override: d.override });
+    },
+  );
+
+  /* ---- Gewoontes ---- */
+
+  server.registerTool(
+    "list_habits",
+    {
+      title: "Gewoontes",
+      description: "Gewoontes met frequentie, of ze vandaag moeten en gedaan zijn, de reeks (dagen of weken op rij) en het percentage van deze week en maand.",
+      inputSchema: { includeArchived: z.boolean().optional() },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ includeArchived }) => json((await data.listHabits({ includeArchived })).map(slimHabit)),
+  );
+
+  server.registerTool(
+    "check_habit",
+    {
+      title: "Gewoonte afvinken",
+      description: "Vink een gewoonte af voor een dag (standaard vandaag), of haal het vinkje weg met done=false. habit mag het id of (een deel van) de naam zijn. Mag zonder akkoord als Marc zegt dat hij het gedaan heeft.",
+      inputSchema: {
+        habit: z.string().min(1).describe("Id of naam, bijv. \"sport\""),
+        date: isoDate.optional(),
+        done: z.boolean().optional().describe("Standaard true"),
+        source: z.enum(["mcp", "whatsapp", "health"]).optional().describe("Waar het vandaan komt; standaard mcp"),
+      },
+    },
+    async ({ habit, date, done, source }) => {
+      const h = await data.findHabit(habit);
+      if (!h) throw new Error(`Gewoonte "${habit}" niet gevonden. Gebruik list_habits.`);
+      await data.checkHabit(h.id, date ?? today(), done ?? true, source ?? "mcp");
+      const stats = (await data.listHabits({ includeArchived: true })).find((x) => x.id === h.id)!;
+      return json(slimHabit(stats));
+    },
+  );
+
+  server.registerTool(
+    "create_habit",
+    {
+      title: "Gewoonte toevoegen",
+      description: "Nieuwe gewoonte. frequency: daily (elke dag), weekly (timesPerWeek keer per week) of days (vaste weekdays, 1 = maandag ... 7 = zondag). Optioneel gekoppeld aan een dagritmeblok (blockId uit list_rhythms). Alleen op verzoek van Marc.",
+      inputSchema: {
+        title: z.string().min(1),
+        area: area.optional(),
+        frequency: z.enum(["daily", "weekly", "days"]).optional(),
+        timesPerWeek: z.number().int().min(1).max(7).optional(),
+        weekdays: z.array(z.number().int().min(1).max(7)).optional(),
+        blockId: z.string().uuid().nullable().optional(),
+      },
+    },
+    async (input) => json(await data.createHabit(input)),
+  );
+
+  server.registerTool(
+    "update_habit",
+    {
+      title: "Gewoonte wijzigen of stoppen",
+      description: "Wijzig een gewoonte (zelfde velden als create_habit). archived=true stopt de gewoonte (historie blijft), false maakt hem weer actief. Alleen op verzoek van Marc.",
+      inputSchema: {
+        id: z.string().uuid(),
+        title: z.string().min(1).optional(),
+        area: area.optional(),
+        frequency: z.enum(["daily", "weekly", "days"]).optional(),
+        timesPerWeek: z.number().int().min(1).max(7).nullable().optional(),
+        weekdays: z.array(z.number().int().min(1).max(7)).optional(),
+        blockId: z.string().uuid().nullable().optional(),
+        archived: z.boolean().optional(),
+      },
+    },
+    async ({ id, archived, ...patch }) => {
+      if (Object.keys(patch).length) await data.updateHabit(id, patch);
+      if (archived !== undefined) await data.archiveHabit(id, archived);
+      return json(slimHabit((await data.listHabits({ includeArchived: true })).find((x) => x.id === id)!));
+    },
+  );
+
   /* ---- Agenda en reviews ---- */
 
   server.registerTool(
     "get_calendar",
     { title: "Agenda", description: "Afspraken tussen twee datums (inclusief).", inputSchema: { from: isoDate, to: isoDate }, annotations: { readOnlyHint: true } },
-    async ({ from, to }) => json(calendarConfigured() ? await getEvents(from, to) : { events: [], errors: ["Geen agenda gekoppeld"] }),
+    async ({ from, to }) => json((await calendarConfigured()) ? await getEvents(from, to) : { events: [], errors: ["Geen agenda gekoppeld"] }),
   );
 
   server.registerTool(

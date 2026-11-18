@@ -7,6 +7,9 @@ import { db } from "@/db";
 import { clients, pushSubscriptions, settings, tasks } from "@/db/schema";
 import { calendarConfigured, getEvents } from "./calendar";
 import { daysBetween, today } from "./dates";
+import { blockTaskTitles, dayRhythm, nowMinutes } from "./rhythm";
+import { listHabits } from "./habits";
+import { PLANNABLE_KINDS, toMin, type BlockKind } from "./rhythm-shared";
 
 /* ------------------------------------------------------------------ */
 /* Soorten meldingen en voorkeuren                                     */
@@ -15,6 +18,7 @@ import { daysBetween, today } from "./dates";
 export const PUSH_KINDS = {
   morning: { label: "Ochtendoverzicht", description: "Werkdagen 07:30: taken voor vandaag, achterstallig en je eerste afspraak." },
   deadlines: { label: "Deadlines", description: "Elke dag 09:00: taken met een deadline vandaag of die te laat zijn." },
+  blocks: { label: "Dagritme", description: "Bij het begin van een dagritmeblok met herinnering (dagstart, diep werk, sport, dagafsluiting), met wat je erin hebt gepland. Per blok aan te zetten op Planning → Dagritme." },
   assistant: { label: "Van Claude en Hermes", description: "Meldingen die de assistent via de MCP-koppeling stuurt (send_push)." },
   system: { label: "Systeem", description: "Als de nachtelijke back-up of export mislukt, of de Mac de back-up een paar dagen niet heeft opgehaald." },
 } as const;
@@ -202,7 +206,7 @@ export async function morningMessage(): Promise<PushMessage> {
   let first = "";
   try {
     const now = new Date().toISOString();
-    const { events } = calendarConfigured() ? await getEvents(t, t) : { events: [] };
+    const { events } = (await calendarConfigured()) ? await getEvents(t, t) : { events: [] };
     const next = events.filter((e) => !e.allDay && e.date === t && e.end > now).sort((a, b) => a.start.localeCompare(b.start))[0];
     if (next) first = ` Eerste afspraak ${next.time} ${next.title}.`;
   } catch {
@@ -244,6 +248,71 @@ export async function deadlineMessages(): Promise<PushMessage[]> {
       url: `/taken/${r.id}`,
       tag: `deadline-${r.id}`,
     };
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Herinneringen bij dagritmeblokken (cron elke 5 minuten)             */
+/* ------------------------------------------------------------------ */
+
+type SentBlocks = { date: string; ids: string[] };
+
+/**
+ * Meldingen voor blokken met een herinnering waarvan het moment (begin min "minuten vooraf")
+ * in de afgelopen 6 minuten viel. Al verstuurde blokken worden per dag bijgehouden,
+ * zodat een melding nooit dubbel komt, ook als de cron eens wat later draait.
+ */
+export async function blockReminderMessages(): Promise<PushMessage[]> {
+  const t = today();
+  const now = nowMinutes();
+  const plan = await dayRhythm(t);
+  const sent = await readSetting<SentBlocks>("block_reminders");
+  const already = new Set(sent?.date === t ? sent.ids : []);
+  const due = plan.blocks.filter((b) => {
+    if (!b.remind || already.has(b.id)) return false;
+    const at = toMin(b.startTime) - b.remindBefore;
+    return at <= now && at > now - 6;
+  });
+  if (!due.length) return [];
+  await writeSetting("block_reminders", { date: t, ids: [...already, ...due.map((b) => b.id)] } satisfies SentBlocks);
+
+  const [titles, habitList, todayOpen] = await Promise.all([
+    blockTaskTitles(t),
+    listHabits(),
+    db
+      .select({ title: tasks.title })
+      .from(tasks)
+      .where(and(ne(tasks.status, "done"), sql`coalesce(${tasks.planDate}, ${tasks.dueDate}) <= ${t}`))
+      .orderBy(tasks.priority),
+  ]);
+  const habitsOpen = habitList.filter((h) => h.dueToday && !h.doneToday);
+  const habitsFor = (blockId: string) => habitsOpen.filter((h) => h.blockId === blockId).map((h) => h.title);
+
+  return due.map((b) => {
+    const range = `${b.startTime} tot ${b.endTime}`;
+    const inBlock = titles.get(b.id) ?? [];
+    const linked = habitsFor(b.id);
+    let body: string;
+    let url = "/planning";
+    if (b.kind === "dagstart") {
+      body = todayOpen.length
+        ? `${plural(todayOpen.length, "taak", "taken")} voor vandaag. Eerst: ${todayOpen[0].title}.${habitsOpen.length ? ` ${plural(habitsOpen.length, "gewoonte", "gewoontes")} te doen.` : ""} Kies je 1 tot 3 kerntaken.`
+        : "Nog niets gepland voor vandaag. Kies je 1 tot 3 kerntaken en zet ze in een blok.";
+      url = "/";
+    } else if (b.kind === "dagafsluiting") {
+      body = `${todayOpen.length ? `Nog ${plural(todayOpen.length, "taak", "taken")} open: verplaats naar morgen of rond af.` : "Alles van vandaag is af."}${habitsOpen.length ? ` Gewoontes nog open: ${habitsOpen.map((h) => h.title).join(", ")}.` : ""} Zet morgen klaar.`;
+      url = "/";
+    } else if (b.kind === "weekreview") {
+      body = "Tijd voor de weekreview: klanten en projecten langs, volgende week plannen.";
+      url = "/planning?weergave=week";
+    } else if (inBlock.length) {
+      body = `${range}: ${inBlock.slice(0, 3).join(", ")}${inBlock.length > 3 ? ` en nog ${inBlock.length - 3}` : ""}.`;
+    } else {
+      body = `${range}. Nog niets ingepland${PLANNABLE_KINDS.includes(b.kind as BlockKind) ? ": kies een taak in Planning" : ""}.`;
+    }
+    if (linked.length && b.kind !== "dagafsluiting") body += ` Gewoonte: ${linked.join(", ")}.`;
+    const title = b.remindBefore > 0 ? `${b.title} om ${b.startTime}` : b.title;
+    return { title, body, url, tag: `block-${b.id}` };
   });
 }
 

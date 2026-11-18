@@ -1,6 +1,6 @@
 import Link from "next/link";
-import type { Goal, HourWindow, Kpi, Signal, Timeline } from "@/lib/cockpit";
-import { WORKDAY } from "@/lib/cockpit";
+import type { Goal, HabitToday, HourWindow, Kpi, Signal, Timeline } from "@/lib/cockpit";
+import { HabitCheckList } from "./habit-parts";
 import { formatDuration } from "@/lib/duration";
 import { Beeldmerk } from "./brand";
 
@@ -224,20 +224,24 @@ const hhmm = (min: number) => {
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 };
 
-/** Echte tijdas: uurlijnen, agenda-blokken op hun plek, de nu-lijn en de werkdag als band. */
+/**
+ * Echte tijdas: uurlijnen, dagritmeblokken (links) en agenda (rechts) op hun plek, de nu-lijn en de werkdag als band.
+ * Zonder agenda-items in beeld krijgen de blokken de volle breedte.
+ */
 export function HourTimeline({ window: w, timeline }: { window: HourWindow; timeline: Timeline }) {
   const hours = (w.end - w.start) / 60;
   const y = (min: number) => ((Math.max(w.start, Math.min(w.end, min)) - w.start) / 60) * HOUR_PX;
-  const workFrom = Number(WORKDAY.start.slice(0, 2)) * 60 + Number(WORKDAY.start.slice(3));
-  const workTo = Number(WORKDAY.end.slice(0, 2)) * 60 + Number(WORKDAY.end.slice(3));
   const tight = timeline.freeMin !== null && timeline.plannedMin > timeline.freeMin;
+  const split = w.events.length > 0 && w.blocks.length > 0;
+  const blockLane = split ? "left-14 right-[calc(50%-6px)]" : "left-14 right-1";
+  const eventLane = split ? "left-[calc(50%+2px)] right-1" : "left-14 right-1";
 
   return (
-    <Panel id="tijdlijn" title="Komende 8 uur" aside={`${hhmm(w.start + 60)} tot ${hhmm(w.end)}`}>
+    <Panel id="tijdlijn" title="Komende 8 uur" aside={<Link href="/planning" className="hover:text-nacht">{timeline.rhythmName ? `${timeline.rhythmName} · planning` : "Planning"}</Link>}>
       <div className="grid grid-cols-3 divide-x divide-lijn border-b border-lijn text-center">
         <div className="px-2 py-2.5">
           <p className="glow hud-mono text-lg font-bold tabular-nums text-nacht">{timeline.dayOver ? "–" : formatDuration(timeline.freeMin)}</p>
-          <p className="text-[10px] uppercase tracking-[0.12em] text-steen">nog vrij</p>
+          <p className="text-[10px] uppercase tracking-[0.12em] text-steen">{timeline.work ? "nog vrij" : "geen werkdag"}</p>
         </div>
         <div className="px-2 py-2.5">
           <p className={`glow hud-mono text-lg font-bold tabular-nums ${tight ? "text-nacht" : "text-grafiet"}`}>{formatDuration(timeline.plannedMin)}</p>
@@ -248,7 +252,7 @@ export function HourTimeline({ window: w, timeline }: { window: HourWindow; time
           <p className="text-[10px] uppercase tracking-[0.12em] text-steen">afspraken</p>
         </div>
       </div>
-      {tight && <p className="border-b border-lijn px-4 py-2 text-xs font-bold text-nacht">Meer ingepland dan er tijd is tot {WORKDAY.end}</p>}
+      {tight && timeline.work && <p className="border-b border-lijn px-4 py-2 text-xs font-bold text-nacht">Meer ingepland dan er tijd is tot {timeline.work.end}</p>}
 
       {timeline.allDay.length > 0 && (
         <div className="flex flex-wrap gap-1.5 border-b border-lijn px-4 py-2.5">
@@ -261,8 +265,8 @@ export function HourTimeline({ window: w, timeline }: { window: HourWindow; time
       <div className="px-3 py-4">
         <div className="relative" style={{ height: hours * HOUR_PX }}>
           {/* werkdag als zachte band */}
-          {workTo > w.start && workFrom < w.end && (
-            <div aria-hidden className="absolute left-12 right-0 bg-parel" style={{ top: y(workFrom), height: y(workTo) - y(workFrom) }} />
+          {w.work && w.work.to > w.start && w.work.from < w.end && (
+            <div aria-hidden className="absolute left-12 right-0 bg-parel" style={{ top: y(w.work.from), height: y(w.work.to) - y(w.work.from) }} />
           )}
           {/* uurlijnen */}
           {Array.from({ length: hours + 1 }, (_, i) => (
@@ -271,6 +275,26 @@ export function HourTimeline({ window: w, timeline }: { window: HourWindow; time
               <span className="ml-2 h-px flex-1 bg-lijn" />
             </div>
           ))}
+          {/* dagritmeblokken: gestippelde rand, taken erin */}
+          {w.blocks.map((b) => {
+            const top = y(b.from);
+            const height = Math.max(18, y(b.to) - top - 2);
+            return (
+              <Link
+                key={`${b.id}-${b.from}`}
+                href="/planning"
+                className={`absolute ${blockLane} overflow-hidden rounded-[2px] border border-dashed px-2 py-0.5 transition-colors hover:border-nacht ${b.current ? "border-nacht bg-vlak" : "border-steen/60 bg-vlak/60"} ${b.past ? "opacity-45" : ""}`}
+                style={{ top: top + 1, height }}
+                title={`${b.title} · ${b.label}${b.tasks.length ? ` · ${b.tasks.join(", ")}` : ""}`}
+              >
+                <p className={`truncate text-[12px] leading-tight ${b.current ? "font-bold text-nacht" : "text-grafiet"}`}>
+                  {b.title}
+                  {b.tasks.length > 0 && <span className="text-steen"> · {b.tasks.length}</span>}
+                </p>
+                {height > 34 && b.tasks.length > 0 && <p className="truncate text-[11px] text-steen">{b.tasks.slice(0, 2).join(", ")}</p>}
+              </Link>
+            );
+          })}
           {/* agenda */}
           {w.events.map((e, i) => {
             const top = y(e.from);
@@ -278,7 +302,7 @@ export function HourTimeline({ window: w, timeline }: { window: HourWindow; time
             return (
               <div
                 key={i}
-                className={`absolute left-14 right-1 overflow-hidden rounded-[2px] border-l-[3px] bg-vlak px-2.5 py-1 shadow-sm ${e.current ? "border-nacht" : "border-steen"} ${e.past ? "opacity-45" : ""}`}
+                className={`absolute ${eventLane} overflow-hidden rounded-[2px] border-l-[3px] bg-vlak px-2.5 py-1 shadow-sm ${e.current ? "border-nacht" : "border-steen"} ${e.past ? "opacity-45" : ""}`}
                 style={{ top: top + 1, height }}
                 title={`${e.title} · ${e.label}`}
               >
@@ -296,13 +320,17 @@ export function HourTimeline({ window: w, timeline }: { window: HourWindow; time
         </div>
         {timeline.calendar === "none" && (
           <p className="mt-3 text-sm text-steen">
-            Nog geen agenda gekoppeld. <Link href="/instellingen" className="underline decoration-lijn underline-offset-2 hover:decoration-nacht">Zo koppel je er een</Link>.
+            Nog geen agenda gekoppeld. <Link href="/instellingen#agenda" className="underline decoration-lijn underline-offset-2 hover:decoration-nacht">Agenda toevoegen</Link>.
           </p>
         )}
         {timeline.errors.map((err) => (
           <p key={err} className="mt-2 text-xs text-steen">{err}</p>
         ))}
-        <p className="mt-3 text-[11px] text-steen">Dagritme-blokken (dagstart, diep werk, sport) komen hier in gesprek 8.</p>
+        {!timeline.rhythmName && (
+          <p className="mt-3 text-[11px] text-steen">
+            Vandaag geen dagritme. <Link href="/planning/dagritme" className="underline decoration-lijn underline-offset-2 hover:decoration-nacht">Dagritmes instellen</Link>
+          </p>
+        )}
       </div>
     </Panel>
   );
@@ -310,22 +338,18 @@ export function HourTimeline({ window: w, timeline }: { window: HourWindow; time
 
 /* ---------------- Plekken voor later ---------------- */
 
-/**
- * Gewoontes van vandaag om af te vinken, met reeks en percentage.
- * Gesprek 8 vult dit; tot die tijd verborgen.
- */
-export function HabitsPanel({ habits }: { habits?: { id: string; title: string; done: boolean; streak: number }[] | null }) {
-  if (!habits?.length) return null;
+/** Gewoontes van vandaag om af te vinken, met reeks en percentage van deze week. */
+export function HabitsPanel({ habits, date }: { habits: HabitToday[]; date: string }) {
+  const done = habits.filter((h) => h.done).length;
   return (
-    <Panel title="Gewoontes">
-      <ul className="divide-y divide-lijn">
-        {habits.map((h) => (
-          <li key={h.id} className="flex items-center justify-between px-4 py-2 text-sm">
-            <span className={h.done ? "text-steen line-through" : "text-grafiet"}>{h.title}</span>
-            <span className="text-xs tabular-nums text-steen">{h.streak} op rij</span>
-          </li>
-        ))}
-      </ul>
+    <Panel id="gewoontes" title="Gewoontes" aside={<Link href="/planning/gewoontes" className="hover:text-nacht">{habits.length ? `${done} van ${habits.length}` : "instellen"}</Link>}>
+      {habits.length ? (
+        <HabitCheckList habits={habits} date={date} />
+      ) : (
+        <p className="px-4 py-4 text-sm text-steen">
+          Nog geen gewoontes voor vandaag. <Link href="/planning/gewoontes" className="underline decoration-lijn underline-offset-2 hover:decoration-nacht">Gewoonte toevoegen</Link>
+        </p>
+      )}
     </Panel>
   );
 }

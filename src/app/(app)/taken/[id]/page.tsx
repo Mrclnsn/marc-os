@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AreaSelect, ClientSelect, Field, PrioritySelect, ProjectSelect, RecurrenceSelect, TaskStatusSelect } from "@/components/forms";
-import { getTask } from "@/lib/data";
+import { getTask, listRhythms } from "@/lib/data";
 import { getOptions } from "@/lib/options";
 import { deleteTaskAction, updateTaskAction } from "../../../actions";
 
 export default async function TaskPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [task, options] = await Promise.all([getTask(id), getOptions()]);
+  const [task, options, rhythms] = await Promise.all([getTask(id), getOptions(), listRhythms()]);
   if (!task) notFound();
 
   return (
@@ -24,6 +24,17 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
           <Field label="Herhaling"><RecurrenceSelect value={task.recurrence} /></Field>
           <Field label="Plannen op"><input type="date" name="planDate" defaultValue={task.planDate ?? ""} className="input w-full" /></Field>
           <Field label="Deadline"><input type="date" name="dueDate" defaultValue={task.dueDate ?? ""} className="input w-full" /></Field>
+          <Field label="Blok (dagritme)">
+            <select name="planBlockId" defaultValue={task.planBlockId ?? ""} className="input w-full">
+              <option value="">Geen blok</option>
+              {rhythms.map((r) => (
+                <optgroup key={r.id} label={r.name}>
+                  {r.blocks.map((b) => <option key={b.id} value={b.id}>{b.startTime} {b.title}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          </Field>
+          <Field label="Tijd (optioneel)"><input type="time" name="planTime" defaultValue={task.planTime ?? ""} className="input w-full" /></Field>
           <Field label="Inschatting (min)"><input type="number" name="estimateMin" min={5} step={5} defaultValue={task.estimateMin ?? ""} className="input w-full" /></Field>
         </div>
         <Field label="Notities">

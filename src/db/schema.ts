@@ -215,6 +215,9 @@ export const tasks = pgTable(
     dueDate: date("due_date"),
     priority: integer("priority").notNull().default(2), // 1 hoog, 2 normaal, 3 laag
     estimateMin: integer("estimate_min"),
+    // Timeblocking (gesprek 8): in welk dagritmeblok en eventueel hoe laat
+    planBlockId: uuid("plan_block_id").references(() => rhythmBlocks.id, { onDelete: "set null" }),
+    planTime: text("plan_time"), // HH:mm
     recurrence: recurrenceEnum("recurrence").notNull().default("none"),
     notes: text("notes"),
     completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -651,6 +654,101 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/* ------------------------------------------------------------------ */
+/* Leven 1 (gesprek 8): dagritme, gewoontes en agenda-links            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Dagritme-sjabloon (bijv. werkdag, vrijdag, weekend).
+ * `weekdays`: ISO-weekdagen (1 = maandag ... 7 = zondag) waarop dit ritme standaard geldt; een dag hoort bij hooguit één ritme.
+ * `workStart`/`workEnd`: de werkdag voor "nog vrij" op de tijdlijn; leeg = geen werkdag (weekend).
+ */
+export const rhythms = pgTable("rhythms", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  weekdays: integer("weekdays").array().notNull().default([]),
+  workStart: text("work_start"),
+  workEnd: text("work_end"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  ...timestamps,
+});
+
+/** Vast blok in een dagritme: dagstart, diep werk, administratie, sport, pauze, dagafsluiting ... */
+export const rhythmBlocks = pgTable(
+  "rhythm_blocks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    rhythmId: uuid("rhythm_id")
+      .notNull()
+      .references(() => rhythms.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    kind: text("kind").notNull().default("overig"),
+    area: areaEnum("area"),
+    startTime: text("start_time").notNull(), // HH:mm
+    endTime: text("end_time").notNull(),
+    /** Pushmelding bij het begin (of `remindBefore` minuten ervoor) */
+    remind: boolean("remind").notNull().default(false),
+    remindBefore: integer("remind_before").notNull().default(0),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [index("rhythm_blocks_rhythm_idx").on(t.rhythmId)],
+);
+
+/** Ander ritme voor één datum (bijv. vrije dag of een werkdag op zaterdag). rhythmId leeg = vrije dag zonder blokken. */
+export const rhythmOverrides = pgTable("rhythm_overrides", {
+  date: date("date").primaryKey(),
+  rhythmId: uuid("rhythm_id").references(() => rhythms.id, { onDelete: "cascade" }),
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Gewoonte. Frequentie: daily (elke dag), weekly (x keer per week, `timesPerWeek`) of days (vaste weekdagen, `weekdays` 1-7).
+ * Optioneel gekoppeld aan een dagritmeblok. `archivedAt` = gestopt (historie blijft).
+ */
+export const habits = pgTable("habits", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  area: areaEnum("area").notNull().default("prive"),
+  frequency: text("frequency").notNull().default("daily"),
+  timesPerWeek: integer("times_per_week"),
+  weekdays: integer("weekdays").array().notNull().default([]),
+  blockId: uuid("block_id").references(() => rhythmBlocks.id, { onDelete: "set null" }),
+  startDate: date("start_date").notNull(),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  sortOrder: integer("sort_order").notNull().default(0),
+  notes: text("notes"),
+  ...timestamps,
+});
+
+/** Eén keer afgevinkt op een dag. `source`: app, mcp, whatsapp, health (gesprek 9). */
+export const habitChecks = pgTable(
+  "habit_checks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    habitId: uuid("habit_id")
+      .notNull()
+      .references(() => habits.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    source: text("source").notNull().default("app"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("habit_checks_habit_date_uq").on(t.habitId, t.date), index("habit_checks_date_idx").on(t.date)],
+);
+
+/** Agenda-link (ICS, alleen lezen), in de app toe te voegen. De URL is geheim. */
+export const calendarFeeds = pgTable("calendar_feeds", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  active: boolean("active").notNull().default(true),
+  lastOkAt: timestamp("last_ok_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  ...timestamps,
+});
+
 export type Client = typeof clients.$inferSelect;
 export type ClientContact = typeof clientContacts.$inferSelect;
 export type Website = typeof websites.$inferSelect;
@@ -669,4 +767,9 @@ export type Quote = typeof quotes.$inferSelect;
 export type QuoteLine = typeof quoteLines.$inferSelect;
 export type FilingSchedule = typeof filingSchedules.$inferSelect;
 export type Filing = typeof filings.$inferSelect;
+export type Rhythm = typeof rhythms.$inferSelect;
+export type RhythmBlock = typeof rhythmBlocks.$inferSelect;
+export type Habit = typeof habits.$inferSelect;
+export type HabitCheck = typeof habitChecks.$inferSelect;
+export type CalendarFeed = typeof calendarFeeds.$inferSelect;
 export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;

@@ -114,7 +114,7 @@ h = hashlib.scrypt(os.environ["PW"].encode(), salt=salt, n=16384, r=8, p=1, dkle
 print("scrypt:" + salt.hex() + ":" + h.hex())')
   unset PW1 PW2
 
-  echo "  Agenda-links (ICS) kun je later toevoegen in $DIR/.env. Nu overslaan met Enter."
+  echo "  Agenda-links (ICS) voeg je ook later toe in de app (Instellingen → Agenda). Nu overslaan met Enter."
   read -rp "  CALENDAR_ICS_URLS: " CAL
 
   umask 077
