@@ -61,7 +61,14 @@ echo "    modus: bot (eigen nummer)   ·   toegestane gebruikers: $n"
 echo "  Staat de koppeling al en wil je niet opnieuw koppelen? Kies in de wizard om de sessie te houden."
 echo "  Het venster moet minstens 60 tekens breed zijn, anders is de QR-code niet leesbaar."
 read -rp "  Enter om de wizard te starten... " _
-docker compose exec hermes hermes whatsapp || warn "De wizard stopte; gaat verder."
+docker compose exec hermes hermes whatsapp || true
+# Alleen doorgaan als er echt een gekoppelde sessie is; anders blijft WhatsApp uit
+if ! docker compose exec -T hermes sh -c 'ls /opt/data/whatsapp/session/creds.json /opt/data/platforms/whatsapp/session/creds.json 2>/dev/null | grep -q .'; then
+  warn "Niet gekoppeld (QR-code niet gescand). WhatsApp blijft uit; de routines gaan als pushmelding."
+  echo "  Opnieuw proberen zodra je een nummer voor Hermes hebt: bash $DIR/scripts/whatsapp-setup.sh"
+  exit 1
+fi
+ok "Gekoppeld"
 
 bold "3/5 WhatsApp aanzetten en herstarten"
 envset HERMES_WHATSAPP true
