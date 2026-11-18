@@ -1,6 +1,6 @@
 # Marc OS: projectcontext
 
-*Stand van zaken: 18 november 2026, gesprek 7 (live op de VPS): code klaar en getest, installatie op de VPS door Marc*
+*Stand van zaken: 18 november 2026, na gesprek 7 (live op de VPS)*
 
 ## Doel
 
@@ -119,12 +119,13 @@ Uitgangspunt: Marc werkt vanaf december 2026 fulltime voor zijn eigen bedrijf. H
 | Gesprek 5: aangiftecyclus | Klaar (commit `3cde210`) |
 | Gesprek 6: cockpit en modules aan/uit | Klaar (commits `3992447` en `5dafb26`: cockpit naar de video met Strak/Iron Man). Geavanceerde modules staan standaard uit |
 | Gesprek 11: second brain | Klaar (commit b73a4dc). Getest met PGlite: links, backlinks, grafiek, bronnen, zoeken op trefwoord en op betekenis (pgvector lokaal, testmodus), terugval zonder pgvector en zonder sleutel, Obsidian-export (script en zip), MCP-tools. Echte embeddings (Voyage/OpenAI) nog niet getest: geen sleutel |
-| Gesprek 7: live op de VPS | Code klaar (commit `e9bb1a0`): pushmeldingen, telefoon-app, versleutelde back-ups met ophalen door de Mac, vaste taken, update- en herstelscript. Getest met PGlite en een productie-build: meldingen (ook foutpad), back-up-endpoint, service worker, manifest, `send_push`, versleutelen en terug lezen. Nog te doen door Marc: DNS-record, installatiescript, telefoon, Claude, Mac. Een echte push naar een telefoon is pas op de VPS te testen |
-| Volgende gesprek | Gesprek 7 afronden (installatie), daarna gesprek 8 |
-| VPS | Besteld en draait, nog niet geïnstalleerd |
-| Domein `os.marclonsain.nl` | Nog geen DNS-record (Marc maakt het bij de huidige provider) |
-| Verhuizing `marclonsain.nl` naar Hostinger | Besloten, nog niet gestart |
-| MCP-koppeling in Claude | Nog niet (na installatie op VPS) |
+| Gesprek 7: live op de VPS | Code klaar (commit `e9bb1a0`): pushmeldingen, telefoon-app, versleutelde back-ups met ophalen door de Mac, vaste taken, update- en herstelscript. Getest met PGlite en een productie-build: meldingen (ook foutpad), back-up-endpoint, service worker, manifest, `send_push`, versleutelen en terug lezen. Geïnstalleerd en getest op de VPS (18 november, 20:40): containers gezond, eerste versleutelde back-up, pgvector 0.8.7, nachtelijke export (7 bestanden), cron, MCP-koppeling in Claude, pushmelding via `send_push` afgeleverd op de telefoon, Mac haalt de back-up op en schrijft de Obsidian-map `~/Obsidian/Marc OS` |
+| Volgende gesprek | Gesprek 8: dagritme, planning en gewoontes |
+| VPS | Draait: Marc OS op https://os.marclonsain.nl (Docker: app, Postgres met pgvector, Caddy) |
+| Domein `os.marclonsain.nl` | A-record bij Hostinger → `179.67.202.123` |
+| Verhuizing `marclonsain.nl` naar Hostinger | Gedaan (18 november). Nameservers Hostinger (dns-parking.com), MX en SPF naar Hostinger-mail, website op 2.57.91.91. Marc controleert of mail en website goed werken |
+| MCP-koppeling in Claude | Gekoppeld (custom connector "Marc OS") |
+| Back-ups buiten de VPS | Mac haalt dagelijks op (launchd, 07:15) naar `~/Backups/Marc OS`, plus Obsidian-export naar `~/Obsidian/Marc OS` |
 | Vaste briefings | Nog niet ingepland |
 
 ## Infrastructuur
@@ -144,8 +145,8 @@ Uitgangspunt: Marc werkt vanaf december 2026 fulltime voor zijn eigen bedrijf. H
 
 ### Domein en DNS
 
-- `marclonsain.nl` staat nu op nameservers `ns.zxcs.nl`, `ns.zxcs.eu`, `ns.zxcs.be` (huidige provider, niet Hostinger).
-- Nodig: A-record `os` → `179.67.202.123`.
+- `marclonsain.nl` staat sinds 18 november bij Hostinger (nameservers `apollo.dns-parking.com`, `athena.dns-parking.com`; eerder zxcs).
+- A-record `os` → `179.67.202.123` staat. MX: `mx1/mx2.hostinger.com`, SPF Hostinger, DMARC `p=none`.
 - Bij Hostinger staan al: `svww.nl`, `aljasyogavooryou.nl` en extern `huurconsult.nl`.
 
 ### Plan domeinverhuizing
@@ -310,7 +311,7 @@ Handige commando's op de VPS (in `/opt/marc-os`): `docker compose ps`, `docker c
 
 Semantisch zoeken aanzetten: in `/opt/marc-os/.env` `EMBEDDING_PROVIDER=voyage` en `EMBEDDING_API_KEY=...` invullen, dan `docker compose up -d` en op Instellingen → Second brain "Links en index bijwerken". Eerst Voyage opnemen in het leveranciersregister.
 
-Let op: de scripts zijn gecontroleerd op syntax en de onderdelen zijn lokaal getest, maar de installatie is nog niet op een echte verse server gedraaid. Ubuntu 26.04 is nieuw; er is een terugval voor de Docker-installatie ingebouwd.
+De installatie is op 18 november 2026 met dit script gedaan op Ubuntu 26.04 en werkte in één keer.
 
 ## Lokaal draaien (proefomgeving)
 
@@ -382,20 +383,15 @@ Plus één taak: "Handleiding webbeheer" (SVWW). De Notion-workspace "Freelance 
 - [ ] Lokale map `marc-os` op de Mac bijwerken (`git pull`, daarna `npm install` voor de pgvector-extensie) en `npm run local`: migraties 0007 (instellingen) en 0008 (second brain) draaien vanzelf
 - [ ] Embedding-provider kiezen (Voyage aanbevolen), API-sleutel aanmaken en de provider opnemen in het leveranciersregister (ISO 27001); daarna `EMBEDDING_PROVIDER` en `EMBEDDING_API_KEY` in `.env` (VPS) of `.env.local` (lokaal)
 - [ ] Op de Mac `node -v` controleren (moet 22 of hoger zijn), dan `npm run local` en het klantdossier en de afspraken per klant invullen
-- [ ] DNS-record `os.marclonsain.nl` → `179.67.202.123`
-- [ ] Installatiescript draaien op de VPS (zie Installatie op de VPS) en de back-upsleutel in de wachtwoordmanager zetten
-- [ ] App op het beginscherm van de telefoon, pushmeldingen aanzetten en testen
-- [ ] MCP-koppeling toevoegen in Claude
-- [ ] Op de Mac `bash scripts/mac-install.sh` (back-ups en Obsidian)
+- [ ] Back-upsleutel (`BACKUP_PASSPHRASE`) in de wachtwoordmanager (controleren)
+- [ ] Mail en website van marclonsain.nl testen na de verhuizing (testmail, site bekijken); DKIM bij Hostinger-mail aanzetten
 - [ ] Leveranciersregister ISO 27001: Hostinger (VPS, Düsseldorf), Apple/Google push-diensten (alleen versleutelde meldingstekst)
 - [ ] Ochtendbriefing, dagafsluiting en weekreview inplannen als vaste taken
 - [ ] Agenda-links (ICS) toevoegen
 - [ ] Ideale week in de agenda zetten
 
 ### Domein
-- [ ] DNS-zone van marclonsain.nl veiligstellen
-- [ ] Uitzoeken waar mail en website nu draaien
-- [ ] Verhuiscode opvragen en verhuizing starten bij Hostinger
+- [x] Verhuizing marclonsain.nl naar Hostinger (18 november 2026)
 
 ### Later / ideeën
 - [ ] Gezondheidsdata: sport (Apple Health, Strava of Garmin) en voeding (Foodvisor: koppeling uitzoeken; anders iOS-shortcut die dagelijks een samenvatting doorstuurt)
