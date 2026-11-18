@@ -16,6 +16,21 @@ export function hermesConfig() {
 
 let cached: HermesStatus | null = null;
 
+/** Stuur één opdracht naar Hermes en wacht op het hele antwoord (voor de vaste routines). */
+export async function askHermes(conversation: string, input: string, opts: { instructions?: string; timeoutMs?: number } = {}) {
+  let text = "";
+  const tools: string[] = [];
+  for await (const ev of chatWithHermes(conversation, input, undefined, opts)) {
+    if (ev.type === "error") return { ok: false as const, error: ev.message, text, tools };
+    if (ev.type === "tool" && !tools.includes(ev.name)) tools.push(ev.name);
+    if (ev.type === "done") return { ok: true as const, text: ev.text.trim(), tools: ev.tools };
+    if (ev.type === "delta") text += ev.text;
+  }
+  return { ok: !!text.trim(), error: text.trim() ? undefined : "Geen antwoord van Hermes", text: text.trim(), tools } as
+    | { ok: true; text: string; tools: string[] }
+    | { ok: false; error: string; text: string; tools: string[] };
+}
+
 /** Is Hermes bereikbaar? Kort gecachet (30 seconden), zodat de cockpit niet bij elke weergave wacht. */
 export async function hermesStatus(force = false): Promise<HermesStatus> {
   const { url, configured } = hermesConfig();
@@ -56,7 +71,12 @@ const CHANNEL_NOTE =
  * Stuur één bericht naar Hermes en geef de antwoorden als stroom terug.
  * Werkt met een streamend antwoord (SSE) en valt terug op een gewoon JSON-antwoord.
  */
-export async function* chatWithHermes(conversation: string, input: string, signal?: AbortSignal): AsyncGenerator<ChatEvent> {
+export async function* chatWithHermes(
+  conversation: string,
+  input: string,
+  signal?: AbortSignal,
+  opts: { instructions?: string; timeoutMs?: number } = {},
+): AsyncGenerator<ChatEvent> {
   const { url, key, configured } = hermesConfig();
   if (!configured) {
     yield { type: "error", message: "Hermes is nog niet geïnstalleerd. Draai op de VPS: bash /opt/marc-os/scripts/hermes-setup.sh" };
@@ -68,8 +88,8 @@ export async function* chatWithHermes(conversation: string, input: string, signa
     res = await fetch(`${url}/v1/responses`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${key}`, accept: "text/event-stream" },
-      body: JSON.stringify({ model: "hermes-agent", input, conversation, instructions: CHANNEL_NOTE, stream: true, store: true }),
-      signal: signal ?? AbortSignal.timeout(5 * 60_000),
+      body: JSON.stringify({ model: "hermes-agent", input, conversation, instructions: opts.instructions ?? CHANNEL_NOTE, stream: true, store: true }),
+      signal: signal ?? AbortSignal.timeout(opts.timeoutMs ?? 5 * 60_000),
     });
   } catch (e) {
     yield { type: "error", message: `Hermes is niet bereikbaar (${e instanceof Error ? e.message : String(e)}).` };

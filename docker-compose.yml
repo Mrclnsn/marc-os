@@ -63,6 +63,18 @@ services:
       API_SERVER_MODEL_NAME: hermes-agent
       # Eigen MCP-sleutel: lezen direct, wijzigen alleen als voorstel in de akkoordwachtrij
       MARC_OS_MCP_TOKEN: ${HERMES_MCP_TOKEN:-}
+      # WhatsApp (gesprek 13, scripts/whatsapp-setup.sh): ingebouwde koppeling in bot-modus op een apart nummer.
+      # Alleen Marc's eigen nummer mag praten (allowlist); de home-chat is waar routines naartoe gaan.
+      WHATSAPP_ENABLED: ${HERMES_WHATSAPP:-false}
+      WHATSAPP_MODE: bot
+      WHATSAPP_ALLOWED_USERS: ${WHATSAPP_NUMBER:-}
+      WHATSAPP_HOME_CHANNEL: ${WHATSAPP_HOME_CHANNEL:-}
+      # Uitgaande berichten van Marc OS (alleen intern, ondertekend)
+      WEBHOOK_ENABLED: ${HERMES_WHATSAPP:-false}
+      WEBHOOK_SECRET: ${HERMES_WEBHOOK_SECRET:-}
+      # Sleutel van de akkoord-plugin ("ja"/"nee" naar Marc OS); het model zelf heeft geen tools om hem te gebruiken
+      MARC_OS_WHATSAPP_TOKEN: ${WHATSAPP_APPROVE_TOKEN:-}
+      HERMES_LOCAL_STT_LANGUAGE: nl
       TZ: Europe/Amsterdam
     volumes:
       # Geheugen, gesprekken, config.yaml en SOUL.md (gevuld door scripts/hermes-config.sh)
@@ -72,7 +84,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G
+          # 3 GB: ruimte voor spraak omzetten op de VPS (faster-whisper small)
+          memory: 3G
 
   caddy:
     image: caddy:2-alpine

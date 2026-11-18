@@ -11,6 +11,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Alles behalve login, de MCP-endpoint (eigen token), de export (sessie of token, controleert zelf), health-check, cron-meldingen (eigen token), service worker en statische bestanden
-  matcher: ["/((?!login|api/mcp|api/health|api/export|api/notify|sw\\.js|_next/static|_next/image|favicon.ico|manifest.webmanifest|icon|apple-icon).*)"],
+  // Alles behalve login, de MCP-endpoint (eigen token), de export (sessie of token, controleert zelf), health-check, cron-meldingen (eigen token), akkoord uit WhatsApp (eigen token, alleen intern), service worker en statische bestanden
+  matcher: ["/((?!login|api/mcp|api/health|api/export|api/notify|api/whatsapp|sw\\.js|_next/static|_next/image|favicon.ico|manifest.webmanifest|icon|apple-icon).*)"],
 };

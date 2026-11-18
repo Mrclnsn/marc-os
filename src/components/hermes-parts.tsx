@@ -89,7 +89,10 @@ export function ProposalCard({ proposal, via = "app", compact = false }: { propo
       {open && <span aria-hidden className="accent absolute inset-y-0 left-0 w-[3px] bg-nacht" />}
       <div className={compact ? "px-3 py-2.5" : "px-4 py-3"}>
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <p className="min-w-0 font-bold leading-snug text-nacht">{p.title}</p>
+          <p className="min-w-0 font-bold leading-snug text-nacht">
+            <span className="hud-mono mr-1.5 text-xs font-normal text-steen">#{p.nr}</span>
+            {p.title}
+          </p>
           <span className={`hud-mono shrink-0 text-[10px] uppercase tracking-[0.12em] ${p.status === "failed" ? "font-bold text-nacht" : "text-steen"}`}>
             {STATUS[p.status] ?? p.status}
             {p.edited ? " · aangepast" : ""}
@@ -108,7 +111,7 @@ export function ProposalCard({ proposal, via = "app", compact = false }: { propo
         )}
         <p className="mt-1 text-[11px] text-steen">
           {p.tool} · {fmtTime(p.createdAt)}
-          {p.decidedAt && !open ? ` · besloten ${fmtTime(p.decidedAt)}` : ""}
+          {p.decidedAt && !open ? ` · besloten ${fmtTime(p.decidedAt)}${p.decidedVia === "whatsapp" ? " via WhatsApp" : ""}` : ""}
           {p.decisionNote ? ` · ${p.decisionNote}` : ""}
         </p>
         {p.status === "failed" && p.error && <p className="mt-1 text-sm font-bold text-nacht">Fout: {p.error}</p>}
@@ -422,6 +425,7 @@ export function HermesChat({
 function toClientProposal(p: Record<string, unknown>): ProposalView {
   return {
     id: p.id as string,
+    nr: Number(p.nr ?? 0),
     tool: p.tool as string,
     title: p.title as string,
     reason: (p.reason as string) ?? null,
@@ -429,6 +433,7 @@ function toClientProposal(p: Record<string, unknown>): ProposalView {
     edited: !!p.edited,
     error: (p.error as string) ?? null,
     decisionNote: (p.decisionNote as string) ?? null,
+    decidedVia: (p.decidedVia as string) ?? null,
     args: (p.args as Record<string, unknown>) ?? {},
     createdAt: String(p.createdAt),
     decidedAt: p.decidedAt ? String(p.decidedAt) : null,

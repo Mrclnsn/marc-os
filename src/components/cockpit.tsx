@@ -143,7 +143,7 @@ export function Orb({ hud, size = 128 }: { hud: boolean; size?: number }) {
   );
 }
 
-export function BriefingPanel({ hud, briefing, auto, at, nowLabel }: { hud: boolean; briefing: { body: string } | null; auto: string; at: string | null; nowLabel: string }) {
+export function BriefingPanel({ hud, briefing, auto, at, nowLabel }: { hud: boolean; briefing: { body: string; heading?: string | null } | null; auto: string; at: string | null; nowLabel: string }) {
   return (
     <section className="card hoeken relative overflow-hidden">
       <span aria-hidden className="accent absolute left-0 top-0 h-[3px] w-10 bg-nacht" />
@@ -152,10 +152,10 @@ export function BriefingPanel({ hud, briefing, auto, at, nowLabel }: { hud: bool
         <Orb hud={hud} />
         <div className="min-w-0 flex-1">
           <p className="hud-mono text-[11px] uppercase tracking-[0.18em] text-steen">
-            {briefing ? `Hermes · briefing ${at ?? ""}` : `Briefing · ${nowLabel}`}
+            {briefing ? `Hermes · ${(briefing.heading ?? "briefing").toLowerCase()} ${at ?? ""}` : `Briefing · ${nowLabel}`}
           </p>
           <p className="mt-2 whitespace-pre-wrap text-[16px] leading-relaxed text-nacht md:text-[17px]">{briefing ? briefing.body : auto}</p>
-          {!briefing && <p className="mt-2 text-xs text-steen">Automatisch samengesteld uit je taken en agenda. Zodra de vaste routine loopt (gesprek 13), schrijft Hermes hier je ochtendbriefing.</p>}
+          {!briefing && <p className="mt-2 text-xs text-steen">Automatisch samengesteld uit je taken en agenda. Op werkdagen schrijft Hermes hier om 07:30 je ochtendbriefing (Hermes → Routines).</p>}
         </div>
       </div>
     </section>
@@ -170,7 +170,9 @@ export type AgentsData = {
   pendingTotal: number;
   hermesLast: { at: string; summary: string } | null;
   claudeLast: { at: string; summary: string } | null;
-  routines: { name: string; when: string; done: boolean }[];
+  /** null = niet gekoppeld */
+  whatsapp: string | null;
+  routines: { name: string; when: string; state: "ok" | "failed" | "running" | null; detail: string | null }[];
 };
 
 const ago = (iso: string) => {
@@ -228,14 +230,23 @@ export function AgentsPanel({ data }: { data: AgentsData }) {
       )}
       <div className="border-t border-lijn px-4 py-3">
         <p className="hud-mono mb-2 text-[10px] uppercase tracking-[0.14em] text-steen">Vaste routines</p>
-        <ul className="space-y-1.5 text-sm">
-          {data.routines.map((r) => (
-            <li key={r.name} className="flex items-center justify-between gap-3">
-              <span className="text-grafiet">{r.name}</span>
-              <span className={`text-xs ${r.done ? "font-bold text-nacht" : "text-steen"}`}>{r.done ? "gedaan" : r.when}</span>
-            </li>
-          ))}
-        </ul>
+        {data.routines.length === 0 ? (
+          <p className="text-xs text-steen">
+            Geen routines aan. <Link href="/hermes?tab=routines" className="underline">Instellen</Link>
+          </p>
+        ) : (
+          <ul className="space-y-1.5 text-sm">
+            {data.routines.map((r) => (
+              <li key={r.name} className="flex items-center justify-between gap-3">
+                <Link href="/hermes?tab=routines" className="text-grafiet hover:text-nacht">
+                  {r.name}
+                </Link>
+                <span className={`text-xs ${r.state === "failed" ? "font-bold text-nacht" : r.state === "ok" ? "text-nacht" : "text-steen"}`}>{r.detail ?? r.when}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {data.whatsapp && <p className="mt-2 text-xs text-steen">WhatsApp: {data.whatsapp}</p>}
       </div>
     </Panel>
   );

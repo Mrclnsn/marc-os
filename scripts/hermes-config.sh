@@ -14,6 +14,11 @@ MODEL="${MODEL:-claude-sonnet-5-5}"
 mkdir -p "$DATA"
 tmp="$(mktemp)"
 sed "s|__HERMES_MODEL__|$MODEL|g" "$DIR/hermes/config.yaml.template" >"$tmp"
+# WhatsApp (gesprek 13): alleen als het aan staat (scripts/whatsapp-setup.sh)
+if [[ "$(envget HERMES_WHATSAPP)" == "true" ]]; then
+  printf '\n' >>"$tmp"
+  cat "$DIR/hermes/whatsapp.yaml.template" >>"$tmp"
+fi
 if [[ -f "$DATA/config.yaml" ]] && ! cmp -s "$tmp" "$DATA/config.yaml"; then
   cp "$DATA/config.yaml" "$DATA/config.yaml.vorige"
   echo "  Hermes: config.yaml bijgewerkt (vorige versie: hermes-data/config.yaml.vorige)"
@@ -21,7 +26,16 @@ fi
 mv "$tmp" "$DATA/config.yaml"
 cp "$DIR/hermes/SOUL.md" "$DATA/SOUL.md"
 
+# Eigen plugins (gesprek 13: akkoord via WhatsApp). Alleen de plugins uit de repo worden beheerd.
+mkdir -p "$DATA/plugins"
+for p in "$DIR"/hermes/plugins/*/; do
+  name="$(basename "$p")"
+  rm -rf "$DATA/plugins/$name"
+  cp -R "$p" "$DATA/plugins/$name"
+done
+
 # Hermes draait als gebruiker hermes (UID 10000); de map bevat zijn geheugen en is alleen voor hem
 chown -R 10000:10000 "$DATA"
 chmod 700 "$DATA"
 chmod 600 "$DATA/config.yaml" "$DATA/SOUL.md"
+find "$DATA/plugins" -type d -exec chmod 700 {} + -o -type f -exec chmod 600 {} +

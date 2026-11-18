@@ -1,4 +1,5 @@
 import "server-only";
+import { latestSection } from "./routines-shared";
 import { calendarConfigured, getEvents, type CalendarEvent } from "./calendar";
 import { blockTaskTitles, currentAndNext, dayRhythms, freeWithin, type DayRhythm } from "./rhythm";
 import { habitSummary, listHabits } from "./habits";
@@ -150,7 +151,7 @@ export type Cockpit = {
   timeline: Timeline;
   overdue: TaskWithRefs[];
   upcoming: TaskWithRefs[];
-  briefing: { body: string } | null;
+  briefing: { body: string; heading?: string | null } | null;
   habits: HabitToday[];
   rhythm: { name: string | null; current: string | null; next: string | null };
 };
@@ -291,6 +292,11 @@ export async function getCockpit(area?: "zakelijk" | "prive"): Promise<Cockpit> 
       level: d <= t ? "alert" : "info",
     });
   }
+  if (!area) {
+    // Routine van Hermes mislukt in de afgelopen 24 uur (en niet daarna alsnog gelukt)
+    const { routineFailures } = await import("./routines");
+    for (const f of await routineFailures()) signals.push({ group: "Hermes", title: `${f.label} mislukt`, detail: f.error ?? undefined, href: "/hermes?tab=routines", level: "info" });
+  }
   for (const err of cal.errors) signals.push({ group: "Agenda", title: "Agenda niet geladen", detail: err, href: "/instellingen", level: "info" });
   if (health?.stale) signals.push({ group: "Gezondheid", title: "Geen gegevens uit Apple Health", detail: `laatst ontvangen ${formatDate(new Intl.DateTimeFormat("en-CA", { timeZone: TIMEZONE }).format(health.lastReceived!))}; draait Health Auto Export nog?`, href: "/instellingen#apple-health", level: "info" });
   const risky = (goals?.atRisk ?? []).filter((g) => !area || (area === "zakelijk") === (g.area === "zakelijk"));
@@ -333,7 +339,8 @@ export async function getCockpit(area?: "zakelijk" | "prive"): Promise<Cockpit> 
   signals.sort((a, b) => (a.level === b.level ? 0 : a.level === "alert" ? -1 : 1));
 
   const today_ = lastDay[0]?.periodDate === t ? lastDay[0] : null;
-  const briefing = today_ ? { body: today_.body } : null;
+  // De dag-review kan briefing en dagafsluiting bevatten (kopjes, gesprek 13): toon het laatste stuk
+  const briefing = today_ ? (({ heading, text }) => ({ body: text, heading }))(latestSection(today_.body)) : null;
   const clock = new Intl.DateTimeFormat("nl-NL", { timeZone: TIMEZONE, hour: "2-digit", minute: "2-digit" });
 
   /* ---------------- Tijdlijn komende 8 uur ---------------- */
@@ -446,7 +453,7 @@ export async function getCockpit(area?: "zakelijk" | "prive"): Promise<Cockpit> 
     goal,
     doneCount,
     autoBriefing: parts.join(" "),
-    briefingAt: today_ ? clock.format(today_.createdAt) : null,
+    briefingAt: today_ ? clock.format(today_.updatedAt) : null,
     modules,
     kpis,
     signals,

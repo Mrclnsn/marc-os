@@ -57,3 +57,4 @@ obsidian/
 
 # VPS: gegevens van Hermes (geheugen, gesprekken, sleutels)
 hermes-data/
+__pycache__/

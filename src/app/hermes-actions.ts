@@ -5,8 +5,10 @@ import { requireSession } from "@/lib/auth";
 import * as agent from "@/lib/agent";
 import { approveProposal, editProposal } from "@/lib/mcp";
 import type { AgentProposal } from "@/db/schema";
+import { runRoutine, setRoutineSetting } from "@/lib/routines";
+import { ROUTINE_KEYS, type RoutineKey, type RoutineSetting } from "@/lib/routines-shared";
 
-export type ProposalView = Pick<AgentProposal, "id" | "tool" | "title" | "reason" | "status" | "edited" | "error" | "decisionNote"> & {
+export type ProposalView = Pick<AgentProposal, "id" | "nr" | "tool" | "title" | "reason" | "status" | "edited" | "error" | "decisionNote" | "decidedVia"> & {
   args: Record<string, unknown>;
   createdAt: string;
   decidedAt: string | null;
@@ -15,6 +17,7 @@ export type ProposalView = Pick<AgentProposal, "id" | "tool" | "title" | "reason
 export async function toView(p: AgentProposal): Promise<ProposalView> {
   return {
     id: p.id,
+    nr: p.nr,
     tool: p.tool,
     title: p.title,
     reason: p.reason,
@@ -22,6 +25,7 @@ export async function toView(p: AgentProposal): Promise<ProposalView> {
     edited: p.edited,
     error: p.error,
     decisionNote: p.decisionNote,
+    decidedVia: p.decidedVia,
     args: (p.args ?? {}) as Record<string, unknown>,
     createdAt: p.createdAt.toISOString(),
     decidedAt: p.decidedAt?.toISOString() ?? null,
@@ -127,4 +131,30 @@ export async function deleteThreadAction(id: string) {
   await requireSession();
   await agent.deleteThread(id);
   revalidatePath("/hermes");
+}
+
+/* ---------------- Vaste routines (gesprek 13) ---------------- */
+
+export async function setRoutineAction(key: string, patch: Partial<RoutineSetting>) {
+  await requireSession();
+  if (!ROUTINE_KEYS.includes(key as RoutineKey)) throw new Error("Onbekende routine");
+  const clean: Partial<RoutineSetting> = {};
+  if (typeof patch.enabled === "boolean") clean.enabled = patch.enabled;
+  if (typeof patch.whatsapp === "boolean") clean.whatsapp = patch.whatsapp;
+  if (typeof patch.push === "boolean") clean.push = patch.push;
+  if (typeof patch.time === "string") clean.time = patch.time;
+  if (typeof patch.weekday === "number") clean.weekday = patch.weekday;
+  await setRoutineSetting(key as RoutineKey, clean);
+  revalidatePath("/hermes");
+  revalidatePath("/");
+}
+
+/** Een routine nu draaien (knop). Wacht op het resultaat; kan een paar minuten duren. */
+export async function runRoutineNowAction(key: string): Promise<{ ok: boolean; error?: string; summary?: string | null }> {
+  await requireSession();
+  if (!ROUTINE_KEYS.includes(key as RoutineKey)) return { ok: false, error: "Onbekende routine" };
+  const run = await runRoutine(key as RoutineKey, "manual");
+  refresh();
+  if (!run) return { ok: false, error: "Liep al" };
+  return run.status === "ok" ? { ok: true, summary: run.summary } : { ok: false, error: run.error ?? "Mislukt" };
 }

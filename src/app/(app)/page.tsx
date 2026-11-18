@@ -12,32 +12,37 @@ import { getOptions } from "@/lib/options";
 import type { AgentsData } from "@/components/cockpit";
 import { hermesStatus } from "@/lib/hermes";
 import * as agent from "@/lib/agent";
-import { listReviews } from "@/lib/data";
 import { toView } from "@/app/hermes-actions";
-import { weekStart } from "@/lib/dates";
+import { routineStatuses } from "@/lib/routines";
+import { whatsappStatus } from "@/lib/whatsapp";
 
 /** Gegevens voor het paneel Hermes en agents: status, akkoordwachtrij, laatste activiteit en vaste routines. */
-async function agentsData(today: string, hasBriefing: boolean): Promise<AgentsData> {
-  const [status, pending, pendingTotal, hermesLast, claudeLast, weekReviews] = await Promise.all([
+async function agentsData(today: string): Promise<AgentsData> {
+  const [status, pending, pendingTotal, hermesLast, claudeLast, routines, wa] = await Promise.all([
     hermesStatus(),
     agent.listProposals({ status: "pending", limit: 4 }),
     agent.pendingCount(),
     agent.lastActivity("hermes"),
     agent.lastActivity("claude"),
-    listReviews("week", 1),
+    routineStatuses(today),
+    whatsappStatus(),
   ]);
-  const ws = weekStart(today);
+  const time = (iso: string) => new Intl.DateTimeFormat("nl-NL", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Amsterdam" }).format(new Date(iso));
   return {
     status: { configured: status.configured, online: status.online },
+    whatsapp: wa.configured ? (wa.state === "connected" ? "verbonden" : wa.state ? "niet verbonden" : "onbekend") : null,
     pending: await Promise.all(pending.map(toView)),
     pendingTotal,
     hermesLast: hermesLast ? { at: hermesLast.at.toISOString(), summary: hermesLast.summary } : null,
     claudeLast: claudeLast ? { at: claudeLast.at.toISOString(), summary: claudeLast.summary } : null,
-    routines: [
-      { name: "Ochtendbriefing", when: "werkdagen 07:30", done: hasBriefing },
-      { name: "Dagafsluiting", when: "werkdagen 17:30", done: false },
-      { name: "Weekreview", when: "vrijdag 15:00", done: weekReviews.some((r) => r.periodDate === ws) },
-    ],
+    routines: routines
+      .filter((r) => r.setting.enabled && !(r.blocked === "module staat uit"))
+      .map((r) => ({
+        name: r.label,
+        when: r.blocked ?? r.schedule,
+        state: r.current ? (r.current.status as "ok" | "failed" | "running") : null,
+        detail: r.current ? `${r.current.status === "ok" ? "klaar" : r.current.status === "failed" ? "mislukt" : "bezig"} ${time(r.current.at)}` : null,
+      })),
   };
 }
 
@@ -60,7 +65,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const { gebied } = await searchParams;
   const area = gebied === "zakelijk" || gebied === "prive" ? gebied : undefined;
   const [c, options, store] = await Promise.all([getCockpit(area), getOptions(), cookies()]);
-  const agents = await agentsData(c.date, !!c.briefing);
+  const agents = await agentsData(c.date);
   const style = parseCockpitStyle(store.get(COCKPIT_COOKIE)?.value);
   const hud = style === "ironman";
   const t = c.date;

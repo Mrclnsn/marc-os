@@ -13,6 +13,7 @@ import { HealthTokenBox } from "@/components/health-parts";
 import { AutoToolSwitch } from "@/components/hermes-parts";
 import { getAutoTools } from "@/lib/agent";
 import { hermesConfig, hermesStatus } from "@/lib/hermes";
+import { whatsappStatus } from "@/lib/whatsapp";
 import { writeTools } from "@/lib/mcp";
 import { getHealthToken, listHealthImports } from "@/lib/health";
 import { PUSH_KIND_KEYS, PUSH_KINDS, getPushPrefs, lastBackupPull, listBackups, listDevices, vapidPublicKey } from "@/lib/push";
@@ -31,7 +32,7 @@ export default async function SettingsPage() {
     getHealthToken(),
     listHealthImports(8),
   ]);
-  const [hermes, autoTools, tools] = await Promise.all([hermesStatus(true), getAutoTools(), writeTools()]);
+  const [hermes, autoTools, tools, wa] = await Promise.all([hermesStatus(true), getAutoTools(), writeTools(), whatsappStatus()]);
   const hermesCfg = hermesConfig();
   const backups = listBackups();
   const host = process.env.DOMAIN ?? (await headers()).get("host") ?? "os.marclonsain.nl";
@@ -252,6 +253,19 @@ export default async function SettingsPage() {
               wijzigen wordt een voorstel in de <Link href="/hermes?tab=akkoord" className="underline">akkoordwachtrij</Link>. Alles staat in het <Link href="/hermes?tab=logboek" className="underline">logboek</Link>.
             </p>
           )}
+          <p className="text-grafiet">
+            WhatsApp:{" "}
+            {wa.configured ? (
+              <>
+                gekoppeld voor {wa.number} ({wa.state === "connected" ? "verbonden" : (wa.state ?? "status onbekend")}). &quot;ja&quot; en &quot;nee&quot; op voorstellen handelt Marc OS zelf af, niet het model.
+              </>
+            ) : (
+              <>
+                nog niet gekoppeld. Met een apart nummer voor Hermes: <code className="chip">bash /opt/marc-os/scripts/whatsapp-setup.sh</code>.
+              </>
+            )}{" "}
+            Vaste routines (briefing, dagafsluiting, weekreview): <Link href="/hermes?tab=routines" className="underline">Hermes → Routines</Link>.
+          </p>
           <p className="text-xs text-steen">{process.env.HERMES_MCP_TOKEN ? "MCP-sleutel voor Hermes (HERMES_MCP_TOKEN) staat in .env." : "HERMES_MCP_TOKEN ontbreekt in .env (wordt aangemaakt door update.sh)."}</p>
         </div>
         <p className="max-w-2xl pt-2 text-sm text-steen">

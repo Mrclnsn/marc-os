@@ -10,19 +10,34 @@ export const dynamic = "force-dynamic";
  *   blocks       herinneringen bij dagritmeblokken (elke 5 minuten; stuurt alleen als er een blok begint)
  *   backupcheck  back-up van vannacht aanwezig en opgehaald door de Mac (na de back-up)
  *   system       vrije systeemmelding, body {"title","body"} (bijv. als de back-up mislukt)
+ *   routines     vaste routines van Hermes die nu aan de beurt zijn starten (elke 5 minuten; gesprek 13)
+ *   whatsapp     testbericht naar WhatsApp via Hermes (scripts/whatsapp-setup.sh)
  */
 export async function POST(req: Request, { params }: { params: Promise<{ kind: string }> }) {
   const bearer = req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
   if (!tokenOk(bearer)) return new Response("Geen toegang", { status: 401 });
   const { kind } = await params;
 
+  if (kind === "routines") {
+    const { tickRoutines } = await import("@/lib/routines");
+    return Response.json({ kind, ...(await tickRoutines()) });
+  }
+  if (kind === "whatsapp") {
+    const { sendWhatsApp } = await import("@/lib/whatsapp");
+    const r = await sendWhatsApp("Test vanuit Marc OS: WhatsApp via Hermes werkt. Antwoord gerust met een vraag aan Hermes.");
+    return Response.json({ kind, ...r }, { status: r.ok ? 200 : 502 });
+  }
+
   let messages: PushMessage[];
   let pushKind: "morning" | "deadlines" | "blocks" | "system";
   switch (kind) {
-    case "morning":
-      messages = [await morningMessage()];
+    case "morning": {
+      // Draait de ochtendbriefing van Hermes, dan stuurt die zijn eigen melding (of bij een fout dit overzicht)
+      const { briefingReplacesMorningPush } = await import("@/lib/routines");
+      messages = (await briefingReplacesMorningPush()) ? [] : [await morningMessage()];
       pushKind = "morning";
       break;
+    }
     case "deadlines":
       messages = await deadlineMessages();
       pushKind = "deadlines";

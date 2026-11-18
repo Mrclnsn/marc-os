@@ -11,6 +11,9 @@
 		-Server
 	}
 
+	# Akkoord uit WhatsApp komt alleen van Hermes over het interne netwerk, nooit van buiten
+	respond /api/whatsapp/* 404
+
 	# Geen access-log: zo komt de geheime MCP-URL nergens in logbestanden
 
 	reverse_proxy app:3000

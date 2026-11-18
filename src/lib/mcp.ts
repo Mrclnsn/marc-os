@@ -305,7 +305,8 @@ const AGENT_INSTRUCTIONS = [
   "- Zeg dan tegen Marc kort wat je voorstelt en dat het op zijn akkoord wacht (in de app met één tik). Doe niet alsof het al gebeurd is.",
   "- Geef bij een voorstel in reden een korte uitleg (één zin) waarom.",
   "- Doe één voorstel per ding. Hangt een tweede actie af van de eerste (bijv. taak in een nieuw project), stel dan eerst de eerste voor en wacht op akkoord (list_proposals) voordat je de tweede voorstelt.",
-  "- Zegt Marc \"pas aan: ...\", trek je eigen voorstel in met withdraw_proposal en doe een nieuw voorstel.",
+  "- Zegt Marc \"pas aan: ...\" (of \"pas aan 12: ...\"), trek je eigen voorstel in met withdraw_proposal en doe een nieuw voorstel.",
+  "- Elk voorstel heeft een nummer (#12). In WhatsApp noem je dat nummer; Marc antwoordt met \"ja\", \"ja 12\", \"ja alles\" of \"nee 12: reden\". Die antwoorden handelt Marc OS zelf af, jij kunt niets goedkeuren. Vraag dus niet \"zal ik het voorstellen?\": doe gewoon het voorstel.",
   "- Sommige acties mag je zonder akkoord doen (Marc stelt dat in): dan voert de tool ze direct uit en staat er executed. Daarbij horen meestal vastleggen en afvinken.",
   "- Alles wat je doet wordt gelogd. Verstuur nooit iets namens Marc naar anderen.",
 ].join("\n");
@@ -380,8 +381,8 @@ export function buildServer(modules: Modules, opts: BuildOptions = {}) {
         void agent.notifyNewProposal(title);
         return json({
           status: "pending",
-          proposal: { id: p.id, title },
-          message: "Voorstel staat in Marc's akkoordwachtrij en is nog NIET uitgevoerd. Na zijn akkoord voert Marc OS het uit; met list_proposals zie je de uitkomst.",
+          proposal: { id: p.id, nr: p.nr, title },
+          message: `Voorstel #${p.nr} staat in Marc's akkoordwachtrij en is nog NIET uitgevoerd. Na zijn akkoord voert Marc OS het uit; met list_proposals zie je de uitkomst. In WhatsApp keurt Marc goed met "ja" (of "ja ${p.nr}") en wijst af met "nee ${p.nr}".`,
         });
       },
     );
@@ -404,6 +405,7 @@ export function buildServer(modules: Modules, opts: BuildOptions = {}) {
         json(
           (await agent.listProposals({ status: status ?? "all", ids, limit: limit ?? 20 })).map((p) => ({
             id: p.id,
+            nr: p.nr,
             title: p.title,
             tool: p.tool,
             status: p.status,
@@ -422,11 +424,16 @@ export function buildServer(modules: Modules, opts: BuildOptions = {}) {
       "withdraw_proposal",
       {
         title: "Voorstel intrekken",
-        description: "Trek een eigen voorstel in dat nog op akkoord wacht (bijv. als Marc iets anders wil; doe daarna een nieuw voorstel).",
-        inputSchema: { id: z.string().uuid(), note: z.string().optional() },
+        description: "Trek een eigen voorstel in dat nog op akkoord wacht (bijv. als Marc iets anders wil of \"pas aan 12: ...\" zegt; doe daarna een nieuw voorstel). id = het voorstel-id of het nummer (12 of #12).",
+        inputSchema: { id: z.string().min(1), note: z.string().optional() },
         annotations: { readOnlyHint: true },
       },
-      async ({ id, note }) => json({ withdrawn: !!(await agent.withdrawProposal(id, note)) }),
+      async ({ id, note }) => {
+        const ref = String(id).trim().replace(/^#/, "");
+        const real = /^\d+$/.test(ref) ? (await agent.getProposalByNr(Number(ref)))?.id : ref;
+        if (!real || !uuidRe.test(real)) return { ...json({ withdrawn: false, error: `Voorstel ${id} niet gevonden` }), isError: true };
+        return json({ withdrawn: !!(await agent.withdrawProposal(real, note)) });
+      },
     );
   }
 

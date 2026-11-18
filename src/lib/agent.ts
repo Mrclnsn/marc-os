@@ -9,7 +9,7 @@ import { agentLog, agentProposals, chatMessages, chatThreads, goals, notes, proj
  */
 
 export type Actor = "hermes" | "claude" | "marc";
-export type LogKind = "read" | "direct" | "proposed" | "approved" | "rejected" | "withdrawn" | "executed" | "failed" | "chat";
+export type LogKind = "read" | "direct" | "proposed" | "approved" | "rejected" | "withdrawn" | "executed" | "failed" | "chat" | "routine" | "whatsapp";
 export type ProposalStatus = "pending" | "running" | "executed" | "failed" | "rejected" | "withdrawn";
 export type DecidedVia = "app" | "chat" | "cockpit" | "whatsapp";
 
@@ -145,6 +145,11 @@ export async function getProposal(id: string) {
   return row ?? null;
 }
 
+export async function getProposalByNr(nr: number) {
+  const [row] = await db.select().from(agentProposals).where(eq(agentProposals.nr, nr));
+  return row ?? null;
+}
+
 export async function listProposals(opts: { status?: ProposalStatus | "decided" | "all"; limit?: number; since?: Date; ids?: string[] } = {}) {
   const status = opts.status ?? "pending";
   const where = and(
@@ -265,6 +270,12 @@ export async function deleteThread(id: string) {
 
 let lastChatActivity = 0;
 let lastProposalPush = 0;
+let quietUntil = 0;
+
+/** Tijdens een vaste routine geen losse melding per voorstel: de routine stuurt één bericht met alle voorstellen. */
+export function quietProposalPush(ms: number) {
+  quietUntil = ms > 0 ? Math.max(quietUntil, Date.now() + ms) : 0;
+}
 
 /** De app-chat is actief: dan geen pushmelding voor voorstellen, Marc ziet ze in de chat. */
 export function markChatActive() {
@@ -274,7 +285,7 @@ export function markChatActive() {
 /** Pushmelding als er een voorstel binnenkomt terwijl Marc niet in de chat zit. Hooguit één per 10 minuten. */
 export async function notifyNewProposal(title: string) {
   const now = Date.now();
-  if (now - lastChatActivity < 3 * 60_000 || now - lastProposalPush < 10 * 60_000) return;
+  if (now < quietUntil || now - lastChatActivity < 3 * 60_000 || now - lastProposalPush < 10 * 60_000) return;
   lastProposalPush = now;
   const n = await pendingCount();
   const { sendPush } = await import("./push");

@@ -24,4 +24,8 @@ grep -q '^APP_TIMEZONE=' "$ENV" || add APP_TIMEZONE Europe/Amsterdam
 has HERMES_MCP_TOKEN || add HERMES_MCP_TOKEN "$(openssl rand -hex 32)"
 has HERMES_API_KEY || add HERMES_API_KEY "$(openssl rand -hex 32)"
 grep -q '^ANTHROPIC_API_KEY=' "$ENV" || printf '%s\n' "# Hermes: Anthropic API-sleutel en model. Installeren met scripts/hermes-setup.sh" "ANTHROPIC_API_KEY=" "HERMES_MODEL=claude-sonnet-5-5" "HERMES_URL=" >>"$ENV"
+# WhatsApp via Hermes (gesprek 13): sleutels altijd klaarzetten, aanzetten met scripts/whatsapp-setup.sh
+has HERMES_WEBHOOK_SECRET || add HERMES_WEBHOOK_SECRET "$(openssl rand -hex 32)"
+has WHATSAPP_APPROVE_TOKEN || add WHATSAPP_APPROVE_TOKEN "$(openssl rand -hex 32)"
+grep -q '^HERMES_WHATSAPP=' "$ENV" || printf '%s\n' "# WhatsApp via Hermes: aanzetten met scripts/whatsapp-setup.sh" "HERMES_WHATSAPP=false" "WHATSAPP_NUMBER=" "WHATSAPP_HOME_CHANNEL=" >>"$ENV"
 chmod 600 "$ENV"

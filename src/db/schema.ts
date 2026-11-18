@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   pgTable,
   uuid,
@@ -12,6 +13,7 @@ import {
   numeric,
   jsonb,
   doublePrecision,
+  serial,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
@@ -1012,6 +1014,8 @@ export const agentProposals = pgTable(
   "agent_proposals",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    /** Kort volgnummer voor WhatsApp ("ja 12", gesprek 13) */
+    nr: serial("nr").notNull(),
     actor: text("actor").notNull().default("hermes"),
     tool: text("tool").notNull(),
     args: jsonb("args").notNull(),
@@ -1029,7 +1033,7 @@ export const agentProposals = pgTable(
     result: jsonb("result"),
     error: text("error"),
   },
-  (t) => [index("agent_proposals_status_idx").on(t.status, t.createdAt)],
+  (t) => [index("agent_proposals_status_idx").on(t.status, t.createdAt), uniqueIndex("agent_proposals_nr_uq").on(t.nr)],
 );
 
 /** Logboek van alles wat Hermes (en Claude via MCP) doet: lezen, voorstellen, akkoord, uitvoeren. Voor ISO 27001. */
@@ -1077,7 +1081,43 @@ export const chatMessages = pgTable(
   (t) => [index("chat_messages_thread_idx").on(t.threadId, t.createdAt)],
 );
 
+/**
+ * Vaste routines van Hermes (gesprek 13): elke run met status, voor de cockpit en het logboek.
+ * Per routine en periode hooguit één geplande run (unieke index op routine + periode voor trigger "schedule").
+ */
+export const agentRoutineRuns = pgTable(
+  "agent_routine_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** briefing, dagafsluiting, weekreview, maandafsluiting, aangiftecheck */
+    routine: text("routine").notNull(),
+    /** Datum van de dag, maandag van de week of 1e van de maand (YYYY-MM-DD) */
+    period: date("period").notNull(),
+    /** schedule (cron) of manual (knop "Nu draaien") */
+    trigger: text("trigger").notNull().default("schedule"),
+    /** running, ok, failed */
+    status: text("status").notNull().default("running"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    /** Eerste regels van het antwoord */
+    summary: text("summary"),
+    error: text("error"),
+    reviewId: uuid("review_id"),
+    /** Tools die Hermes gebruikte */
+    tools: jsonb("tools").$type<string[]>(),
+    /** Voorstellen die tijdens de run zijn gedaan */
+    proposalIds: jsonb("proposal_ids").$type<string[]>(),
+    /** Afgeleverd: { whatsapp: "ok" | fout, push: "ok" | reden } */
+    delivered: jsonb("delivered").$type<Record<string, string>>(),
+  },
+  (t) => [
+    index("agent_routine_runs_started_idx").on(t.startedAt),
+    uniqueIndex("agent_routine_runs_schedule_uq").on(t.routine, t.period).where(sql`${t.trigger} = 'schedule'`),
+  ],
+);
+
 export type AgentProposal = typeof agentProposals.$inferSelect;
+export type AgentRoutineRun = typeof agentRoutineRuns.$inferSelect;
 export type AgentLogRow = typeof agentLog.$inferSelect;
 export type ChatThread = typeof chatThreads.$inferSelect;
 export type ChatMessage = typeof chatMessages.$inferSelect;

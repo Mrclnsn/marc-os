@@ -1,0 +1,5 @@
+name: marcos-akkoord
+version: 1.0.0
+description: Marc OS (gesprek 13). "ja" en "nee" op voorstellen in WhatsApp gaan rechtstreeks naar Marc OS, niet naar het model.
+provides_hooks:
+  - post_gateway_admission

@@ -19,6 +19,7 @@ export const PUSH_KINDS = {
   morning: { label: "Ochtendoverzicht", description: "Werkdagen 07:30: taken voor vandaag, achterstallig en je eerste afspraak." },
   deadlines: { label: "Deadlines", description: "Elke dag 09:00: taken met een deadline vandaag of die te laat zijn." },
   blocks: { label: "Dagritme", description: "Bij het begin van een dagritmeblok met herinnering (dagstart, diep werk, sport, dagafsluiting), met wat je erin hebt gepland. Per blok aan te zetten op Planning → Dagritme." },
+  routines: { label: "Routines van Hermes", description: "Als de ochtendbriefing, dagafsluiting, weekreview of een andere vaste routine klaar is (per routine aan te zetten op Hermes → Routines)." },
   assistant: { label: "Van Claude en Hermes", description: "Meldingen die de assistent via de MCP-koppeling stuurt (send_push)." },
   system: { label: "Systeem", description: "Als de nachtelijke back-up of export mislukt, of de Mac de back-up een paar dagen niet heeft opgehaald." },
 } as const;

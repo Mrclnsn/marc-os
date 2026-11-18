@@ -92,6 +92,8 @@ fi
 bold "Klaar"
 echo "  Chat: open Marc OS → Hermes (of de ronde knop rechtsonder)."
 echo "  Akkoordwachtrij: Hermes → Akkoord. Wat zonder akkoord mag: Instellingen → Hermes."
+echo "  Vaste routines (briefing, dagafsluiting, weekreview): Hermes → Routines."
+echo "  WhatsApp koppelen: bash $DIR/scripts/whatsapp-setup.sh (apart nummer voor Hermes nodig)."
 echo "  Logboek Hermes:  docker compose logs -f hermes"
 echo "  Let op (ISO 27001): zet Anthropic (Claude API) in het leveranciersregister; Hermes stuurt"
 echo "  gegevens uit Marc OS (taken, notities, klantnamen) naar de API om te kunnen antwoorden."

@@ -17,11 +17,22 @@ mcp_servers:
     connect_timeout: 30
 
 # Alleen wat Hermes nodig heeft: Marc OS, zijn eigen geheugen en een takenlijstje.
-# Geen terminal, bestanden, browser of code uitvoeren.
+# Geen terminal, bestanden, browser of code uitvoeren. Ook niet in WhatsApp (gesprek 13).
+# Webhooks (uitgaande berichten van Marc OS) hebben geen tools: die route levert alleen af.
 platform_toolsets:
   api_server: [mcp-marcos, memory, todo]
   cli: [mcp-marcos, memory, todo]
+  whatsapp: [mcp-marcos, memory, todo]
+  cron: [mcp-marcos, memory, todo]
+  webhook: []
+
+# Akkoord via WhatsApp (gesprek 13): "ja"/"nee" op voorstellen gaat rechtstreeks naar Marc OS, niet naar het model.
+# Zie hermes/plugins/marcos-akkoord (door scripts/hermes-config.sh naar hermes-data/plugins gezet).
+plugins:
+  enabled: [marcos-akkoord]
 
 gateway:
   api_server:
     max_concurrent_runs: 3
+
+# __WHATSAPP__ (scripts/hermes-config.sh zet hier hermes/whatsapp.yaml.template als HERMES_WHATSAPP=true)

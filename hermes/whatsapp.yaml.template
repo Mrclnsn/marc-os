@@ -1,0 +1,46 @@
+# WhatsApp (gesprek 13). Alleen in config.yaml als HERMES_WHATSAPP=true in .env (scripts/whatsapp-setup.sh).
+# De koppeling zelf (nummer, allowlist, home-chat) staat in de omgeving van de container (docker-compose.yml):
+# ingebouwde koppeling in bot-modus op een apart nummer, alleen Marc's eigen nummer mag praten.
+
+whatsapp:
+  # Onbekende afzenders krijgen geen koppelcode en geen antwoord
+  unauthorized_dm_behavior: ignore
+  # Geen kopregel boven elk antwoord
+  reply_prefix: ""
+  send_read_receipts: true
+
+# Geen tussenberichten over tools in WhatsApp: alleen het antwoord
+display:
+  platforms:
+    whatsapp:
+      tool_progress: "off"
+      interim_assistant_messages: false
+
+# Spraakberichten: omzetten op de VPS zelf (faster-whisper), Nederlands. Geen externe dienst.
+# Het eerste spraakbericht duurt langer: dan wordt het model (small, ca. 500 MB) eenmalig opgehaald.
+stt:
+  enabled: true
+  echo_transcripts: true
+  provider: local
+  language: nl
+  local:
+    model: small
+    language: nl
+
+# Uitgaande berichten van Marc OS (routines, testbericht): webhook alleen op het interne Docker-netwerk
+# (geen poort naar buiten), ondertekend met WEBHOOK_SECRET. deliver_only: het model doet niets, de tekst
+# gaat letterlijk naar Marc's WhatsApp. mirror_to_session: Hermes weet wat er gestuurd is als Marc antwoordt.
+platforms:
+  webhook:
+    enabled: true
+    extra:
+      host: 0.0.0.0
+      port: 8644
+      rate_limit: 30
+      routes:
+        marcos-bericht:
+          signature: generic
+          deliver: whatsapp
+          deliver_only: true
+          prompt: "{text}"
+          mirror_to_session: true

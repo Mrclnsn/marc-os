@@ -6,6 +6,7 @@
 #   bash scripts/cron.sh morning       pushmelding ochtendoverzicht (werkdagen 07:30)
 #   bash scripts/cron.sh deadlines     pushmelding deadlines (09:00)
 #   bash scripts/cron.sh blocks        herinneringen bij dagritmeblokken (elke 5 minuten; logt alleen als er iets verstuurd is)
+#   bash scripts/cron.sh routines      vaste routines van Hermes starten die aan de beurt zijn (elke 5 minuten; logt alleen als er iets start)
 #
 # Logboek: /opt/marc-os/logs/cron.log. Mislukt de back-up of de export, dan volgt een systeemmelding op je telefoon.
 set -uo pipefail
@@ -90,8 +91,14 @@ case "$JOB" in
     if ! echo "$out" | grep -q '"messages":0'; then log "$out"; fi
     ;;
 
+  routines)
+    out=$(notify routines)
+    # Elke 5 minuten: alleen loggen als er een routine start of het misgaat
+    if ! echo "$out" | grep -q '"started":\[\]'; then log "$out"; fi
+    ;;
+
   *)
-    echo "Gebruik: bash scripts/cron.sh backup|second-brain|morning|deadlines|blocks" >&2
+    echo "Gebruik: bash scripts/cron.sh backup|second-brain|morning|deadlines|blocks|routines" >&2
     exit 2
     ;;
 esac
