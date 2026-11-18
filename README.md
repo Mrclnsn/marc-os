@@ -11,6 +11,7 @@ Met een MCP-koppeling, zodat een AI-assistent (Claude) je kan helpen met de dagp
 |---|---|
 | **Vandaag** | Agenda, achterstallige taken, taken voor vandaag, komende 7 dagen en de briefing van vandaag. Filter op Zakelijk of Privé. |
 | **Planning** | Dag- en weekweergave met dagritme, agenda en taken in blokken (timeblocking): slepen op de Mac, "Plan in" op de telefoon. Dagritmes als sjablonen (werkdag, vrijdag, weekend) met vaste blokken en pushherinneringen; per dag een ander ritme of een vrije dag. Gewoontes met reeks en percentage per week en maand, af te vinken in de cockpit. |
+| **Gezondheid** | Apple Health via de iPhone-app Health Auto Export (POST naar `/api/health/import` met een eigen sleutel): stappen, beweegminuten, actieve energie, slaap, gewicht en voeding per dag, trainingen, weekoverzicht met doelen en trends van 8 weken. Trainingen ook met de hand. Gewoontes kunnen automatisch afgevinkt worden (bijv. bij een training of 8.000 stappen). |
 | **Inbox** | Braindump. Snel iets vastleggen en later omzetten naar een taak of notitie. |
 | **Taken** | Alle taken met filters: klantwerk, bedrijf algemeen, privé, per klant, zonder datum, afgerond. |
 | **Projecten** | Gegroepeerd in Klanten, Bedrijf algemeen en Privé, met voortgang. |

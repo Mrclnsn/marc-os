@@ -158,6 +158,29 @@ function habitFromForm(fd: FormData): data.HabitInput {
     weekdays: frequency === "days" ? days(fd) : [],
     blockId: s(fd, "blockId"),
     notes: s(fd, "notes"),
+    healthRule: healthRuleFromForm(fd),
+  };
+}
+
+/** Gezondheidsregel uit het formulier (gesprek 9); leeg = alleen met de hand afvinken. */
+function healthRuleFromForm(fd: FormData): data.HabitInput["healthRule"] {
+  const metric = s(fd, "healthMetric");
+  if (!metric) return null;
+  if (!["workout", "steps", "exercise", "active_energy", "sleep"].includes(metric)) throw new Error("Onbekende meting");
+  const num = (k: string) => {
+    const raw = s(fd, k);
+    if (raw === null) return null;
+    const v = Number(raw.replace(/\.(?=\d{3}\b)/g, "").replace(",", "."));
+    if (!Number.isFinite(v) || v < 0) throw new Error(`"${raw}" is geen getal.`);
+    return v;
+  };
+  const min = num("healthMin") ?? (metric === "workout" ? 1 : 0);
+  if (metric !== "workout" && min <= 0) throw new Error("Vul in hoeveel minstens nodig is.");
+  return {
+    metric: metric as "workout" | "steps" | "exercise" | "active_energy" | "sleep",
+    min,
+    kind: metric === "workout" ? s(fd, "healthKind") : null,
+    minMinutes: metric === "workout" && num("healthMinMinutes") !== null ? Math.round(num("healthMinMinutes")!) : null,
   };
 }
 

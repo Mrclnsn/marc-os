@@ -16,6 +16,7 @@ export * from "./filings";
 export * from "./brain";
 export * from "./rhythm";
 export * from "./habits";
+export * from "./health";
 export { searchKnowledge, searchStatus, syncEmbeddings, type SearchHit, type SearchResult } from "./search";
 
 /* ------------------------------------------------------------------ */

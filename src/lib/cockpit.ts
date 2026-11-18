@@ -2,6 +2,8 @@ import "server-only";
 import { calendarConfigured, getEvents, type CalendarEvent } from "./calendar";
 import { blockTaskTitles, currentAndNext, dayRhythms, freeWithin, type DayRhythm } from "./rhythm";
 import { habitSummary, listHabits } from "./habits";
+import { healthSnapshot } from "./health";
+import { fmtSleep } from "./health-shared";
 import { fmtMin, toMin } from "./rhythm-shared";
 import {
   completedBetween,
@@ -50,6 +52,8 @@ export type Timeline = {
   errors: string[];
 };
 
+
+const nf = new Intl.NumberFormat("nl-NL", { maximumFractionDigits: 0 });
 
 function nowMinutes(): number {
   const parts = new Intl.DateTimeFormat("nl-NL", { timeZone: TIMEZONE, hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date());
@@ -170,7 +174,13 @@ export async function getCockpit(area?: "zakelijk" | "prive"): Promise<Cockpit> 
     modules.aangiftes && work ? filingSignals() : none,
     modules.websites && work ? expiringDomains() : none,
   ]);
-  const [rhythmsByDay, habitList, blockTitles, blockTitlesTomorrow] = await Promise.all([dayRhythms([t, tomorrow]), listHabits(), blockTaskTitles(t), blockTaskTitles(tomorrow)]);
+  const [rhythmsByDay, habitList, blockTitles, blockTitlesTomorrow, health] = await Promise.all([
+    dayRhythms([t, tomorrow]),
+    listHabits(),
+    blockTaskTitles(t),
+    blockTaskTitles(tomorrow),
+    area === "zakelijk" ? Promise.resolve(null) : healthSnapshot(t),
+  ]);
   const dayToday = rhythmsByDay.get(t)!;
   const dayTomorrow = rhythmsByDay.get(tomorrow)!;
 
@@ -209,6 +219,26 @@ export async function getCockpit(area?: "zakelijk" | "prive"): Promise<Cockpit> 
     gewoontes: habitSum.total
       ? { key: "gewoontes", value: `${habitSum.done}/${habitSum.total}`, label: KPIS.gewoontes.label, sub: habitSum.weekPct !== null ? `${habitSum.weekPct}% deze week` : "vandaag", href: "#gewoontes", alert: false }
       : null,
+    sport:
+      health && (health.configured || health.week.workouts)
+        ? {
+            key: "sport",
+            value: `${health.week.sessions}/${health.week.goal}`,
+            label: KPIS.sport.label,
+            sub: health.today.workouts.length ? `vandaag: ${health.today.workouts.map((w) => w.name).join(", ")}` : health.week.sessions >= health.week.goal ? "weekdoel gehaald" : `nog ${health.week.goal - health.week.sessions} te gaan`,
+            href: "/gezondheid",
+          }
+        : null,
+    stappen:
+      health?.configured
+        ? {
+            key: "stappen",
+            value: health.today.values.steps != null ? nf.format(health.today.values.steps) : "–",
+            label: KPIS.stappen.label,
+            sub: health.yesterday.values.steps != null ? `gisteren ${nf.format(health.yesterday.values.steps)}` : "nog niets binnen",
+            href: "/gezondheid",
+          }
+        : null,
     uren: hours ? { key: "uren", value: formatDuration(hours.totalMin), label: KPIS.uren.label, sub: `${formatDuration(hours.billableMin)} declarabel`, href: "/uren" } : null,
     mrr: revenue ? { key: "mrr", value: formatEuroRound(revenue.mrrCents), label: KPIS.mrr.label, sub: `${revenue.activeRecurring} vaste afspraken`, href: "/afspraken" } : null,
     factureren: revenue ? { key: "factureren", value: revenue.ready.count, label: KPIS.factureren.label, sub: formatEuroRound(revenue.ready.cents), href: "/afspraken", alert: revenue.ready.count > 0 } : null,
@@ -234,6 +264,7 @@ export async function getCockpit(area?: "zakelijk" | "prive"): Promise<Cockpit> 
     });
   }
   for (const err of cal.errors) signals.push({ group: "Agenda", title: "Agenda niet geladen", detail: err, href: "/instellingen", level: "info" });
+  if (health?.stale) signals.push({ group: "Gezondheid", title: "Geen gegevens uit Apple Health", detail: `laatst ontvangen ${formatDate(new Intl.DateTimeFormat("en-CA", { timeZone: TIMEZONE }).format(health.lastReceived!))}; draait Health Auto Export nog?`, href: "/instellingen#apple-health", level: "info" });
   if (inbox >= 10) signals.push({ group: "Inbox", title: `${inbox} items in je inbox`, detail: "tijd om te verwerken", href: "/inbox", level: "info" });
 
   if (filings) {
@@ -344,6 +375,11 @@ export async function getCockpit(area?: "zakelijk" | "prive"): Promise<Cockpit> 
   if (alerts) parts.push(`${alerts} ${alerts === 1 ? "signaal vraagt" : "signalen vragen"} aandacht.`);
   if (inbox) parts.push(`${inbox} in je inbox.`);
   if (habitSum.open.length) parts.push(`Gewoontes nog te doen: ${habitSum.open.map((h) => h.title).join(", ")}.`);
+  if (health && (health.configured || health.week.workouts)) {
+    const w = health.week;
+    const sleep = health.today.sleep?.totalMin;
+    parts.push(`Sport deze week: ${w.sessions} van ${w.goal}${w.sessions >= w.goal ? ", doel gehaald" : ""}.${sleep ? ` Vannacht ${fmtSleep(sleep)} geslapen.` : ""}`);
+  }
 
   return {
     date: t,

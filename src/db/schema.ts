@@ -11,6 +11,7 @@ import {
   uniqueIndex,
   numeric,
   jsonb,
+  doublePrecision,
 } from "drizzle-orm/pg-core";
 
 export const areaEnum = pgEnum("area", ["zakelijk", "prive"]);
@@ -719,8 +720,21 @@ export const habits = pgTable("habits", {
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   sortOrder: integer("sort_order").notNull().default(0),
   notes: text("notes"),
+  /** Automatisch afvinken uit Apple Health (gesprek 9), bijv. {"metric":"workout","min":1}. Leeg = alleen met de hand. */
+  healthRule: jsonb("health_rule").$type<HealthRule | null>(),
   ...timestamps,
 });
+
+/** Regel om een gewoonte automatisch af te vinken uit gezondheidsdata. */
+export type HealthRule = {
+  /** workout = aantal trainingen, steps = stappen, exercise = beweegminuten, active_energy = actieve kcal, sleep = uren slaap */
+  metric: "workout" | "steps" | "exercise" | "active_energy" | "sleep";
+  /** Drempel: aantal trainingen, stappen, minuten, kcal of uren */
+  min: number;
+  /** Alleen bij workout: soort training (kracht, cardio, ...) en minimale duur in minuten */
+  kind?: string | null;
+  minMinutes?: number | null;
+};
 
 /** Eén keer afgevinkt op een dag. `source`: app, mcp, whatsapp, health (gesprek 9). */
 export const habitChecks = pgTable(
@@ -749,6 +763,85 @@ export const calendarFeeds = pgTable("calendar_feeds", {
   ...timestamps,
 });
 
+/* ------------------------------------------------------------------ */
+/* Gezondheid (gesprek 9): Apple Health via Health Auto Export          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Meetwaarde uit Apple Health (stappen, actieve energie, voeding, gewicht ...), omgerekend naar vaste eenheden
+ * (kcal, kg, g, ml, km, min). Per dag of per uur, zoals Health Auto Export het stuurt. Opnieuw sturen overschrijft.
+ */
+export const healthSamples = pgTable(
+  "health_samples",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    metric: text("metric").notNull(),
+    /** Lokale datum waar de waarde bij hoort */
+    date: date("date").notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull(),
+    qty: doublePrecision("qty").notNull(),
+    unit: text("unit").notNull(),
+    source: text("source").notNull().default(""),
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("health_samples_uq").on(t.metric, t.at), index("health_samples_date_idx").on(t.date, t.metric)],
+);
+
+/** Slaap per nacht (datum = de dag waarop je wakker wordt). Minuten. */
+export const healthSleep = pgTable("health_sleep", {
+  date: date("date").primaryKey(),
+  totalMin: integer("total_min").notNull(),
+  deepMin: integer("deep_min"),
+  remMin: integer("rem_min"),
+  coreMin: integer("core_min"),
+  awakeMin: integer("awake_min"),
+  inBedMin: integer("in_bed_min"),
+  sleepStart: timestamp("sleep_start", { withTimezone: true }),
+  sleepEnd: timestamp("sleep_end", { withTimezone: true }),
+  source: text("source"),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Training: uit Apple Health (source health) of met de hand in de app (source app/mcp). */
+export const healthWorkouts = pgTable(
+  "health_workouts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Id uit Health Auto Export (of naam + start); leeg bij handmatig */
+    externalId: text("external_id"),
+    name: text("name").notNull(),
+    /** kracht, cardio, hardlopen, fietsen, wandelen, zwemmen, yoga, sport, overig */
+    kind: text("kind").notNull().default("overig"),
+    date: date("date").notNull(),
+    startAt: timestamp("start_at", { withTimezone: true }),
+    durationMin: integer("duration_min").notNull(),
+    activeKcal: integer("active_kcal"),
+    distanceKm: doublePrecision("distance_km"),
+    avgHr: integer("avg_hr"),
+    maxHr: integer("max_hr"),
+    source: text("source").notNull().default("health"),
+    /** App die de training vastlegde (bijv. Virtuagym, Apple Watch) */
+    device: text("device"),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("health_workouts_external_uq").on(t.externalId), index("health_workouts_date_idx").on(t.date)],
+);
+
+/** Logboek van ontvangen zendingen, voor de status op Instellingen. */
+export const healthImports = pgTable("health_imports", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+  samples: integer("samples").notNull().default(0),
+  workouts: integer("workouts").notNull().default(0),
+  sleep: integer("sleep").notNull().default(0),
+  fromDate: date("from_date"),
+  toDate: date("to_date"),
+  /** Namen van metingen die niet herkend zijn (genegeerd) */
+  skipped: text("skipped").array().notNull().default([]),
+  error: text("error"),
+});
+
 export type Client = typeof clients.$inferSelect;
 export type ClientContact = typeof clientContacts.$inferSelect;
 export type Website = typeof websites.$inferSelect;
@@ -772,4 +865,7 @@ export type RhythmBlock = typeof rhythmBlocks.$inferSelect;
 export type Habit = typeof habits.$inferSelect;
 export type HabitCheck = typeof habitChecks.$inferSelect;
 export type CalendarFeed = typeof calendarFeeds.$inferSelect;
+export type HealthWorkout = typeof healthWorkouts.$inferSelect;
+export type HealthSleep = typeof healthSleep.$inferSelect;
+export type HealthImport = typeof healthImports.$inferSelect;
 export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;

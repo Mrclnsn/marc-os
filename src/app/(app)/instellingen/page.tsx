@@ -9,11 +9,13 @@ import { AddFeedForm, FeedItem } from "@/components/calendar-parts";
 import { searchStatus } from "@/lib/data";
 import { syncSearchIndexAction } from "../../actions";
 import { PushPrefSwitch, PushThisDevice, RemoveDeviceButton } from "@/components/push-settings";
+import { HealthTokenBox } from "@/components/health-parts";
+import { getHealthToken, listHealthImports } from "@/lib/health";
 import { PUSH_KIND_KEYS, PUSH_KINDS, getPushPrefs, lastBackupPull, listBackups, listDevices, vapidPublicKey } from "@/lib/push";
 import { COCKPIT_COOKIE, KPI_KEYS, KPIS, MODULE_KEYS, MODULES, THEME_COOKIE, getHiddenKpis, getModules, parseCockpitStyle, parseTheme } from "@/lib/settings";
 
 export default async function SettingsPage() {
-  const [modules, hidden, brain, devices, pushPrefs, publicKey, pull, feeds] = await Promise.all([
+  const [modules, hidden, brain, devices, pushPrefs, publicKey, pull, feeds, healthToken, healthImports] = await Promise.all([
     getModules(),
     getHiddenKpis(),
     searchStatus(),
@@ -22,6 +24,8 @@ export default async function SettingsPage() {
     vapidPublicKey(),
     lastBackupPull(),
     listCalendarFeeds(),
+    getHealthToken(),
+    listHealthImports(8),
   ]);
   const backups = listBackups();
   const host = process.env.DOMAIN ?? (await headers()).get("host") ?? "os.marclonsain.nl";
@@ -182,6 +186,50 @@ export default async function SettingsPage() {
             </div>
             {backups.length > 0 && <a href="/api/export/backup" className="btn">Download nieuwste</a>}
           </div>
+        </div>
+      </section>
+
+      <section id="apple-health" className="scroll-mt-8 space-y-3">
+        <SectionTitle aside={<span className="text-xs text-steen">{healthImports[0] ? `laatst ${fmt(healthImports[0].receivedAt.toISOString())}` : "nog niets ontvangen"}</span>}>Apple Health</SectionTitle>
+        <div className="card space-y-4 p-4 text-sm">
+          <p className="text-grafiet">
+            Apple Health heeft geen koppeling via internet. De iPhone-app <strong>Health Auto Export</strong> stuurt je gegevens rechtstreeks van je telefoon naar Marc OS (geen account, geen tussenpartij). Voor automatisch versturen is Premium nodig in die app.
+            Deze sleutel kan alleen gezondheidsdata aanleveren, niets lezen.
+          </p>
+          <HealthTokenBox url={`https://${host}/api/health/import`} token={healthToken} />
+          <details>
+            <summary className="cursor-pointer text-steen hover:text-nacht">Zo stel je Health Auto Export in</summary>
+            <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-grafiet">
+              <li>Installeer Health Auto Export op je iPhone, geef toegang tot Gezondheid en neem Premium (abonnement of eenmalig).</li>
+              <li>Ga naar Automations, maak een nieuwe automatisering van het type <strong>REST API</strong> en plak de URL hierboven.</li>
+              <li>Voeg bij Headers toe: sleutel <code className="chip">Authorization</code>, waarde <code className="chip">Bearer …</code> (knop &quot;Kopieer waarde&quot;).</li>
+              <li>
+                Data type <strong>Health Metrics</strong>, en kies: Step Count, Active Energy, Apple Exercise Time, Walking + Running Distance, Resting Heart Rate, Weight &amp; Body Mass, Body Fat Percentage, Sleep Analysis,
+                Dietary Energy, Protein, Carbohydrates, Total Fat, Fiber en Water.
+              </li>
+              <li>Formaat <strong>JSON</strong>, gegevens samenvoegen (Aggregate) per <strong>dag</strong>, periode bijvoorbeeld de laatste 7 dagen. Opnieuw sturen is veilig: alles wordt overschreven, niets telt dubbel.</li>
+              <li>Maak een tweede automatisering met dezelfde URL en header voor <strong>Workouts</strong>.</li>
+              <li>Laat ze elke paar uur draaien (Sync Cadence) en stuur één keer met de hand de laatste 90 dagen voor de weektrends.</li>
+              <li>Trainingen van Virtuagym en voeding van Foodvisor komen alleen mee als die apps naar Apple Health schrijven: zet dat aan in hun instellingen en kijk in de Gezondheid-app of ze er staan. Komt een training niet door, voeg hem dan toe op de pagina Gezondheid.</li>
+            </ol>
+          </details>
+          {healthImports.length > 0 && (
+            <div>
+              <p className="label">Laatste zendingen</p>
+              <ul className="divide-y divide-lijn text-xs">
+                {healthImports.map((i) => (
+                  <li key={i.id} className="flex flex-wrap justify-between gap-x-4 py-1.5">
+                    <span className="text-grafiet">{fmt(i.receivedAt.toISOString())}</span>
+                    <span className="text-steen">
+                      {i.error
+                        ? `Mislukt: ${i.error}`
+                        : `${i.samples} ${i.samples === 1 ? "meting" : "metingen"}, ${i.workouts} ${i.workouts === 1 ? "training" : "trainingen"}, ${i.sleep} ${i.sleep === 1 ? "nacht" : "nachten"}${i.fromDate ? ` (${i.fromDate === i.toDate ? i.fromDate : `${i.fromDate} t/m ${i.toDate}`})` : ""}${i.skipped.length ? ` · genegeerd: ${i.skipped.join(", ")}` : ""}`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </section>
 

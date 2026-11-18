@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { archiveHabitAction, createHabitAction, deleteHabitAction, toggleHabitAction, updateHabitAction, type ActionResult } from "@/app/leven-actions";
 import { HABIT_FREQUENCIES, WEEKDAYS, type Weekday } from "@/lib/rhythm-shared";
+import { HEALTH_RULE_METRICS, WORKOUT_KINDS, type HealthRuleMetric } from "@/lib/health-shared";
 
 /* ---------------- Afvinken (cockpit en gewoontepagina) ---------------- */
 
@@ -98,7 +99,8 @@ export function FormMessage({ state }: { state: ActionResult | null }) {
   return <p className={`text-sm ${state.ok ? "text-steen" : "font-bold text-nacht"}`} role="status">{state.ok ? state.message : state.error}</p>;
 }
 
-type HabitValues = { title?: string; area?: string; frequency?: string; timesPerWeek?: number | null; weekdays?: number[]; blockId?: string | null; notes?: string | null };
+type HealthRuleValues = { metric: HealthRuleMetric; min: number; kind?: string | null; minMinutes?: number | null } | null;
+type HabitValues = { title?: string; area?: string; frequency?: string; timesPerWeek?: number | null; weekdays?: number[]; blockId?: string | null; notes?: string | null; healthRule?: HealthRuleValues };
 
 export function HabitForm({ habit, id, blocks, onDone }: { habit?: HabitValues; id?: string; blocks: BlockOption[]; onDone?: () => void }) {
   const action = id ? updateHabitAction.bind(null, id) : createHabitAction;
@@ -158,11 +160,61 @@ export function HabitForm({ habit, id, blocks, onDone }: { habit?: HabitValues; 
           </select>
         </label>
       </div>
+      <HealthRuleFields rule={habit?.healthRule ?? null} />
       <div className="flex flex-wrap items-center gap-3">
         <button className="btn-primary" disabled={pending}>{id ? "Opslaan" : "Toevoegen"}</button>
         <FormMessage state={state} />
       </div>
     </form>
+  );
+}
+
+/** Automatisch afvinken uit Apple Health (gesprek 9). */
+function HealthRuleFields({ rule }: { rule: HealthRuleValues }) {
+  const [metric, setMetric] = useState<string>(rule?.metric ?? "");
+  const defaults: Record<string, number> = { workout: 1, steps: 8000, exercise: 30, active_energy: 400, sleep: 7 };
+  return (
+    <fieldset className="grid gap-3 sm:grid-cols-4">
+      <label className="block">
+        <span className="label">Automatisch afvinken</span>
+        <select name="healthMetric" value={metric} onChange={(e) => setMetric(e.target.value)} className="input w-full">
+          <option value="">Nee, alleen met de hand</option>
+          {Object.entries(HEALTH_RULE_METRICS).map(([k, m]) => (
+            <option key={k} value={k}>Bij {m.label.toLowerCase()} (Apple Health)</option>
+          ))}
+        </select>
+      </label>
+      {metric && (
+        <label className="block">
+          <span className="label">{metric === "workout" ? "Aantal trainingen" : `Minstens (${HEALTH_RULE_METRICS[metric as HealthRuleMetric].unit})`}</span>
+          <input
+            key={metric}
+            name="healthMin"
+            inputMode="decimal"
+            defaultValue={String(rule?.metric === metric ? rule.min : defaults[metric]).replace(".", ",")}
+            className="input w-full"
+          />
+        </label>
+      )}
+      {metric === "workout" && (
+        <>
+          <label className="block">
+            <span className="label">Soort training</span>
+            <select name="healthKind" defaultValue={rule?.kind ?? ""} className="input w-full">
+              <option value="">Elke sportsessie</option>
+              {Object.entries(WORKOUT_KINDS).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="label">Minimaal minuten</span>
+            <input name="healthMinMinutes" inputMode="numeric" defaultValue={rule?.minMinutes ?? ""} placeholder="10" className="input w-full" />
+          </label>
+        </>
+      )}
+      {metric && <p className="text-xs text-steen sm:col-span-4">Haal je het, dan vinkt Marc OS de gewoonte vanzelf af zodra de gegevens binnen zijn (ook de laatste 28 dagen). Met de hand afvinken blijft altijd kunnen.</p>}
+    </fieldset>
   );
 }
 

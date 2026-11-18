@@ -10,6 +10,7 @@ type Item = { href: string; label: string; module?: ModuleKey };
 const items: Item[] = [
   { href: "/", label: "Vandaag" },
   { href: "/planning", label: "Planning" },
+  { href: "/gezondheid", label: "Gezondheid" },
   { href: "/inbox", label: "Inbox" },
   { href: "/taken", label: "Taken" },
   { href: "/projecten", label: "Projecten" },

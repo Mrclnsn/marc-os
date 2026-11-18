@@ -77,6 +77,7 @@ function slimHabit(h: data.HabitStats) {
     week: h.week,
     month: h.month,
     archived: !!h.archivedAt,
+    autoFromHealth: h.healthRule ?? undefined,
   };
 }
 
@@ -215,6 +216,7 @@ const INSTRUCTION_LINES: { text: string; module?: ModuleKey }[] = [
   { text: "- planDate = wanneer Marc het wil doen; dueDate = deadline." },
   { text: "- Dagritme en planning: elke dag heeft een dagritme (werkdag, vrijdag, weekend ...) met vaste blokken (dagstart, diep werk, administratie, sport, pauze, dagafsluiting). Taken plan je met plan_task op een dag en in een blok (timeblocking), eventueel op een tijd. get_day_plan geeft per blok de taken, de beschikbare werktijd en wat ingeschat is; get_week_plan de hele week plus taken zonder plek. Een voorstel voor de dagindeling (ochtendbriefing) zet zware taken in diep werk, klein werk in klantwerk of administratie, en past binnen de tijd van het blok (estimateMin). Verplaats taken alleen als Marc daarom vraagt of het voorstel goedkeurt." },
   { text: "- Gewoontes: list_habits geeft per gewoonte of hij vandaag moet, of hij gedaan is, de reeks en het percentage van week en maand. Vink af met check_habit (op naam mag: \"sport\"). Noem in de briefing en dagafsluiting welke gewoontes nog open staan; in de weekreview de reeksen en percentages." },
+  { text: "- Gezondheid: Apple Health komt dagelijks binnen (stappen, beweegminuten, actieve energie, slaap, gewicht, voeding met eiwit/koolhydraten/vet, en trainingen). get_health geeft per dag de waarden en per week de sportsessies tegenover het doel (training van minstens 10 minuten, geen wandeling), gemiddelden en gewicht; met weeks ook de trend. Noem in de briefing kort de slaap van vannacht en de sportsessies van deze week; in de weekreview sport, stappen, slaap en gewicht tegenover de doelen (\"drie trainingen deze week, doel is vier\"). Een training die niet via Apple Health binnenkomt, leg je vast met log_workout als Marc dat vraagt. Gewoontes kunnen een healthRule hebben: die worden automatisch afgevinkt (bron health). Geef geen medisch advies; benoem alleen wat de cijfers laten zien." },
   { text: "- Klanten hebben een dossier (get_client) met contactpersonen, vaste informatie, projecten, taken en notities. Sla nooit wachtwoorden op; vaultRef is alleen een verwijzing." },
   { text: "- Uitgebreid dossier: ook registratie (KvK, btw), adressen, facturatie, verwerkersovereenkomst, tags en documentlinks (add_document).", module: "dossier" },
   { text: "- Websites zijn eigen objecten per klant met domein, registrar, verloopdatum en of hosting en beheer door Marc gebeuren (list_websites).", module: "websites" },
@@ -267,7 +269,7 @@ export function buildServer(modules: Modules) {
     },
     async ({ date }) => {
       const t = date ?? today();
-      const [dayPlan, habitList] = await Promise.all([data.getDayPlan(t), data.listHabits({ date: t })]);
+      const [dayPlan, habitList, health] = await Promise.all([data.getDayPlan(t), data.listHabits({ date: t }), data.healthSnapshot(t)]);
       const [todayTasks, upcoming, inbox, projects, doneYesterday, cal, lastReviews] = await Promise.all([
         data.listTasks({ view: "today" }),
         data.listTasks({ view: "upcoming", days: 7 }),
@@ -307,6 +309,17 @@ export function buildServer(modules: Modules) {
           blocks: dayPlan.blocksPlanned.map((b) => ({ id: b.id, title: b.title, kind: b.kind, start: b.startTime, end: b.endTime, current: b.current, past: b.past, tasks: b.tasks.filter((x) => x.status !== "done").map((x) => x.title) })),
         },
         habitsToday: habitList.filter((h) => h.dueToday || h.doneToday).map((h) => ({ id: h.id, title: h.title, done: h.doneToday, streak: streakText(h.streak, h.streakUnit), weekPct: h.week.pct })),
+        health:
+          health.configured || health.week.workouts
+            ? {
+                lastReceived: health.lastReceived,
+                noRecentData: health.stale,
+                sleepLastNight: health.today.sleep ? { totalMin: health.today.sleep.totalMin } : null,
+                today: data.slimHealthDay(health.today),
+                yesterday: data.slimHealthDay(health.yesterday),
+                thisWeek: { sessions: health.week.sessions, sessionGoal: health.week.goal, workouts: health.week.workouts, avgSteps: health.week.avgSteps == null ? null : Math.round(health.week.avgSteps), avgSleepMin: health.week.avgSleepMin == null ? null : Math.round(health.week.avgSleepMin) },
+              }
+            : "Nog geen gezondheidsdata (Health Auto Export niet ingesteld)",
         expiringDomains: domains?.map((r) => ({ domain: r.website.domain, client: r.clientName, expiresAt: r.website.domainExpiresAt })),
         revenue: revenue ? { mrrCents: revenue.mrrCents, readyToInvoice: revenue.ready, invoicedUnpaid: revenue.invoicedOpen } : undefined,
         readyToInvoice: money?.ready.map((i) => ({ id: i.id, client: i.clientName, description: i.description, amountCents: i.amountCents })),
@@ -1670,6 +1683,16 @@ export function buildServer(modules: Modules) {
         timesPerWeek: z.number().int().min(1).max(7).optional(),
         weekdays: z.array(z.number().int().min(1).max(7)).optional(),
         blockId: z.string().uuid().nullable().optional(),
+        healthRule: z
+          .object({
+            metric: z.enum(["workout", "steps", "exercise", "active_energy", "sleep"]),
+            min: z.number().min(0).describe("Aantal trainingen, stappen, minuten, kcal of uren slaap"),
+            kind: z.enum(["kracht", "cardio", "hardlopen", "fietsen", "wandelen", "zwemmen", "yoga", "sport", "overig"]).nullable().optional(),
+            minMinutes: z.number().int().min(0).nullable().optional(),
+          })
+          .nullable()
+          .optional()
+          .describe("Automatisch afvinken uit Apple Health, bijv. {metric:\"workout\",min:1} of {metric:\"steps\",min:8000}; null = alleen met de hand"),
       },
     },
     async (input) => json(await data.createHabit(input)),
@@ -1688,6 +1711,16 @@ export function buildServer(modules: Modules) {
         timesPerWeek: z.number().int().min(1).max(7).nullable().optional(),
         weekdays: z.array(z.number().int().min(1).max(7)).optional(),
         blockId: z.string().uuid().nullable().optional(),
+        healthRule: z
+          .object({
+            metric: z.enum(["workout", "steps", "exercise", "active_energy", "sleep"]),
+            min: z.number().min(0).describe("Aantal trainingen, stappen, minuten, kcal of uren slaap"),
+            kind: z.enum(["kracht", "cardio", "hardlopen", "fietsen", "wandelen", "zwemmen", "yoga", "sport", "overig"]).nullable().optional(),
+            minMinutes: z.number().int().min(0).nullable().optional(),
+          })
+          .nullable()
+          .optional()
+          .describe("Automatisch afvinken uit Apple Health, bijv. {metric:\"workout\",min:1} of {metric:\"steps\",min:8000}; null = alleen met de hand"),
         archived: z.boolean().optional(),
       },
     },
@@ -1696,6 +1729,98 @@ export function buildServer(modules: Modules) {
       if (archived !== undefined) await data.archiveHabit(id, archived);
       return json(slimHabit((await data.listHabits({ includeArchived: true })).find((x) => x.id === id)!));
     },
+  );
+
+  /* ---- Gezondheid (gesprek 9) ---- */
+
+  server.registerTool(
+    "get_health",
+    {
+      title: "Gezondheid",
+      description:
+        "Gezondheidsdata uit Apple Health (en met de hand vastgelegde trainingen). Standaard deze week: per dag stappen, beweegminuten, actieve kcal, afstand, rusthartslag, gewicht, voeding (kcal, eiwit, koolhydraten, vet, vezels, water), slaap en trainingen; plus de weektotalen tegenover de doelen. date = een dag in de gewenste week. weeks (2-26) voegt de trend van de laatste weken toe (sportsessies, gem. stappen, gem. slaap, gewicht, gem. kcal).",
+      inputSchema: { date: isoDate.optional(), weeks: z.number().int().min(2).max(26).optional() },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ date, weeks }) => {
+      const t = date ?? today();
+      const [week, last, trend] = await Promise.all([data.healthWeek(t), data.lastHealthImport(), weeks ? data.healthTrend(weeks, t) : Promise.resolve(null)]);
+      const r = (x: number | null, d = 0) => (x == null ? null : Math.round(x * 10 ** d) / 10 ** d);
+      return json({
+        lastReceived: last?.receivedAt ?? null,
+        week: { start: week.start, end: week.end },
+        goals: week.goals,
+        totals: {
+          sessions: week.sessions,
+          sessionGoal: week.goals.sessionsPerWeek,
+          workouts: week.workouts,
+          workoutMinutes: week.workoutMin,
+          avgSteps: r(week.avgSteps),
+          daysStepGoalMet: week.daysStepGoal,
+          avgExerciseMin: r(week.avgExercise),
+          avgSleepMin: r(week.avgSleepMin),
+          nightsSleepGoalMet: week.daysSleepGoal,
+          avgIntakeKcal: r(week.avgIntake),
+          avgProteinG: r(week.avgProtein),
+          activeKcal: r(week.activeKcal),
+          distanceKm: r(week.distanceKm, 1),
+          weightKg: r(week.weight, 1),
+          weightChangeKg: r(week.weightChange, 1),
+          note: "Gemiddelden van stappen, beweging en voeding tellen alleen afgelopen dagen (vandaag nog niet).",
+        },
+        days: week.days.filter((d) => d.date <= today()).map(data.slimHealthDay),
+        trend: trend?.map((w) => ({ weekStart: w.start, sessions: w.sessions, avgSteps: r(w.avgSteps), avgSleepMin: r(w.avgSleepMin), avgIntakeKcal: r(w.avgIntake), weightKg: r(w.weight, 1) })),
+      });
+    },
+  );
+
+  server.registerTool(
+    "log_workout",
+    {
+      title: "Training vastleggen",
+      description: "Training vastleggen die niet via Apple Health binnenkomt (bijv. \"45 minuten kracht gedaan\"). kind wordt anders uit de naam geraden. Werkt gewoontes met een gezondheidsregel direct bij. Alleen als Marc zegt dat hij getraind heeft; controleer eerst met get_health of de training er al staat.",
+      inputSchema: {
+        name: z.string().min(1).describe("Bijv. Krachttraining, Hardlopen"),
+        kind: z.enum(["kracht", "cardio", "hardlopen", "fietsen", "wandelen", "zwemmen", "yoga", "sport", "overig"]).optional(),
+        date: isoDate.optional().describe("Standaard vandaag"),
+        time: z.string().regex(/^\d{2}:\d{2}$/).optional().describe("Begintijd HH:mm"),
+        durationMin: z.number().int().min(1).max(1440),
+        activeKcal: z.number().int().min(0).optional(),
+        distanceKm: z.number().min(0).optional(),
+        notes: z.string().optional(),
+        source: z.enum(["mcp", "whatsapp"]).optional(),
+      },
+    },
+    async ({ date, source, ...rest }) => json(await data.addWorkout({ ...rest, date: date ?? today(), source: source ?? "mcp" })),
+  );
+
+  server.registerTool(
+    "delete_workout",
+    {
+      title: "Training verwijderen",
+      description: "Verwijder een training (id uit get_health). Een training uit Apple Health komt terug bij de volgende zending als hij daar nog staat. Alleen op verzoek van Marc.",
+      inputSchema: { id: z.string().uuid() },
+      annotations: { destructiveHint: true },
+    },
+    async ({ id }) => json({ deleted: !!(await data.deleteWorkout(id)) }),
+  );
+
+  server.registerTool(
+    "set_health_goals",
+    {
+      title: "Gezondheidsdoelen instellen",
+      description: "Doelen voor de weekweergave en de cockpit: sportsessies per week, stappen per dag, beweegminuten per dag, uren slaap, en optioneel kcal en eiwit per dag en een streefgewicht (null = geen doel). Alleen op verzoek van Marc.",
+      inputSchema: {
+        sessionsPerWeek: z.number().int().min(0).max(21).optional(),
+        stepsPerDay: z.number().int().min(0).optional(),
+        exercisePerDay: z.number().int().min(0).optional(),
+        sleepHours: z.number().min(0).max(14).optional(),
+        kcalPerDay: z.number().int().min(0).nullable().optional(),
+        proteinPerDay: z.number().int().min(0).nullable().optional(),
+        weightKg: z.number().min(20).max(400).nullable().optional(),
+      },
+    },
+    async (patch) => json(await data.setHealthGoals(patch)),
   );
 
   /* ---- Agenda en reviews ---- */

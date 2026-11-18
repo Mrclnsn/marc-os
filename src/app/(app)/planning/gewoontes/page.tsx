@@ -3,6 +3,7 @@ import { PlanningTabs } from "@/components/planning-nav";
 import { HabitAdmin, HabitCheckList, HabitForm, HabitHistory } from "@/components/habit-parts";
 import { listHabits, listRhythms } from "@/lib/data";
 import { today } from "@/lib/dates";
+import { healthRuleLabel } from "@/lib/health-shared";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,7 @@ export default async function HabitsPage() {
                     <p className="text-xs text-steen">
                       {h.frequencyLabel} · {h.area === "prive" ? "privé" : "zakelijk"}
                       {h.blockTitle ? ` · bij ${h.blockTitle} (${h.blockStart})` : ""}
+                      {h.healthRule ? ` · automatisch ${healthRuleLabel(h.healthRule)}` : ""}
                     </p>
                   </div>
                   <dl className="grid grid-cols-3 gap-x-6 text-center">
@@ -70,7 +72,7 @@ export default async function HabitsPage() {
                 <details>
                   <summary className="cursor-pointer text-xs text-steen hover:text-nacht">Bewerken</summary>
                   <div className="mt-3 space-y-3">
-                    <HabitForm id={h.id} blocks={blocks} habit={{ title: h.title, area: h.area, frequency: h.frequency, timesPerWeek: h.timesPerWeek, weekdays: h.weekdays, blockId: h.blockId, notes: h.notes }} />
+                    <HabitForm id={h.id} blocks={blocks} habit={{ title: h.title, area: h.area, frequency: h.frequency, timesPerWeek: h.timesPerWeek, weekdays: h.weekdays, blockId: h.blockId, notes: h.notes, healthRule: h.healthRule }} />
                     <HabitAdmin id={h.id} archived={false} title={h.title} />
                   </div>
                 </details>

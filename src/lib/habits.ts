@@ -32,6 +32,16 @@ export const habitInput = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   sortOrder: z.number().int().optional(),
   notes: z.string().nullable().optional(),
+  /** Automatisch afvinken uit Apple Health (gesprek 9); null = alleen met de hand */
+  healthRule: z
+    .object({
+      metric: z.enum(["workout", "steps", "exercise", "active_energy", "sleep"]),
+      min: z.number().min(0),
+      kind: z.string().nullable().optional(),
+      minMinutes: z.number().int().min(0).nullable().optional(),
+    })
+    .nullable()
+    .optional(),
 });
 export type HabitInput = z.infer<typeof habitInput>;
 
@@ -48,6 +58,7 @@ export async function createHabit(input: HabitInput) {
     .insert(habits)
     .values({ ...data, ...merged, weekdays: [...new Set(merged.weekdays)].sort(), startDate: data.startDate ?? today() })
     .returning();
+  if (row.healthRule) await reapplyHealth(row.id);
   return row;
 }
 
@@ -58,7 +69,17 @@ export async function updateHabit(id: string, patch: Partial<HabitInput>) {
   validate({ frequency: data.frequency ?? cur.frequency, timesPerWeek: data.timesPerWeek !== undefined ? data.timesPerWeek : cur.timesPerWeek, weekdays: data.weekdays ?? cur.weekdays });
   if (data.weekdays) data.weekdays = [...new Set(data.weekdays)].sort();
   const [row] = await db.update(habits).set(data).where(eq(habits.id, id)).returning();
+  if (data.healthRule !== undefined) await reapplyHealth(id);
   return row;
+}
+
+/**
+ * Na het instellen of wijzigen van een gezondheidsregel de laatste 28 dagen opnieuw bekijken.
+ * Zonder regel blijven eerdere automatische vinkjes staan (ze waren terecht).
+ */
+async function reapplyHealth(id: string) {
+  const { applyHealthRules } = await import("./health");
+  await applyHealthRules({ habitId: id });
 }
 
 /** Stoppen met een gewoonte: verdwijnt uit de cockpit, de historie blijft. */

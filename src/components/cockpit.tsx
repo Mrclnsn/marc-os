@@ -57,7 +57,7 @@ export function GoalBar({ goal }: { goal: Goal }) {
 
 /* ---------------- KPI-tegels ---------------- */
 
-export function KpiTiles({ kpis }: { kpis: Kpi[] }) {
+export function KpiTiles({ kpis }: { kpis: Tile[] }) {
   if (!kpis.length) return null;
   // Zo min mogelijk losse tegels op de laatste rij
   const n = kpis.length;
@@ -71,7 +71,10 @@ export function KpiTiles({ kpis }: { kpis: Kpi[] }) {
   );
 }
 
-function KpiTile({ k }: { k: Kpi }) {
+/** Tegel: een KPI van Vandaag of een eigen tegel (bijv. op Gezondheid). */
+export type Tile = Omit<Kpi, "key"> & { key: string };
+
+function KpiTile({ k }: { k: Tile }) {
   const inner = (
     <>
       <span aria-hidden className={`accent absolute left-0 top-0 h-[3px] bg-nacht ${k.alert ? "w-full" : "w-10"}`} />
