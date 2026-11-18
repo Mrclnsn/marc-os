@@ -50,3 +50,7 @@ backups/
 .local-pg/
 .local-pg-seeded
 .local-seeded
+
+# VPS: logboeken en nachtelijke Obsidian-export
+logs/
+obsidian/

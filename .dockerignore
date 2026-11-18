@@ -6,3 +6,7 @@ node_modules
 !.env.example
 backups
 tsconfig.tsbuildinfo
+logs
+obsidian
+.local-pg
+.local-db

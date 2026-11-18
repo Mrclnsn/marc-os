@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { PageHeader, SectionTitle } from "@/components/brand";
 import { KpiSwitch, ModuleSwitch } from "@/components/settings-parts";
@@ -7,10 +7,24 @@ import { CockpitStyleSwitch } from "@/components/cockpit-client";
 import { calendarConfigured } from "@/lib/calendar";
 import { searchStatus } from "@/lib/data";
 import { syncSearchIndexAction } from "../../actions";
+import { PushPrefSwitch, PushThisDevice, RemoveDeviceButton } from "@/components/push-settings";
+import { PUSH_KIND_KEYS, PUSH_KINDS, getPushPrefs, lastBackupPull, listBackups, listDevices, vapidPublicKey } from "@/lib/push";
 import { COCKPIT_COOKIE, KPI_KEYS, KPIS, MODULE_KEYS, MODULES, THEME_COOKIE, getHiddenKpis, getModules, parseCockpitStyle, parseTheme } from "@/lib/settings";
 
 export default async function SettingsPage() {
-  const [modules, hidden, brain] = await Promise.all([getModules(), getHiddenKpis(), searchStatus()]);
+  const [modules, hidden, brain, devices, pushPrefs, publicKey, pull] = await Promise.all([
+    getModules(),
+    getHiddenKpis(),
+    searchStatus(),
+    listDevices(),
+    getPushPrefs(),
+    vapidPublicKey(),
+    lastBackupPull(),
+  ]);
+  const backups = listBackups();
+  const host = process.env.DOMAIN ?? (await headers()).get("host") ?? "os.marclonsain.nl";
+  const mcpUrl = process.env.MCP_TOKEN ? `https://${host}/api/mcp/${process.env.MCP_TOKEN}` : null;
+  const fmt = (iso: string) => new Intl.DateTimeFormat("nl-NL", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Amsterdam" }).format(new Date(iso));
   const store = await cookies();
   const theme = parseTheme(store.get(THEME_COOKIE)?.value);
   const cockpitStyle = parseCockpitStyle(store.get(COCKPIT_COOKIE)?.value);
@@ -100,6 +114,88 @@ export default async function SettingsPage() {
             </div>
             <a href="/api/export/obsidian" className="btn">Download zip</a>
           </div>
+        </div>
+      </section>
+
+      <section id="push" className="scroll-mt-8 space-y-3">
+        <SectionTitle aside={<span className="text-xs text-steen">{devices.length} {devices.length === 1 ? "apparaat" : "apparaten"}</span>}>Pushmeldingen</SectionTitle>
+        <div className="card divide-y divide-lijn">
+          <PushThisDevice publicKey={publicKey} knownEndpoints={devices.map((d) => d.endpoint)} />
+          {devices.length > 0 && (
+            <ul className="divide-y divide-lijn">
+              {devices.map((d) => (
+                <li key={d.id} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+                  <div className="min-w-0">
+                    <p className="text-grafiet">{d.label}</p>
+                    <p className="text-xs text-steen">
+                      Aangemeld {fmt(d.createdAt.toISOString())}
+                      {d.lastSuccessAt ? ` · laatste melding ${fmt(d.lastSuccessAt.toISOString())}` : ""}
+                      {d.lastError ? ` · fout: ${d.lastError}` : ""}
+                    </p>
+                  </div>
+                  <RemoveDeviceButton id={d.id} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <ul className="card divide-y divide-lijn">
+          {PUSH_KIND_KEYS.map((k) => (
+            <li key={k} className="flex items-start justify-between gap-4 p-4">
+              <div className="min-w-0">
+                <p className="font-bold text-nacht">{PUSH_KINDS[k].label}</p>
+                <p className="text-sm text-grafiet">{PUSH_KINDS[k].description}</p>
+              </div>
+              <PushPrefSwitch kind={k} on={pushPrefs[k]} label={PUSH_KINDS[k].label} />
+            </li>
+          ))}
+        </ul>
+        <p className="text-xs text-steen">Herinneringen bij het begin van een dagritmeblok komen erbij met het dagritme.</p>
+      </section>
+
+      <section id="backups" className="scroll-mt-8 space-y-3">
+        <SectionTitle>Back-ups</SectionTitle>
+        <div className="card divide-y divide-lijn">
+          <div className="p-4">
+            <p className="font-bold text-nacht">Op de VPS</p>
+            {backups.length ? (
+              <p className="text-sm text-grafiet">
+                Laatste back-up: {fmt(backups[0].modified)} ({Math.max(1, Math.round(backups[0].bytes / 1024))} kB). {backups.length} bewaard (30 dagen). Elke nacht om 03:15, versleuteld (AES-256).
+              </p>
+            ) : (
+              <p className="text-sm text-grafiet">Nog geen back-ups gevonden. Op de VPS draait elke nacht om 03:15 een versleutelde back-up; lokaal is er geen.</p>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-4 p-4">
+            <div className="max-w-2xl">
+              <p className="font-bold text-nacht">Buiten de VPS (Mac)</p>
+              <p className="text-sm text-grafiet">
+                {pull ? `Laatst opgehaald door de Mac: ${fmt(pull.at)} (${pull.file}).` : "De Mac heeft nog geen back-up opgehaald."} Na 3 dagen zonder ophalen krijg je een systeemmelding.
+              </p>
+              <p className="mt-1 text-xs text-steen">
+                Installeren op de Mac: <code className="chip">bash scripts/mac-install.sh</code> in de map marc-os. Terugzetten kan alleen met de back-upsleutel uit je wachtwoordmanager.
+              </p>
+            </div>
+            {backups.length > 0 && <a href="/api/export/backup" className="btn">Download nieuwste</a>}
+          </div>
+        </div>
+      </section>
+
+      <section id="claude" className="scroll-mt-8 space-y-3">
+        <SectionTitle>Koppeling met Claude (MCP)</SectionTitle>
+        <div className="card p-4 text-sm">
+          <p className="text-grafiet">
+            In Claude: Instellingen → Connectors → Custom connector toevoegen, met deze URL. Behandel de URL als een wachtwoord: wie hem heeft, kan alles in Marc OS lezen en wijzigen.
+          </p>
+          {mcpUrl ? (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-steen hover:text-nacht">Toon de MCP-URL</summary>
+              <code className="chip mt-2 block break-all select-all">{mcpUrl}</code>
+            </details>
+          ) : (
+            <p className="mt-1 text-steen">MCP_TOKEN staat niet in .env.</p>
+          )}
+          <p className="mt-2 text-xs text-steen">Na het aan- of uitzetten van een module: in Claude de connector opnieuw laden of een nieuw gesprek starten.</p>
         </div>
       </section>
 

@@ -6,8 +6,7 @@
 #   echo 'de-token' > ~/.marc-os-token && chmod 600 ~/.marc-os-token
 # Draaien:
 #   bash scripts/obsidian-mac.sh "$HOME/Obsidian/Marc OS"
-# Elke ochtend om 07:05 (crontab -e):
-#   5 7 * * * /bin/bash $HOME/marc-os/scripts/obsidian-mac.sh "$HOME/Obsidian/Marc OS" >/tmp/marc-os-obsidian.log 2>&1
+# Dagelijks samen met de back-up: bash scripts/mac-install.sh (vraagt naar de Obsidian-map).
 set -euo pipefail
 URL="${MARC_OS_URL:-https://os.marclonsain.nl}"
 DEST="${1:?Geef de map op, bijv. \"$HOME/Obsidian/Marc OS\"}"

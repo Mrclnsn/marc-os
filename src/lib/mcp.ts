@@ -1,4 +1,5 @@
 import "server-only";
+import { sendPush } from "./push";
 import { timingSafeEqual } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
@@ -177,6 +178,7 @@ const INSTRUCTION_LINES: { text: string; module?: ModuleKey }[] = [
   { text: "- Second brain: notities zijn markdown en mogen [[links]] bevatten naar andere notities, klanten, projecten en bronnen, op naam: [[Vobis]], [[Gesprek SEO-strategie]]. Is een naam dubbel, gebruik dan een voorvoegsel: [[klant:Vobis]], [[project:...]], [[bron:...]], [[notitie:...]]. Link in gespreksverslagen naar de klant en eerdere notities zodat de backlinks kloppen. get_note geeft ook de links vanuit en naar de notitie; get_backlinks geeft wat naar een klant, project, bron of notitie verwijst." },
   { text: "- Vragen over wat er eerder is besproken of afgesproken (\"wat hebben we met Vobis afgesproken over SEO?\") beantwoord je met search_knowledge: zoekt op betekenis (als semantisch zoeken aan staat) en op trefwoord in notities en bronnen, en geeft per treffer een stuk tekst. Lees zo nodig de hele notitie met get_note en noem de notities waarop je antwoord steunt." },
   { text: "- Bronnen zijn links, artikelen, video's en ideeën om te bewaren (add_source; met alleen een url haalt Marc OS titel en beschrijving zelf op). Vat een bron kort samen in summary als Marc daarom vraagt of als hij hem doorstuurt om te bewaren." },
+  { text: "- Met send_push stuur je Marc een pushmelding op zijn telefoon. Gebruik het spaarzaam: als hij erom vraagt, of als iets nu zijn aandacht nodig heeft." },
   { text: "- Begin een briefing altijd met get_overview. Sla briefings en samenvattingen op met save_review zodat Marc ze in de app ziet." },
   { text: "- Tijdzone: Europe/Amsterdam. Schrijf in het Nederlands." },
 ];
@@ -1492,6 +1494,21 @@ export function buildServer(modules: Modules) {
     "list_reviews",
     { title: "Reviews", description: "Eerdere briefings en reviews.", inputSchema: { kind: z.enum(["day", "week", "month"]).optional(), limit: z.number().int().positive().max(100).optional() }, annotations: { readOnlyHint: true } },
     async ({ kind, limit }) => json(await data.listReviews(kind, limit)),
+  );
+
+  server.registerTool(
+    "send_push",
+    {
+      title: "Pushmelding sturen",
+      description:
+        "Stuur Marc een pushmelding op zijn telefoon (en andere aangemelde apparaten). Alleen voor iets wat nu zijn aandacht nodig heeft of waar hij om vroeg, bijv. een herinnering of 'briefing staat klaar'. Kort houden: titel max. 60 tekens, tekst 1 of 2 zinnen. url opent een pagina in Marc OS bij aantikken (bijv. /reviews of /taken/<id>).",
+      inputSchema: {
+        title: z.string().min(1).max(120),
+        body: z.string().max(400),
+        url: z.string().regex(/^\//).optional().describe("Pad in Marc OS, bijv. /reviews"),
+      },
+    },
+    async ({ title, body, url }) => json(await sendPush({ title, body, url, tag: `assistant-${Date.now()}` }, "assistant")),
   );
 
   return server;

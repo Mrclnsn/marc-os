@@ -53,16 +53,16 @@ Schema aangepast in `src/db/schema.ts`? Draai `npm run db:generate` voor een nie
 
 ### Snelle route: installatiescript
 
-Op een verse Ubuntu 24.04 VPS. Vanaf je eigen computer (in de map van deze repo):
+Op een verse Ubuntu VPS (24.04 of 26.04). Vanaf je eigen computer (in de map van deze repo):
 
 ```bash
 scp scripts/setup-server.sh root@<IP-van-je-VPS>:
-ssh root@<IP-van-je-VPS> "bash setup-server.sh"
+ssh -t root@<IP-van-je-VPS> "bash setup-server.sh"
 ```
 
-Het script installeert Docker, zet de firewall dicht (alleen SSH, HTTP, HTTPS), maakt een deploy key aan die je op GitHub toevoegt, haalt de code op, vraagt je wachtwoord, genereert alle geheimen, start alles, importeert de Notion-data en zet een dagelijkse back-up klaar. Aan het eind toont het je MCP-URL.
+Het script installeert Docker, zet de firewall dicht (alleen SSH, HTTP, HTTPS), zet de tijdzone op Europe/Amsterdam, maakt een deploy key aan die je op GitHub toevoegt, haalt de code op, vraagt je wachtwoord, genereert alle geheimen (ook de back-upsleutel), start alles, importeert de Notion-data, zet de vaste taken klaar (versleutelde back-up, Obsidian-export, pushmeldingen) en maakt meteen een eerste back-up. Aan het eind toont het je MCP-URL en back-upsleutel.
 
-Bijwerken na nieuwe code: `bash /opt/marc-os/scripts/update.sh`
+Bijwerken na nieuwe code: `bash /opt/marc-os/scripts/update.sh` (back-up vooraf, code ophalen, `.env` aanvullen, vaste taken bijwerken, bouwen, herstarten en controleren).
 
 ### Handmatig
 
@@ -103,15 +103,15 @@ git pull && docker compose up -d --build
 
 ### Back-ups
 
-De database staat in een Docker-volume. Maak dagelijks een dump, bijvoorbeeld met cron op de VPS:
+Met het installatiescript (`scripts/cron.sh backup`, elke nacht 03:15): `pg_dump`, gzip en versleuteld met AES-256 (`BACKUP_PASSPHRASE` in `.env`, ook in je wachtwoordmanager) naar `/opt/marc-os/backups/marcos-<datum>.sql.gz.enc`, 30 dagen bewaard. Elke back-up wordt na het maken terug gelezen als controle.
 
-```bash
-mkdir -p ~/marc-os/backups
-# crontab -e
-15 3 * * * cd ~/marc-os && docker compose exec -T db pg_dump -U marcos marcos | gzip > backups/marcos-$(date +\%F).sql.gz && find backups -name '*.sql.gz' -mtime +30 -delete
-```
+Buiten de VPS: de Mac haalt elke ochtend de nieuwste back-up op via `/api/export/backup` (met de MCP-token). Eenmalig instellen op de Mac: `bash scripts/mac-install.sh`. Heeft de Mac 3 dagen niets opgehaald, of ontbreekt de back-up van vannacht, dan krijg je een pushmelding.
 
-Zet die back-ups bij voorkeur ook ergens buiten de VPS neer.
+Terugzetten: `bash /opt/marc-os/scripts/restore.sh backups/marcos-<datum>.sql.gz.enc` (maakt eerst een veiligheidskopie).
+
+### Pushmeldingen
+
+Web Push met een service worker (`public/sw.js`). Op de iPhone werkt het alleen als de app op het beginscherm staat (Safari → Deel → Zet op beginscherm). Aanzetten per apparaat op Instellingen → Pushmeldingen. De VAPID-sleutels maakt de app zelf aan (of zet `VAPID_PUBLIC_KEY` en `VAPID_PRIVATE_KEY` in `.env`). Vaste meldingen via cron: ochtendoverzicht (werkdagen 07:30), deadlines (09:00), systeemmeldingen. Claude en Hermes sturen meldingen met de MCP-tool `send_push`.
 
 ### Beveiliging
 

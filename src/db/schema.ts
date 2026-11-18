@@ -637,6 +637,20 @@ export const settings = pgTable("settings", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+/** Telefoons en browsers die pushmeldingen ontvangen (Web Push). */
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  /** Korte naam van het apparaat, bijv. "iPhone" of "Mac (Safari)" */
+  label: text("label").notNull(),
+  lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  failures: integer("failures").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type Client = typeof clients.$inferSelect;
 export type ClientContact = typeof clientContacts.$inferSelect;
 export type Website = typeof websites.$inferSelect;
@@ -655,3 +669,4 @@ export type Quote = typeof quotes.$inferSelect;
 export type QuoteLine = typeof quoteLines.$inferSelect;
 export type FilingSchedule = typeof filingSchedules.$inferSelect;
 export type Filing = typeof filings.$inferSelect;
+export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;

@@ -8,6 +8,7 @@ import { ModulesProvider } from "@/components/modules-context";
 import { ThemeSwitch } from "@/components/theme-switch";
 import { MainFrame } from "@/components/main-frame";
 import { logoutAction } from "../actions";
+import { ServiceWorkerRegister } from "@/components/push-settings";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   await requireSession();
@@ -25,6 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <ModulesProvider modules={modules}>
       <div className="min-h-dvh">
+        <ServiceWorkerRegister />
         <Nav inbox={inbox} footer={footer} modules={modules} />
         <div className="md:pl-60">
           {timer && (

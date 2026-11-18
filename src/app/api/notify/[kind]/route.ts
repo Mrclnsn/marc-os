@@ -1,0 +1,47 @@
+import { tokenOk } from "@/lib/mcp";
+import { backupCheckMessages, deadlineMessages, morningMessage, sendPush, type PushMessage, type PushResult } from "@/lib/push";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * Vaste pushmeldingen, aangeroepen door de cron op de VPS (scripts/cron.sh) met de MCP-token als Bearer.
+ *   morning      ochtendoverzicht (werkdagen 07:30)
+ *   deadlines    deadlines vandaag en te laat (09:00)
+ *   backupcheck  back-up van vannacht aanwezig en opgehaald door de Mac (na de back-up)
+ *   system       vrije systeemmelding, body {"title","body"} (bijv. als de back-up mislukt)
+ */
+export async function POST(req: Request, { params }: { params: Promise<{ kind: string }> }) {
+  const bearer = req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (!tokenOk(bearer)) return new Response("Geen toegang", { status: 401 });
+  const { kind } = await params;
+
+  let messages: PushMessage[];
+  let pushKind: "morning" | "deadlines" | "system";
+  switch (kind) {
+    case "morning":
+      messages = [await morningMessage()];
+      pushKind = "morning";
+      break;
+    case "deadlines":
+      messages = await deadlineMessages();
+      pushKind = "deadlines";
+      break;
+    case "backupcheck":
+      messages = await backupCheckMessages();
+      pushKind = "system";
+      break;
+    case "system": {
+      const b = (await req.json().catch(() => ({}))) as { title?: string; body?: string };
+      if (!b.title) return Response.json({ error: "title ontbreekt" }, { status: 400 });
+      messages = [{ title: b.title, body: b.body ?? "", url: "/instellingen#backups", tag: "system" }];
+      pushKind = "system";
+      break;
+    }
+    default:
+      return Response.json({ error: `Onbekende soort: ${kind}` }, { status: 404 });
+  }
+
+  const results: PushResult[] = [];
+  for (const m of messages) results.push(await sendPush(m, pushKind));
+  return Response.json({ kind, messages: messages.length, results });
+}
