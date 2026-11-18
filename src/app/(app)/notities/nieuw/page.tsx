@@ -7,7 +7,7 @@ import { getOptions } from "@/lib/options";
 import { createNoteAction } from "../../../actions";
 
 /** Nieuwe notitie, ook vanuit een [[link]] die nog nergens heen gaat (?titel=...). */
-export default async function NewNotePage({ searchParams }: { searchParams: Promise<{ titel?: string; klant?: string; project?: string }> }) {
+export default async function NewNotePage({ searchParams }: { searchParams: Promise<{ titel?: string; klant?: string; project?: string; tekst?: string }> }) {
   const sp = await searchParams;
   const [options, suggestions] = await Promise.all([getOptions(), linkSuggestions()]);
   return (
@@ -23,7 +23,7 @@ export default async function NewNotePage({ searchParams }: { searchParams: Prom
           <Field label="Klant"><ClientSelect clients={options.clients} value={sp.klant} /></Field>
           <Field label="Project"><ProjectSelect projects={options.projects} value={sp.project} /></Field>
         </div>
-        <LinkEditor defaultValue="" suggestions={suggestions} rows={14} />
+        <LinkEditor defaultValue={sp.tekst ?? ""} suggestions={suggestions} rows={14} />
         <button className="btn-primary">Aanmaken</button>
       </form>
     </div>

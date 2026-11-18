@@ -242,3 +242,32 @@ export function habitSummary(list: HabitStats[]) {
     weekPct: weekPcts.length ? Math.round(weekPcts.reduce((s, p) => s + p, 0) / weekPcts.length) : null,
   };
 }
+
+/**
+ * Percentage over een eigen periode (doelen, gesprek 10): gedaan tegenover verwacht van `from` tot en met `to`
+ * (maar niet na vandaag). Vandaag telt alleen mee als hij al is afgevinkt, net als bij week en maand.
+ */
+export async function habitPeriodStats(id: string, from: string, to: string): Promise<{ title: string; done: number; expected: number; pct: number | null; streak: number; streakUnit: string } | null> {
+  const t = today();
+  const stats = (await listHabits({ includeArchived: true, date: t })).find((h) => h.id === id);
+  if (!stats) return null;
+  const h = stats as Habit;
+  const begin = from > h.startDate ? from : h.startDate;
+  const end = to < t ? to : t;
+  if (begin > end) return { title: h.title, done: 0, expected: 0, pct: null, streak: stats.streak, streakUnit: stats.streakUnit };
+  const rows = await db
+    .select({ date: habitChecks.date })
+    .from(habitChecks)
+    .where(and(eq(habitChecks.habitId, id), gte(habitChecks.date, begin), lte(habitChecks.date, end)));
+  const checked = new Set(rows.map((r) => r.date));
+  let expected = 0;
+  let days = 0;
+  for (let d = begin; d <= end; d = addDaysIso(d, 1)) {
+    if (d === t && !checked.has(d)) continue;
+    days++;
+    if (h.frequency !== "weekly" && isDueDay(h, d)) expected++;
+  }
+  if (h.frequency === "weekly") expected = ((h.timesPerWeek ?? 1) * days) / 7;
+  const done = checked.size;
+  return { title: h.title, done, expected: Math.round(expected * 10) / 10, pct: expected > 0 ? Math.min(100, Math.round((done / expected) * 100)) : null, streak: stats.streak, streakUnit: stats.streakUnit };
+}

@@ -610,11 +610,13 @@ export type RateOverview = { from: string; to: string; requestedFrom: string; tr
  *   Termijnen waarmee uren gefactureerd zijn tellen niet dubbel.
  * - De periode begint nooit vóór de eerste geschreven uren, anders staat er omzet tegenover nul uren.
  */
-export async function effectiveRates(period: RatePeriod = "year", ref = today()): Promise<RateOverview> {
-  const range = periodRange(period, ref);
+export async function effectiveRates(period: RatePeriod = "year", ref = today(), custom?: { from: string; to: string; clampToTracking?: boolean }): Promise<RateOverview> {
+  // custom: eigen bereik (doelen, gesprek 10); clampToTracking false = omzet ook vóór de eerste uren meetellen
+  const range = custom ? { from: custom.from, to: custom.to } : periodRange(period, ref);
+  const clamp = custom?.clampToTracking ?? true;
   const [first] = await db.select({ d: sql<string | null>`min(${timeEntries.entryDate})` }).from(timeEntries);
   const trackingSince = first?.d ?? null;
-  const from = trackingSince && trackingSince > range.from ? trackingSince : range.from;
+  const from = clamp && trackingSince && trackingSince > range.from ? trackingSince : range.from;
   const to = range.to;
   const span = daysBetween(from, to) + 1;
 

@@ -5,7 +5,7 @@
 import { and, asc, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { clients, links, notes, projects, settings, sources } from "@/db/schema";
+import { clients, learningTopics, links, notes, projects, settings, sources } from "@/db/schema";
 import {
   buildEntityIndex,
   entityHref,
@@ -19,7 +19,7 @@ import {
 } from "./wikilinks";
 import { queueIndex, queueRemove } from "./search";
 
-export type LinkFrom = "note" | "source";
+export type LinkFrom = "note" | "source" | "learning";
 
 /* ---------------- Links bijhouden ---------------- */
 
@@ -66,12 +66,14 @@ export function ensureLinksIndexed(): Promise<void> {
 }
 
 export async function reindexAllLinks() {
-  const [ns, ss] = await Promise.all([
+  const [ns, ss, ls] = await Promise.all([
     db.select({ id: notes.id, body: notes.body }).from(notes),
     db.select({ id: sources.id, body: sources.body }).from(sources),
+    db.select({ id: learningTopics.id, body: learningTopics.notes }).from(learningTopics),
   ]);
   for (const n of ns) await syncLinks("note", n.id, n.body);
   for (const s of ss) await syncLinks("source", s.id, s.body);
+  for (const l of ls) await syncLinks("learning", l.id, l.body);
   return { notes: ns.length, sources: ss.length };
 }
 
@@ -79,17 +81,19 @@ export async function reindexAllLinks() {
 
 /** Alles waar een [[link]] naartoe kan wijzen. Inbox-items tellen niet mee. */
 export async function loadEntities(): Promise<LinkEntity[]> {
-  const [ns, cs, ps, ss] = await Promise.all([
+  const [ns, cs, ps, ss, ls] = await Promise.all([
     db.select({ id: notes.id, title: notes.title }).from(notes).where(ne(notes.type, "inbox")),
     db.select({ id: clients.id, title: clients.name }).from(clients),
     db.select({ id: projects.id, title: projects.name }).from(projects),
     db.select({ id: sources.id, title: sources.title }).from(sources),
+    db.select({ id: learningTopics.id, title: learningTopics.title }).from(learningTopics),
   ]);
   return [
     ...ns.map((r) => ({ kind: "note" as const, ...r })),
     ...cs.map((r) => ({ kind: "client" as const, ...r })),
     ...ps.map((r) => ({ kind: "project" as const, ...r })),
     ...ss.map((r) => ({ kind: "source" as const, ...r })),
+    ...ls.map((r) => ({ kind: "learning" as const, ...r })),
   ];
 }
 
@@ -148,21 +152,26 @@ async function entityTitle(kind: LinkKind, id: string): Promise<string | null> {
       return (await db.select({ t: projects.name }).from(projects).where(eq(projects.id, id)))[0]?.t ?? null;
     case "source":
       return (await db.select({ t: sources.title }).from(sources).where(eq(sources.id, id)))[0]?.t ?? null;
+    case "learning":
+      return (await db.select({ t: learningTopics.title }).from(learningTopics).where(eq(learningTopics.id, id)))[0]?.t ?? null;
   }
 }
 
 async function fromTitles(rows: { fromKind: string; fromId: string }[]) {
   const noteIds = [...new Set(rows.filter((r) => r.fromKind === "note").map((r) => r.fromId))];
   const sourceIds = [...new Set(rows.filter((r) => r.fromKind === "source").map((r) => r.fromId))];
-  const [ns, ss] = await Promise.all([
+  const learningIds = [...new Set(rows.filter((r) => r.fromKind === "learning").map((r) => r.fromId))];
+  const [ns, ss, ls] = await Promise.all([
     noteIds.length
       ? db.select({ id: notes.id, title: notes.title, date: notes.noteDate, created: notes.createdAt, type: notes.type }).from(notes).where(inArray(notes.id, noteIds))
       : [],
     sourceIds.length ? db.select({ id: sources.id, title: sources.title, created: sources.createdAt }).from(sources).where(inArray(sources.id, sourceIds)) : [],
+    learningIds.length ? db.select({ id: learningTopics.id, title: learningTopics.title, updated: learningTopics.updatedAt }).from(learningTopics).where(inArray(learningTopics.id, learningIds)) : [],
   ]);
   const map = new Map<string, { title: string; href: string; date: string | null }>();
   for (const n of ns) if (n.type !== "inbox") map.set(`note:${n.id}`, { title: n.title, href: `/notities/${n.id}`, date: n.date ?? n.created.toISOString().slice(0, 10) });
   for (const s of ss) map.set(`source:${s.id}`, { title: s.title, href: `/notities/bronnen/${s.id}`, date: s.created.toISOString().slice(0, 10) });
+  for (const l of ls) map.set(`learning:${l.id}`, { title: l.title, href: `/leren/${l.id}`, date: l.updated.toISOString().slice(0, 10) });
   return map;
 }
 
@@ -258,25 +267,27 @@ export type GraphNode = { id: string; kind: LinkKind | "missing"; title: string;
 export type GraphEdge = { source: string; target: string; kind: "link" | "structure" };
 
 /**
- * Alle notities, bronnen, klanten en projecten met hun verbindingen.
+ * Alle notities, bronnen, klanten, projecten en leeronderwerpen met hun verbindingen.
  * - link: een [[link]] in de tekst
  * - structure: de koppeling in de app (notitie of bron bij een klant/project, project bij een klant)
  * Klanten en projecten zonder enige verbinding blijven weg; losse notities niet (zoals in Obsidian).
  */
 export async function getGraph() {
   await ensureLinksIndexed();
-  const [ns, ss, cs, ps, ls] = await Promise.all([
+  const [ns, ss, cs, ps, ls, lt] = await Promise.all([
     db.select({ id: notes.id, title: notes.title, type: notes.type, clientId: notes.clientId, projectId: notes.projectId }).from(notes).where(ne(notes.type, "inbox")),
-    db.select({ id: sources.id, title: sources.title, clientId: sources.clientId, projectId: sources.projectId }).from(sources),
+    db.select({ id: sources.id, title: sources.title, clientId: sources.clientId, projectId: sources.projectId, learningId: sources.learningId }).from(sources),
     db.select({ id: clients.id, title: clients.name, status: clients.status }).from(clients),
     db.select({ id: projects.id, title: projects.name, clientId: projects.clientId, status: projects.status }).from(projects),
     db.select().from(links),
+    db.select({ id: learningTopics.id, title: learningTopics.title }).from(learningTopics),
   ]);
   const entities: LinkEntity[] = [
     ...ns.map((n) => ({ kind: "note" as const, id: n.id, title: n.title })),
     ...cs.map((c) => ({ kind: "client" as const, id: c.id, title: c.title })),
     ...ps.map((p) => ({ kind: "project" as const, id: p.id, title: p.title })),
     ...ss.map((s) => ({ kind: "source" as const, id: s.id, title: s.title })),
+    ...lt.map((l) => ({ kind: "learning" as const, id: l.id, title: l.title })),
   ];
   const idx = buildEntityIndex(entities);
   const nodes = new Map<string, GraphNode>();
@@ -314,10 +325,11 @@ export async function getGraph() {
   for (const s of ss) {
     if (s.clientId) connect(nid("source", s.id), nid("client", s.clientId), "structure");
     if (s.projectId) connect(nid("source", s.id), nid("project", s.projectId), "structure");
+    if (s.learningId) connect(nid("source", s.id), nid("learning", s.learningId), "structure");
   }
   for (const p of ps) if (p.clientId) connect(nid("project", p.id), nid("client", p.clientId), "structure");
 
-  const list = [...nodes.values()].filter((n) => n.kind === "note" || n.kind === "source" || n.degree > 0);
+  const list = [...nodes.values()].filter((n) => n.kind === "note" || n.kind === "source" || n.kind === "learning" || n.degree > 0);
   return { nodes: list, edges };
 }
 
@@ -340,6 +352,7 @@ export const sourceInput = z.object({
   area: z.enum(["zakelijk", "prive"]).nullable().optional(),
   clientId: optId,
   projectId: optId,
+  learningId: optId,
   capturedVia: optText,
 });
 export type SourceInput = z.infer<typeof sourceInput>;

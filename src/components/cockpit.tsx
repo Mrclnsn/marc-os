@@ -3,6 +3,7 @@ import type { Goal, HabitToday, HourWindow, Kpi, Signal, Timeline } from "@/lib/
 import { HabitCheckList } from "./habit-parts";
 import { formatDuration } from "@/lib/duration";
 import { Beeldmerk } from "./brand";
+import { StatusChip } from "./goal-view";
 
 /*
  * Cockpit-onderdelen. Werken in beide stijlen: "strak" (MLC) en "ironman" (HUD).
@@ -28,29 +29,49 @@ export function Panel({ title, aside, id, children, className = "" }: { title: R
 /* ---------------- Doelbalk ---------------- */
 
 export function GoalBar({ goal }: { goal: Goal }) {
-  const pct = goal.target > 0 ? Math.round((goal.value / goal.target) * 100) : 0;
+  const pct = Math.max(0, Math.round(goal.pct));
+  const head = (
+    <p className="mt-1 text-xl font-bold leading-tight text-nacht md:text-2xl">{goal.title}</p>
+  );
   return (
     <section className="card hoeken relative overflow-hidden px-5 py-4 md:px-6 md:py-5">
       <span aria-hidden className="accent absolute left-0 top-0 h-[3px] w-16 bg-nacht" />
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
         <div className="min-w-0">
-          <p className="hud-mono text-[11px] uppercase tracking-[0.18em] text-steen">Hoofddoel{goal.provisional ? " · voorlopig" : ""}</p>
-          <p className="mt-1 text-xl font-bold leading-tight text-nacht md:text-2xl">{goal.title}</p>
+          <p className="hud-mono flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-steen">
+            Hoofddoel{goal.provisional ? " · voorlopig" : ""}
+            {goal.status && <StatusChip status={goal.status} />}
+          </p>
+          {goal.id ? (
+            <Link href={`/doelen/${goal.id}`} className="hover:underline">{head}</Link>
+          ) : (
+            head
+          )}
         </div>
         <p className="glow hud-mono text-3xl font-bold tabular-nums leading-none text-nacht md:text-5xl">
-          {goal.value}
-          <span className="text-lg text-steen md:text-2xl"> / {goal.target}</span>
+          {goal.valueLabel}
+          <span className="text-lg text-steen md:text-2xl"> / {goal.targetLabel}</span>
           <span className="ml-3 align-middle text-sm font-normal text-steen md:text-base">{pct}%</span>
         </p>
       </div>
-      <div className="relative mt-4 h-2.5 overflow-hidden rounded-[2px] bg-parel">
-        <div className="accent h-full bg-nacht transition-[width] duration-700" style={{ width: `${Math.min(100, pct)}%` }} />
+      <div className="relative mt-4 h-2.5 rounded-[2px] bg-parel">
+        <div className="accent h-full rounded-[2px] bg-nacht transition-[width] duration-700" style={{ width: `${Math.min(100, pct)}%` }} />
         {/* maatstreepjes per 10% */}
         <div aria-hidden className="pointer-events-none absolute inset-0 grid grid-cols-10">
           {Array.from({ length: 10 }, (_, i) => <span key={i} className="border-r border-lijn last:border-r-0" />)}
         </div>
+        {goal.expectedPct != null && goal.expectedPct > 0 && goal.expectedPct < 100 && (
+          <span aria-hidden title={`Verwacht rond deze tijd: ${goal.expectedPct}%`} className="absolute -top-1.5 bottom-[-6px] w-[2px] bg-steen" style={{ left: `calc(${goal.expectedPct}% - 1px)` }} />
+        )}
       </div>
-      <p className="mt-2 text-xs text-steen">{goal.note}</p>
+      <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-xs text-steen">
+        <p className="min-w-0">{goal.note}</p>
+        {goal.others && (
+          <Link href="/doelen" className="hud-mono shrink-0 whitespace-nowrap hover:text-nacht">
+            Doelen: {goal.others.good} op schema{goal.others.warn ? ` · ${goal.others.warn} achter` : ""}{goal.others.bad ? ` · ${goal.others.bad} risico` : ""} →
+          </Link>
+        )}
+      </div>
     </section>
   );
 }

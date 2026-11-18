@@ -5,19 +5,21 @@
  *   Bronnen/<titel>.md     link, samenvatting en eigen aantekeningen
  *   Klanten/<naam>.md      status, vaste informatie, contactpersonen (naam en rol), projecten, notities, bronnen
  *   Projecten/<naam>.md    status, klant, open taken, notities
+ *   Leren/<titel>.md       soort, status, doel, voortgang, uren, aantekeningen, leerplan, bronnen
  *   Reviews/<datum> <soort>.md
  *
  * [[Links]] worden omgezet naar het pad in de map ([[Klanten/Vobis|Vobis]]), zodat ze in Obsidian altijd kloppen,
  * ook als een notitie en een klant dezelfde naam hebben. Zonder "server-only": het nachtelijke script gebruikt dit ook.
  */
-import { asc, ne } from "drizzle-orm";
+import { asc, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { clientContacts, clients, notes, projects, reviews, sources, tasks } from "@/db/schema";
+import { clientContacts, clients, learningSessions, learningTopics, notes, projects, reviews, sources, tasks } from "@/db/schema";
+import { LEARNING_KINDS, LEARNING_STATUS, learningProgressLabel } from "./learning-shared";
 import { buildEntityIndex, replaceWikilinks, resolveLink, type LinkEntity, type LinkKind } from "./wikilinks";
 
 export type VaultFile = { path: string; content: string };
 
-export const VAULT_FOLDERS = ["Notities", "Bronnen", "Klanten", "Projecten", "Reviews"] as const;
+export const VAULT_FOLDERS = ["Notities", "Bronnen", "Klanten", "Projecten", "Leren", "Reviews"] as const;
 
 const NOTE_TYPE: Record<string, string> = { note: "Notitie", meeting: "Meeting", call: "Telefoon", email: "E-mail", decision: "Besluit", info: "Info", idea: "Idee" };
 const SOURCE_KIND: Record<string, string> = { article: "Artikel", video: "Video", podcast: "Podcast", book: "Boek", course: "Cursus", idea: "Idee", link: "Link" };
@@ -58,14 +60,16 @@ const iso = (d: Date | string | null | undefined) => (d ? (typeof d === "string"
 
 /** Bouwt alle bestanden van de map (in het geheugen). */
 export async function buildVault(): Promise<VaultFile[]> {
-  const [ns, ss, cs, ps, contacts, rs, ts] = await Promise.all([
+  const [ns, ss, cs, ps, contacts, rs, ts, lt, lmins] = await Promise.all([
     db.select().from(notes).where(ne(notes.type, "inbox")).orderBy(asc(notes.createdAt)),
     db.select().from(sources).orderBy(asc(sources.createdAt)),
     db.select().from(clients).orderBy(asc(clients.name)),
     db.select().from(projects).orderBy(asc(projects.name)),
     db.select().from(clientContacts).orderBy(asc(clientContacts.name)),
     db.select().from(reviews).orderBy(asc(reviews.periodDate)),
-    db.select({ id: tasks.id, title: tasks.title, status: tasks.status, projectId: tasks.projectId, dueDate: tasks.dueDate, planDate: tasks.planDate }).from(tasks).where(ne(tasks.status, "done")),
+    db.select({ id: tasks.id, title: tasks.title, status: tasks.status, projectId: tasks.projectId, learningId: tasks.learningId, dueDate: tasks.dueDate, planDate: tasks.planDate }).from(tasks).where(ne(tasks.status, "done")),
+    db.select().from(learningTopics).orderBy(asc(learningTopics.title)),
+    db.select({ id: learningSessions.topicId, min: sql<number>`sum(${learningSessions.minutes})::int` }).from(learningSessions).groupBy(learningSessions.topicId),
   ]);
 
   // Uniek pad per item; bij dezelfde naam in dezelfde map komt er (2), (3) achter, op volgorde van aanmaken
@@ -82,12 +86,14 @@ export async function buildVault(): Promise<VaultFile[]> {
   for (const p of ps) assign("project", p.id, "Projecten", p.name);
   for (const n of ns) assign("note", n.id, "Notities", n.title);
   for (const s of ss) assign("source", s.id, "Bronnen", s.title);
+  for (const l of lt) assign("learning", l.id, "Leren", l.title);
 
   const entities: LinkEntity[] = [
     ...ns.map((n) => ({ kind: "note" as const, id: n.id, title: n.title })),
     ...cs.map((c) => ({ kind: "client" as const, id: c.id, title: c.name })),
     ...ps.map((p) => ({ kind: "project" as const, id: p.id, title: p.name })),
     ...ss.map((s) => ({ kind: "source" as const, id: s.id, title: s.title })),
+    ...lt.map((l) => ({ kind: "learning" as const, id: l.id, title: l.title })),
   ];
   const idx = buildEntityIndex(entities);
   const link = (kind: LinkKind, id: string | null | undefined, label?: string) => {
@@ -192,6 +198,34 @@ export async function buildVault(): Promise<VaultFile[]> {
     });
   }
 
+  for (const l of lt) {
+    const lts = ts.filter((t) => t.learningId === l.id);
+    const lss = ss.filter((s) => s.learningId === l.id);
+    const minutes = lmins.find((m) => m.id === l.id)?.min ?? 0;
+    const body = [
+      l.goal ? `**Doel:** ${l.goal}` : null,
+      l.url ? `[${l.url.replace(/^https?:\/\/(www\.)?/, "")}](${l.url})` : null,
+      `Voortgang: ${learningProgressLabel(l)} · ${(Math.round((minutes / 60) * 10) / 10).toLocaleString("nl-NL")} uur besteed${l.hoursTarget ? ` van ${l.hoursTarget}` : ""}`,
+      l.notes ? convert(l.notes) : null,
+      lts.length ? `## Leerplan\n\n${lts.map((t) => `- [ ] ${t.title}${t.planDate ? ` (${t.planDate})` : ""}`).join("\n")}` : null,
+      lss.length ? `## Bronnen\n\n${lss.map((s) => `- ${link("source", s.id, s.title)}`).join("\n")}` : null,
+    ];
+    files.push({
+      path: `${pathOf.get(`learning:${l.id}`)}.md`,
+      content:
+        frontmatter({
+          soort: LEARNING_KINDS[l.kind as keyof typeof LEARNING_KINDS] ?? l.kind,
+          status: LEARNING_STATUS[l.status as keyof typeof LEARNING_STATUS] ?? l.status,
+          gebied: AREA[l.area],
+          start: l.startDate,
+          streefdatum: l.targetDate,
+          afgerond: l.finishedAt,
+          tags: ["marc-os/leren"],
+          marc_os_id: l.id,
+        }) + `\n${body.filter(Boolean).join("\n\n")}\n`,
+    });
+  }
+
   for (const r of rs) {
     files.push({
       path: `Reviews/${r.periodDate} ${REVIEW_KIND[r.kind]}.md`,
@@ -207,7 +241,7 @@ export async function buildVault(): Promise<VaultFile[]> {
       "Deze map is een export uit Marc OS en wordt automatisch overschreven. Schrijf en wijzig in Marc OS zelf; wat je hier aanpast gaat bij de volgende export verloren.",
       "Eigen notities in Obsidian kun je kwijt in een andere map dan " + VAULT_FOLDERS.join(", ") + ".",
       "",
-      `- ${ns.length} notities, ${ss.length} bronnen, ${cs.length} klanten, ${ps.length} projecten, ${rs.length} reviews`,
+      `- ${ns.length} notities, ${ss.length} bronnen, ${cs.length} klanten, ${ps.length} projecten, ${lt.length} leeronderwerpen, ${rs.length} reviews`,
       `- Geëxporteerd: ${new Date().toLocaleString("nl-NL", { timeZone: process.env.APP_TIMEZONE ?? "Europe/Amsterdam" })}`,
       "",
     ].join("\n"),

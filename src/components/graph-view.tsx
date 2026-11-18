@@ -6,7 +6,7 @@ import type { GraphEdge, GraphNode } from "@/lib/brain";
 
 type Sim = { x: number; y: number; vx: number; vy: number; fixed: boolean };
 
-const KIND_LABEL: Record<GraphNode["kind"], string> = { note: "Notitie", source: "Bron", client: "Klant", project: "Project", missing: "Bestaat nog niet" };
+const KIND_LABEL: Record<GraphNode["kind"], string> = { note: "Notitie", source: "Bron", client: "Klant", project: "Project", learning: "Leren", missing: "Bestaat nog niet" };
 
 /**
  * Grafiek van notities, bronnen, klanten en projecten (zoals in Obsidian), zonder extra pakketten.
@@ -65,7 +65,7 @@ export function GraphView({
     }
     const ns = allNodes
       .filter((n) => ids.has(n.id))
-      .filter((n) => n.id === focusId || (deg.get(n.id) ?? 0) > 0 || (showOrphans && (n.kind === "note" || n.kind === "source")))
+      .filter((n) => n.id === focusId || (deg.get(n.id) ?? 0) > 0 || (showOrphans && (n.kind === "note" || n.kind === "source" || n.kind === "learning")))
       .map((n) => ({ ...n, degree: deg.get(n.id) ?? 0 }));
     const keep = new Set(ns.map((n) => n.id));
     return { nodes: ns, edges: es.filter((e) => keep.has(e.source) && keep.has(e.target)) };
@@ -337,7 +337,7 @@ export function GraphView({
         {nodes.length === 0 && <p className="absolute inset-0 flex items-center justify-center text-sm text-steen">Nog niets om te tonen. Schrijf [[links]] in je notities.</p>}
         {controls && (
           <div className="pointer-events-none absolute bottom-2 left-2 flex flex-wrap gap-3 rounded-sm bg-vlak/90 px-2 py-1 text-[11px] text-grafiet">
-            {(["note", "source", "client", "project", "missing"] as const).map((k) => (
+            {(["note", "source", "client", "project", "learning", "missing"] as const).map((k) => (
               <span key={k} className="flex items-center gap-1">
                 <svg width="14" height="14" viewBox="-7 -7 14 14"><Shape kind={k} r={k === "client" ? 5 : 4} /></svg>
                 {KIND_LABEL[k]}
@@ -359,6 +359,9 @@ function Shape({ kind, r, focus }: { kind: GraphNode["kind"]; r: number; focus?:
       return <>{ring}<rect x={-r * 0.8} y={-r * 0.8} width={r * 1.6} height={r * 1.6} transform="rotate(45)" className="fill-vlak stroke-nacht" strokeWidth={1.8} /></>;
     case "source":
       return <>{ring}<circle r={r} className="fill-vlak stroke-nacht" strokeWidth={1.8} /></>;
+    case "learning":
+      // driehoek: leeronderwerp
+      return <>{ring}<polygon points={`0,${-r * 1.15} ${r},${r * 0.75} ${-r},${r * 0.75}`} className="fill-vlak stroke-nacht" strokeWidth={1.8} /></>;
     case "missing":
       return <>{ring}<circle r={r} className="fill-none stroke-steen" strokeWidth={1.2} strokeDasharray="2 2" /></>;
     default:

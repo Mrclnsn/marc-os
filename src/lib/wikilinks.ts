@@ -2,15 +2,15 @@
  * [[Links]] in markdown, zoals in Obsidian. Zonder database, dus ook in de browser en in scripts te gebruiken.
  *
  * Vormen:
- *   [[Titel]]                 notitie, klant, project of bron met die naam (in die volgorde)
+ *   [[Titel]]                 notitie, klant, project, bron of leeronderwerp met die naam (in die volgorde)
  *   [[Titel|tekst]]           zelfde doel, andere tekst
- *   [[klant:Vobis]]           expliciet een klant (ook project:, bron:, notitie:)
+ *   [[klant:Vobis]]           expliciet een klant (ook project:, bron:, notitie:, leren:)
  *   [[Titel#Kopje]]           kopje wordt bewaard voor de weergave, het doel is de titel
  */
 
-export type LinkKind = "note" | "client" | "project" | "source";
+export type LinkKind = "note" | "client" | "project" | "source" | "learning";
 
-export const LINK_KINDS: LinkKind[] = ["note", "client", "project", "source"];
+export const LINK_KINDS: LinkKind[] = ["note", "client", "project", "source", "learning"];
 
 /** Voorvoegsels in de link, in het Nederlands zoals Marc ze typt. */
 export const LINK_PREFIX: Record<string, LinkKind> = {
@@ -18,11 +18,12 @@ export const LINK_PREFIX: Record<string, LinkKind> = {
   klant: "client",
   project: "project",
   bron: "source",
+  leren: "learning",
 };
 
-export const PREFIX_OF: Record<LinkKind, string> = { note: "notitie", client: "klant", project: "project", source: "bron" };
+export const PREFIX_OF: Record<LinkKind, string> = { note: "notitie", client: "klant", project: "project", source: "bron", learning: "leren" };
 
-export const LINK_KIND_LABEL: Record<LinkKind, string> = { note: "Notitie", client: "Klant", project: "Project", source: "Bron" };
+export const LINK_KIND_LABEL: Record<LinkKind, string> = { note: "Notitie", client: "Klant", project: "Project", source: "Bron", learning: "Leren" };
 
 export type ParsedLink = {
   raw: string; // de hele [[...]]
@@ -121,7 +122,7 @@ export type EntityIndex = Map<string, LinkEntity[]>; // key → entiteiten met d
 
 /** Index van alle namen; bij dezelfde naam wint de volgorde notitie, klant, project, bron. */
 export function buildEntityIndex(entities: LinkEntity[]): EntityIndex {
-  const order: Record<LinkKind, number> = { note: 0, client: 1, project: 2, source: 3 };
+  const order: Record<LinkKind, number> = { note: 0, client: 1, project: 2, source: 3, learning: 4 };
   const idx: EntityIndex = new Map();
   for (const e of entities) {
     const k = linkKey(e.title);
@@ -151,6 +152,8 @@ export function entityHref(e: { kind: LinkKind; id: string }): string {
       return `/projecten/${e.id}`;
     case "source":
       return `/notities/bronnen/${e.id}`;
+    case "learning":
+      return `/leren/${e.id}`;
   }
 }
 

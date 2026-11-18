@@ -12,6 +12,7 @@ import {
   numeric,
   jsonb,
   doublePrecision,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 export const areaEnum = pgEnum("area", ["zakelijk", "prive"]);
@@ -221,6 +222,8 @@ export const tasks = pgTable(
     planTime: text("plan_time"), // HH:mm
     recurrence: recurrenceEnum("recurrence").notNull().default("none"),
     notes: text("notes"),
+    // Stap in een leerplan (gesprek 10)
+    learningId: uuid("learning_id").references(() => learningTopics.id, { onDelete: "set null" }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     ...timestamps,
   },
@@ -289,6 +292,8 @@ export const sources = pgTable(
     clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
     projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
     capturedVia: text("captured_via"), // app, inbox, mcp, whatsapp
+    // Bron bij een leeronderwerp (gesprek 10)
+    learningId: uuid("learning_id").references(() => learningTopics.id, { onDelete: "set null" }),
     ...timestamps,
   },
   (t) => [index("sources_status_idx").on(t.status), index("sources_client_idx").on(t.clientId)],
@@ -842,6 +847,128 @@ export const healthImports = pgTable("health_imports", {
   error: text("error"),
 });
 
+/* ------------------------------------------------------------------ */
+/* Leven 3 (gesprek 10): doelen en leren                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Doel met een meetwijze en on-track-status.
+ * - area: zakelijk, prive, gezondheid, leren
+ * - periodKind: year, quarter, month of custom (eigen start en einde)
+ * - measure: auto (uit de app of gezondheid, zie `source`), habit, manual (handmatig getal), milestones, subgoals
+ * - targetPer: bij optellende bronnen het doel per day/week/month in plaats van over de hele periode
+ * - curve: linear, late (rustige start) of early (snelle start): het verwachte verloop binnen de periode
+ * Alle getallen in gewone eenheden (euro's, uren, kg), niet in centen.
+ */
+export const goals = pgTable(
+  "goals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    title: text("title").notNull(),
+    area: text("area").notNull().default("zakelijk"),
+    periodKind: text("period_kind").notNull().default("year"),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date").notNull(),
+    parentId: uuid("parent_id").references((): AnyPgColumn => goals.id, { onDelete: "set null" }),
+    measure: text("measure").notNull().default("manual"),
+    source: text("source"),
+    habitId: uuid("habit_id").references(() => habits.id, { onDelete: "set null" }),
+    learningId: uuid("learning_id").references(() => learningTopics.id, { onDelete: "set null" }),
+    targetValue: doublePrecision("target_value"),
+    startValue: doublePrecision("start_value"),
+    unit: text("unit"),
+    targetPer: text("target_per"),
+    direction: text("direction"),
+    curve: text("curve").notNull().default("linear"),
+    /** In de doelbalk van de cockpit (hooguit één) */
+    featured: boolean("featured").notNull().default(false),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    sortOrder: integer("sort_order").notNull().default(0),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [index("goals_parent_idx").on(t.parentId)],
+);
+
+/** Handmatige meting bij een doel (bijv. LinkedIn-volgers). Eén per dag; opnieuw invullen overschrijft. */
+export const goalEntries = pgTable(
+  "goal_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    goalId: uuid("goal_id")
+      .notNull()
+      .references(() => goals.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    value: doublePrecision("value").notNull(),
+    note: text("note"),
+    source: text("source").notNull().default("app"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("goal_entries_goal_date_uq").on(t.goalId, t.date)],
+);
+
+/** Mijlpaal: losse stap of een gekoppeld project (klaar als het project is afgerond). */
+export const goalMilestones = pgTable(
+  "goal_milestones",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    goalId: uuid("goal_id")
+      .notNull()
+      .references(() => goals.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    dueDate: date("due_date"),
+    done: boolean("done").notNull().default(false),
+    doneAt: date("done_at"),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("goal_milestones_goal_idx").on(t.goalId)],
+);
+
+/**
+ * Leeronderwerp: cursus, boek, vaardigheid of certificering.
+ * Voortgang: met `progressUnit` (bijv. hoofdstukken) als `progressDone` van `progressTotal`, anders `progressDone` als percentage.
+ * Status: idee, bezig, gepauzeerd, afgerond.
+ */
+export const learningTopics = pgTable("learning_topics", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  kind: text("kind").notNull().default("cursus"),
+  area: areaEnum("area").notNull().default("zakelijk"),
+  status: text("status").notNull().default("bezig"),
+  goal: text("goal"),
+  url: text("url"),
+  progressDone: doublePrecision("progress_done").notNull().default(0),
+  progressTotal: doublePrecision("progress_total"),
+  progressUnit: text("progress_unit"),
+  hoursTarget: doublePrecision("hours_target"),
+  startDate: date("start_date"),
+  targetDate: date("target_date"),
+  finishedAt: date("finished_at"),
+  /** Aantekeningen in markdown, met [[links]] */
+  notes: text("notes"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  ...timestamps,
+});
+
+/** Tijd besteed aan een leeronderwerp. `source`: app, mcp, whatsapp. */
+export const learningSessions = pgTable(
+  "learning_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    topicId: uuid("topic_id")
+      .notNull()
+      .references(() => learningTopics.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    minutes: integer("minutes").notNull(),
+    note: text("note"),
+    source: text("source").notNull().default("app"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("learning_sessions_topic_idx").on(t.topicId), index("learning_sessions_date_idx").on(t.date)],
+);
+
 export type Client = typeof clients.$inferSelect;
 export type ClientContact = typeof clientContacts.$inferSelect;
 export type Website = typeof websites.$inferSelect;
@@ -869,3 +996,8 @@ export type HealthWorkout = typeof healthWorkouts.$inferSelect;
 export type HealthSleep = typeof healthSleep.$inferSelect;
 export type HealthImport = typeof healthImports.$inferSelect;
 export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
+export type Goal = typeof goals.$inferSelect;
+export type GoalEntry = typeof goalEntries.$inferSelect;
+export type GoalMilestone = typeof goalMilestones.$inferSelect;
+export type LearningTopic = typeof learningTopics.$inferSelect;
+export type LearningSession = typeof learningSessions.$inferSelect;

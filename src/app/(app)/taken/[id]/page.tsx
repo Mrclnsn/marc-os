@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AreaSelect, ClientSelect, Field, PrioritySelect, ProjectSelect, RecurrenceSelect, TaskStatusSelect } from "@/components/forms";
-import { getTask, listRhythms } from "@/lib/data";
+import { findLearning, getTask, listRhythms } from "@/lib/data";
 import { getOptions } from "@/lib/options";
 import { deleteTaskAction, updateTaskAction } from "../../../actions";
 
@@ -9,10 +9,16 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const [task, options, rhythms] = await Promise.all([getTask(id), getOptions(), listRhythms()]);
   if (!task) notFound();
+  const learning = task.learningId ? await findLearning(task.learningId) : null;
 
   return (
     <div className="space-y-5">
       <Link href="/taken" className="mb-6 inline-block text-sm text-steen hover:text-nacht">← Taken</Link>
+      {learning && (
+        <p className="text-sm text-steen">
+          Stap in het leerplan van <Link href={`/leren/${learning.id}`} className="font-bold text-nacht underline">{learning.title}</Link>
+        </p>
+      )}
       <form action={updateTaskAction.bind(null, id)} className="space-y-4">
         <input name="title" defaultValue={task.title} className="input w-full text-lg font-medium" required />
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3">

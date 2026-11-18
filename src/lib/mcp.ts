@@ -40,6 +40,15 @@ async function resolveClient(ref: string | null | undefined): Promise<string | n
   return c.id;
 }
 
+/** Leeronderwerp mag als id of (deel van de) titel. */
+async function resolveLearning(ref: string | null | undefined): Promise<string | null | undefined> {
+  if (ref === undefined) return undefined;
+  if (ref === null || ref === "") return null;
+  const l = await data.findLearning(ref);
+  if (!l) throw new Error(`Leeronderwerp "${ref}" niet gevonden. Gebruik list_learning.`);
+  return l.id;
+}
+
 function slimTask(t: data.TaskWithRefs) {
   return {
     id: t.id,
@@ -58,6 +67,7 @@ function slimTask(t: data.TaskWithRefs) {
     planTime: t.planTime,
     recurrence: t.recurrence,
     notes: t.notes,
+    learningId: t.learningId ?? undefined,
     completedAt: t.completedAt,
   };
 }
@@ -119,6 +129,7 @@ const taskFields = {
   estimateMin: z.number().int().positive().nullable().optional(),
   recurrence: z.enum(["none", "daily", "weekdays", "weekly", "monthly", "quarterly", "yearly"]).optional(),
   notes: z.string().nullable().optional(),
+  learning: z.string().nullable().optional().describe("Leeronderwerp (id of titel): de taak is een stap in dat leerplan; null om te ontkoppelen"),
 };
 
 function slimEntry(e: data.TimeEntryRow) {
@@ -217,6 +228,8 @@ const INSTRUCTION_LINES: { text: string; module?: ModuleKey }[] = [
   { text: "- Dagritme en planning: elke dag heeft een dagritme (werkdag, vrijdag, weekend ...) met vaste blokken (dagstart, diep werk, administratie, sport, pauze, dagafsluiting). Taken plan je met plan_task op een dag en in een blok (timeblocking), eventueel op een tijd. get_day_plan geeft per blok de taken, de beschikbare werktijd en wat ingeschat is; get_week_plan de hele week plus taken zonder plek. Een voorstel voor de dagindeling (ochtendbriefing) zet zware taken in diep werk, klein werk in klantwerk of administratie, en past binnen de tijd van het blok (estimateMin). Verplaats taken alleen als Marc daarom vraagt of het voorstel goedkeurt." },
   { text: "- Gewoontes: list_habits geeft per gewoonte of hij vandaag moet, of hij gedaan is, de reeks en het percentage van week en maand. Vink af met check_habit (op naam mag: \"sport\"). Noem in de briefing en dagafsluiting welke gewoontes nog open staan; in de weekreview de reeksen en percentages." },
   { text: "- Gezondheid: Apple Health komt dagelijks binnen (stappen, beweegminuten, actieve energie, slaap, gewicht, voeding met eiwit/koolhydraten/vet, en trainingen). get_health geeft per dag de waarden en per week de sportsessies tegenover het doel (training van minstens 10 minuten, geen wandeling), gemiddelden en gewicht; met weeks ook de trend. Noem in de briefing kort de slaap van vannacht en de sportsessies van deze week; in de weekreview sport, stappen, slaap en gewicht tegenover de doelen (\"drie trainingen deze week, doel is vier\"). Een training die niet via Apple Health binnenkomt, leg je vast met log_workout als Marc dat vraagt. Gewoontes kunnen een healthRule hebben: die worden automatisch afgevinkt (bron health). Geef geen medisch advies; benoem alleen wat de cijfers laten zien." },
+  { text: "- Doelen: list_goals geeft per doel de meetwijze, de stand, het doel en de on-track-status (ahead = voor op schema, on_track, behind = achter, at_risk = risico, achieved, missed, upcoming, inactive = wacht op een module die uit staat, no_data). summary legt uit hoe het ervoor staat; needed zegt wat er nog nodig is. Verwacht = waar Marc nu zou moeten staan (het deel van de periode dat voorbij is); bij een doel per week of maand telt het gemiddelde. Noem in de ochtendbriefing kort het hoofddoel (featured) en doelen met risico; in de weekreview alle lopende doelen met status en wat er nodig is. Handmatige doelen (bijv. LinkedIn-volgers) werk je bij met log_goal_value als Marc een stand noemt; mijlpalen vink je af met set_milestone. Maak of wijzig doelen alleen op verzoek van Marc." },
+  { text: "- Leren: leeronderwerpen (cursus, boek, vaardigheid, certificering) met doel, status, voortgang en bestede tijd (list_learning, get_learning). Tijd leg je vast met log_learning (\"1 uur aan de Google Ads-cursus\" → topic \"Google Ads\", duration \"1u\"), los van de module Uren. Een leerplan bestaat uit taken met learning (create_task met learning); die plan je met plan_task in een blok van soort leren. Bewaar bronnen bij een onderwerp met add_source en learning. Link in notities naar een onderwerp met [[leren:Titel]]. Een leerplan voorstellen mag; taken aanmaken alleen na akkoord van Marc." },
   { text: "- Klanten hebben een dossier (get_client) met contactpersonen, vaste informatie, projecten, taken en notities. Sla nooit wachtwoorden op; vaultRef is alleen een verwijzing." },
   { text: "- Uitgebreid dossier: ook registratie (KvK, btw), adressen, facturatie, verwerkersovereenkomst, tags en documentlinks (add_document).", module: "dossier" },
   { text: "- Websites zijn eigen objecten per klant met domein, registrar, verloopdatum en of hosting en beheer door Marc gebeuren (list_websites).", module: "websites" },
@@ -263,13 +276,19 @@ export function buildServer(modules: Modules) {
     "get_overview",
     {
       title: "Dagoverzicht",
-      description: "Alles voor een briefing: agenda, dagritme van vandaag (blokken met taken, beschikbare werktijd), gewoontes van vandaag, taken van vandaag, achterstallig, komende 7 dagen, inbox, lopende projecten en wat gisteren is afgerond. Plus, als die modules aan staan: pipeline, domeinen die binnen 30 dagen verlopen, MRR, termijnen klaar om te factureren, aflopende afspraken, uren deze week, budgetten en aangiftes. modulesOff noemt wat tijdelijk uit staat.",
+      description: "Alles voor een briefing: agenda, dagritme van vandaag (blokken met taken, beschikbare werktijd), gewoontes van vandaag, lopende doelen met on-track-status, leren (tijd deze week, onderwerpen waar Marc mee bezig is), taken van vandaag, achterstallig, komende 7 dagen, inbox, lopende projecten en wat gisteren is afgerond. Plus, als die modules aan staan: pipeline, domeinen die binnen 30 dagen verlopen, MRR, termijnen klaar om te factureren, aflopende afspraken, uren deze week, budgetten en aangiftes. modulesOff noemt wat tijdelijk uit staat.",
       inputSchema: { date: isoDate.optional().describe("Standaard vandaag") },
       annotations: { readOnlyHint: true },
     },
     async ({ date }) => {
       const t = date ?? today();
-      const [dayPlan, habitList, health] = await Promise.all([data.getDayPlan(t), data.listHabits({ date: t }), data.healthSnapshot(t)]);
+      const [dayPlan, habitList, health, goalList, learning] = await Promise.all([
+        data.getDayPlan(t),
+        data.listHabits({ date: t }),
+        data.healthSnapshot(t),
+        data.runningGoals().catch(() => []),
+        data.learningSummary(),
+      ]);
       const [todayTasks, upcoming, inbox, projects, doneYesterday, cal, lastReviews] = await Promise.all([
         data.listTasks({ view: "today" }),
         data.listTasks({ view: "upcoming", days: 7 }),
@@ -320,6 +339,17 @@ export function buildServer(modules: Modules) {
                 thisWeek: { sessions: health.week.sessions, sessionGoal: health.week.goal, workouts: health.week.workouts, avgSteps: health.week.avgSteps == null ? null : Math.round(health.week.avgSteps), avgSleepMin: health.week.avgSleepMin == null ? null : Math.round(health.week.avgSleepMin) },
               }
             : "Nog geen gezondheidsdata (Health Auto Export niet ingesteld)",
+        goals: goalList.length
+          ? {
+              featured: goalList.find((g) => g.featured)?.title ?? null,
+              running: goalList.map((g) => ({ id: g.id, title: g.title, area: g.area, current: g.eval.valueLabel, target: g.eval.targetLabel, status: g.eval.status, summary: g.eval.summary, needed: g.eval.needed ?? undefined, featured: g.featured || undefined })),
+            }
+          : "Nog geen doelen ingesteld (Doelen in de app)",
+        learning: {
+          minutesThisWeek: learning.minutesThisWeek,
+          minutesLastWeek: learning.minutesLastWeek,
+          active: learning.active.map((x) => ({ id: x.id, title: x.title, progress: x.progressLabel, minutesThisWeek: x.minutesWeek, openSteps: x.openSteps, targetDate: x.targetDate })),
+        },
         expiringDomains: domains?.map((r) => ({ domain: r.website.domain, client: r.clientName, expiresAt: r.website.domainExpiresAt })),
         revenue: revenue ? { mrrCents: revenue.mrrCents, readyToInvoice: revenue.ready, invoicedUnpaid: revenue.invoicedOpen } : undefined,
         readyToInvoice: money?.ready.map((i) => ({ id: i.id, client: i.clientName, description: i.description, amountCents: i.amountCents })),
@@ -380,8 +410,8 @@ export function buildServer(modules: Modules) {
       description: "Maak een taak aan. Bij een project worden klant en gebied overgenomen.",
       inputSchema: { title: z.string().min(1), ...taskFields },
     },
-    async ({ client, ...rest }) => {
-      const task = await data.createTask({ ...rest, clientId: await resolveClient(client) });
+    async ({ client, learning, ...rest }) => {
+      const task = await data.createTask({ ...rest, clientId: await resolveClient(client), learningId: await resolveLearning(learning) });
       return json(task);
     },
   );
@@ -393,9 +423,10 @@ export function buildServer(modules: Modules) {
       description: "Wijzig velden van een taak (alleen meegegeven velden veranderen). status 'done' rondt af.",
       inputSchema: { id: z.string().uuid(), title: z.string().min(1).optional(), ...taskFields },
     },
-    async ({ id, client, ...rest }) => {
+    async ({ id, client, learning, ...rest }) => {
       const patch: Partial<data.TaskInput> = { ...rest };
       if (client !== undefined) patch.clientId = await resolveClient(client);
+      if (learning !== undefined) patch.learningId = await resolveLearning(learning);
       return json(await data.updateTask(id, patch));
     },
   );
@@ -628,6 +659,7 @@ export function buildServer(modules: Modules) {
     area: area.nullable().optional(),
     client: z.string().nullable().optional(),
     projectId: z.string().uuid().nullable().optional(),
+    learning: z.string().nullable().optional().describe("Leeronderwerp (id of titel) waar deze bron bij hoort"),
   };
 
   server.registerTool(
@@ -637,15 +669,16 @@ export function buildServer(modules: Modules) {
       description: "Bewaar een link, artikel, video of idee. Met alleen een url haalt Marc OS titel, beschrijving en site zelf op.",
       inputSchema: { title: z.string().optional(), ...sourceFields, capturedVia: z.string().optional().describe("Bijv. whatsapp; standaard mcp") },
     },
-    async ({ client, capturedVia, ...rest }) => json(await data.createSource({ ...rest, clientId: await resolveClient(client), capturedVia: capturedVia ?? "mcp" })),
+    async ({ client, learning, capturedVia, ...rest }) => json(await data.createSource({ ...rest, clientId: await resolveClient(client), learningId: await resolveLearning(learning), capturedVia: capturedVia ?? "mcp" })),
   );
 
   server.registerTool(
     "update_source",
     { title: "Bron wijzigen", description: "Wijzig een bron, bijv. de samenvatting of de status. Body vervangt de hele aantekeningen.", inputSchema: { id: z.string().uuid(), title: z.string().optional(), ...sourceFields } },
-    async ({ id, client, ...rest }) => {
+    async ({ id, client, learning, ...rest }) => {
       const patch: import("./brain").SourcePatch = { ...rest };
       if (client !== undefined) patch.clientId = await resolveClient(client);
+      if (learning !== undefined) patch.learningId = await resolveLearning(learning);
       return json(await data.updateSource(id, patch));
     },
   );
@@ -1821,6 +1854,275 @@ export function buildServer(modules: Modules) {
       },
     },
     async (patch) => json(await data.setHealthGoals(patch)),
+  );
+
+  /* ---- Doelen en leren (gesprek 10) ---- */
+
+  const goalSource = z.enum(["mrr", "revenue", "billable_hours", "effective_rate", "quotes_won", "active_clients", "tasks_done", "learning_hours", "health_sessions", "health_steps", "health_exercise", "health_sleep", "weight"]);
+  const resolveGoal = async (ref: string) => {
+    const g = await data.findGoal(ref);
+    if (!g) throw new Error(`Doel "${ref}" niet gevonden. Gebruik list_goals.`);
+    return g;
+  };
+  const resolveHabit = async (ref: string | null | undefined) => {
+    if (ref === undefined) return undefined;
+    if (!ref) return null;
+    const h = await data.findHabit(ref);
+    if (!h) throw new Error(`Gewoonte "${ref}" niet gevonden. Gebruik list_habits.`);
+    return h.id;
+  };
+  const goalFields = {
+    area: z.enum(["zakelijk", "prive", "gezondheid", "leren"]).optional(),
+    periodKind: z.enum(["year", "quarter", "month", "custom"]).optional().describe("year/quarter/month rond startDate (standaard vandaag), of custom met startDate en endDate"),
+    startDate: isoDate.optional(),
+    endDate: isoDate.optional().describe("Alleen bij custom"),
+    parent: z.string().nullable().optional().describe("Bovenliggend doel (id of titel)"),
+    measure: z.enum(["auto", "health", "habit", "manual", "milestones", "subgoals"]).optional().describe("auto = uit de app, health = uit Apple Health, habit = gewoonte (doel in %), manual = handmatig getal, milestones, subgoals"),
+    source: goalSource.nullable().optional().describe("Bij auto: mrr, revenue (omzet), billable_hours, effective_rate (€/u), quotes_won, active_clients, tasks_done, learning_hours. Bij health: health_sessions, health_steps, health_exercise, health_sleep (uren), weight"),
+    habit: z.string().nullable().optional().describe("Bij measure habit: gewoonte (id of naam)"),
+    learning: z.string().nullable().optional().describe("Bij source learning_hours: één leeronderwerp (id of titel); leeg = alle"),
+    targetValue: z.number().nullable().optional().describe("In gewone eenheden: euro's (niet centen), uren, kg, aantal, procent"),
+    startValue: z.number().nullable().optional().describe("Bij een stand (MRR, gewicht, handmatig): beginwaarde; leeg = huidige stand bij aanmaken"),
+    unit: z.string().nullable().optional().describe("Bij manual: eenheid, bijv. volgers, reviews, eur, kg"),
+    targetPer: z.enum(["day", "week", "month"]).nullable().optional().describe("Bij optellende bronnen (omzet, uren, sessies, uren leren): doel per dag/week/maand; null = totaal over de periode"),
+    direction: z.enum(["up", "down"]).nullable().optional().describe("down = lager is beter (hooguit)"),
+    curve: z.enum(["linear", "late", "early"]).optional().describe("Verwacht verloop: gelijkmatig, rustige start, snelle start"),
+    featured: z.boolean().optional().describe("Hoofddoel in de doelbalk van de cockpit (hooguit één)"),
+    notes: z.string().nullable().optional(),
+  };
+  const goalPatch = async (x: { parent?: string | null; habit?: string | null; learning?: string | null } & Record<string, unknown>) => {
+    const { parent, habit, learning, ...rest } = x;
+    const out: Partial<data.GoalInput> = rest as Partial<data.GoalInput>;
+    if (parent !== undefined) out.parentId = parent ? (await resolveGoal(parent)).id : null;
+    if (habit !== undefined) out.habitId = await resolveHabit(habit);
+    if (learning !== undefined) out.learningId = await resolveLearning(learning);
+    return out;
+  };
+
+  server.registerTool(
+    "list_goals",
+    {
+      title: "Doelen",
+      description: "Doelen met meetwijze, huidige stand, doel en on-track-status (summary en needed in gewone taal). Standaard alleen niet-gearchiveerde; running=true alleen lopende doelen.",
+      inputSchema: { running: z.boolean().optional(), includeArchived: z.boolean().optional() },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ running, includeArchived }) => {
+      const t = today();
+      const list = await data.listGoals({ includeArchived });
+      return json(list.filter((g) => !running || (g.startDate <= t && g.endDate >= t)).map(data.slimGoal));
+    },
+  );
+
+  server.registerTool(
+    "get_goal",
+    {
+      title: "Doel bekijken",
+      description: "Eén doel met status, metingen (handmatig), mijlpalen en subdoelen.",
+      inputSchema: { goal: z.string().describe("Id of (deel van de) titel") },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ goal }) => {
+      const g = await data.getGoal((await resolveGoal(goal)).id);
+      if (!g) throw new Error("Doel niet gevonden");
+      return json({
+        ...data.slimGoal(g),
+        notes: g.notes,
+        entries: g.entries.slice(0, 20).map((e) => ({ id: e.id, date: e.date, value: e.value, note: e.note })),
+        milestones: g.milestoneList.map((m) => ({ id: m.id, title: m.title, dueDate: m.dueDate, done: m.isDone, project: m.projectName })),
+        subgoals: g.children.map(data.slimGoal),
+      });
+    },
+  );
+
+  server.registerTool(
+    "create_goal",
+    {
+      title: "Doel aanmaken",
+      description:
+        "Nieuw doel. Voorbeelden: € 5.500 omzet per maand (measure auto, source revenue, targetValue 5500, targetPer month), effectief € 82 per uur (auto, effective_rate, 82), 1.100 declarabele uren per jaar (auto, billable_hours, 1100), 4x per week sporten (health, health_sessions, 4, week), 80 kg (health, weight, 80), dagafsluiting 90% (habit, habit \"dagafsluiting\", 90), 1.000 LinkedIn-volgers (manual, unit volgers, 1000), website live (milestones). Alleen op verzoek van Marc.",
+      inputSchema: { title: z.string().min(1), ...goalFields },
+    },
+    async (input) => {
+      const row = await data.createGoal((await goalPatch(input)) as data.GoalInput);
+      return json(data.slimGoal((await data.getGoal(row.id))!));
+    },
+  );
+
+  server.registerTool(
+    "update_goal",
+    {
+      title: "Doel wijzigen",
+      description: "Wijzig een doel (alleen meegegeven velden). archived=true archiveert (verdwijnt uit cockpit en lijsten, blijft bewaard). Alleen op verzoek van Marc.",
+      inputSchema: { goal: z.string().describe("Id of titel"), title: z.string().min(1).optional(), ...goalFields, archived: z.boolean().optional() },
+    },
+    async ({ goal, archived, ...rest }) => {
+      const g = await resolveGoal(goal);
+      const patch = await goalPatch(rest);
+      if (Object.keys(patch).length) await data.updateGoal(g.id, patch);
+      if (archived !== undefined) await data.archiveGoal(g.id, archived);
+      return json(data.slimGoal((await data.getGoal(g.id))!));
+    },
+  );
+
+  server.registerTool(
+    "delete_goal",
+    { title: "Doel verwijderen", description: "Verwijder een doel met metingen en mijlpalen (subdoelen blijven). Liever archiveren (update_goal archived). Alleen op verzoek van Marc.", inputSchema: { goal: z.string() }, annotations: { destructiveHint: true } },
+    async ({ goal }) => json({ deleted: !!(await data.deleteGoal((await resolveGoal(goal)).id)) }),
+  );
+
+  server.registerTool(
+    "log_goal_value",
+    {
+      title: "Stand van een handmatig doel",
+      description: "Leg de stand vast van een doel met measure manual (bijv. \"ik heb nu 640 volgers op LinkedIn\"). Eén meting per dag; opnieuw op dezelfde dag overschrijft.",
+      inputSchema: { goal: z.string(), value: z.number(), date: isoDate.optional(), note: z.string().optional(), source: z.enum(["mcp", "whatsapp"]).optional() },
+    },
+    async ({ goal, value, date, note, source }) => {
+      const g = await resolveGoal(goal);
+      await data.logGoalValue(g.id, value, date ?? today(), note ?? null, source ?? "mcp");
+      return json(data.slimGoal((await data.getGoal(g.id))!));
+    },
+  );
+
+  server.registerTool(
+    "set_milestone",
+    {
+      title: "Mijlpaal toevoegen, afvinken of verwijderen",
+      description: "Zonder id: nieuwe mijlpaal bij het doel (title verplicht). Met id: wijzigen (title, dueDate, done) of delete=true. Een mijlpaal met projectId is klaar zodra dat project is afgerond.",
+      inputSchema: {
+        goal: z.string(),
+        id: z.string().uuid().optional(),
+        title: z.string().optional(),
+        dueDate: isoDate.nullable().optional(),
+        done: z.boolean().optional(),
+        projectId: z.string().uuid().nullable().optional(),
+        delete: z.boolean().optional(),
+      },
+    },
+    async ({ goal, id, delete: del, ...rest }) => {
+      const g = await resolveGoal(goal);
+      if (id && del) await data.deleteMilestone(id);
+      else if (id) await data.updateMilestone(id, rest);
+      else {
+        if (!rest.title) throw new Error("Geef de mijlpaal een titel.");
+        await data.addMilestone(g.id, { ...rest, title: rest.title });
+      }
+      const d = (await data.getGoal(g.id))!;
+      return json({ ...data.slimGoal(d), milestones: d.milestoneList.map((m) => ({ id: m.id, title: m.title, dueDate: m.dueDate, done: m.isDone, project: m.projectName })) });
+    },
+  );
+
+  const slimLearning = (x: data.LearningRow) => ({
+    id: x.id,
+    title: x.title,
+    kind: x.kind,
+    area: x.area,
+    status: x.status,
+    goal: x.goal,
+    progress: x.progressLabel,
+    progressPct: x.pct,
+    hoursSpent: Math.round((x.minutesTotal / 60) * 10) / 10,
+    hoursTarget: x.hoursTarget,
+    minutesThisWeek: x.minutesWeek,
+    lastSession: x.lastDate,
+    openSteps: x.openSteps,
+    startDate: x.startDate,
+    targetDate: x.targetDate,
+    finishedAt: x.finishedAt,
+    url: x.url,
+  });
+  const learningFields = {
+    kind: z.enum(["cursus", "boek", "vaardigheid", "certificering", "overig"]).optional(),
+    area: area.optional(),
+    status: z.enum(["idee", "bezig", "gepauzeerd", "afgerond"]).optional(),
+    goal: z.string().nullable().optional().describe("Waarom, wat Marc ermee wil kunnen"),
+    url: z.string().nullable().optional(),
+    progressDone: z.number().min(0).optional().describe("Aantal klaar (bij progressUnit) of percentage"),
+    progressTotal: z.number().min(0).nullable().optional(),
+    progressUnit: z.string().nullable().optional().describe("Bijv. hoofdstukken, lessen; leeg = voortgang in procenten"),
+    hoursTarget: z.number().min(0).nullable().optional(),
+    startDate: isoDate.nullable().optional(),
+    targetDate: isoDate.nullable().optional(),
+    notes: z.string().nullable().optional().describe("Aantekeningen in markdown, mag [[links]] bevatten; vervangt de hele tekst"),
+  };
+
+  server.registerTool(
+    "list_learning",
+    { title: "Leeronderwerpen", description: "Leeronderwerpen met status, voortgang, bestede tijd (totaal en deze week) en open stappen. Plus minuten leren deze en vorige week.", inputSchema: { status: z.array(z.enum(["idee", "bezig", "gepauzeerd", "afgerond"])).optional() }, annotations: { readOnlyHint: true } },
+    async ({ status }) => {
+      const sum = await data.learningSummary();
+      return json({ minutesThisWeek: sum.minutesThisWeek, minutesLastWeek: sum.minutesLastWeek, topics: (await data.listLearning({ status })).map(slimLearning) });
+    },
+  );
+
+  server.registerTool(
+    "get_learning",
+    { title: "Leeronderwerp bekijken", description: "Eén leeronderwerp met aantekeningen, vastgelegde tijd, leerplan (taken), bronnen en notities die ernaar linken.", inputSchema: { topic: z.string().describe("Id of (deel van de) titel") }, annotations: { readOnlyHint: true } },
+    async ({ topic }) => {
+      const id = (await resolveLearning(topic))!;
+      const [x, backlinks] = await Promise.all([data.getLearning(id), data.getBacklinks("learning", id)]);
+      if (!x) throw new Error("Leeronderwerp niet gevonden");
+      return json({
+        ...slimLearning(x),
+        notes: x.notes,
+        sessions: x.sessions.slice(0, 30).map((s) => ({ id: s.id, date: s.date, minutes: s.minutes, note: s.note })),
+        steps: x.steps.map((t) => ({ id: t.id, title: t.title, status: t.status, planDate: t.planDate, estimateMin: t.estimateMin })),
+        sources: x.sources.map((s) => ({ id: s.id, title: s.title, url: s.url, status: s.status })),
+        linkedFrom: backlinks.map((b) => ({ kind: b.fromKind, id: b.fromId, title: b.title })),
+      });
+    },
+  );
+
+  server.registerTool(
+    "create_learning",
+    { title: "Leeronderwerp aanmaken", description: "Nieuw leeronderwerp (cursus, boek, vaardigheid, certificering). Alleen op verzoek van Marc.", inputSchema: { title: z.string().min(1), ...learningFields } },
+    async (input) => {
+      const row = await data.createLearning(input);
+      return json(slimLearning((await data.getLearning(row.id))!));
+    },
+  );
+
+  server.registerTool(
+    "update_learning",
+    { title: "Leeronderwerp wijzigen", description: "Wijzig een leeronderwerp: status (afgerond vult de einddatum), voortgang (progressDone), doel, aantekeningen. Alleen meegegeven velden veranderen.", inputSchema: { topic: z.string(), title: z.string().min(1).optional(), ...learningFields } },
+    async ({ topic, ...patch }) => {
+      const id = (await resolveLearning(topic))!;
+      await data.updateLearning(id, patch);
+      return json(slimLearning((await data.getLearning(id))!));
+    },
+  );
+
+  server.registerTool(
+    "log_learning",
+    {
+      title: "Tijd leren vastleggen",
+      description: "Leg tijd vast bij een leeronderwerp (\"1 uur aan de Google Ads-cursus\"): duration als tekst (\"1u\", \"45m\", \"1:30\") of minutes. Telt mee voor doelen met uren leren.",
+      inputSchema: { topic: z.string(), duration: z.string().optional(), minutes: z.number().int().positive().optional(), date: isoDate.optional(), note: z.string().optional(), source: z.enum(["mcp", "whatsapp"]).optional() },
+    },
+    async ({ topic, duration, minutes, date, note, source }) => {
+      const id = (await resolveLearning(topic))!;
+      const min = minutes ?? (duration ? (/^\d+$/.test(duration.trim()) ? Number(duration) : parseDuration(duration)) : null);
+      if (!min) throw new Error("Geef duration (bijv. \"1u\") of minutes.");
+      const row = await data.logLearning({ topicId: id, minutes: min, date, note, source: source ?? "mcp" });
+      return json({ logged: { id: row.id, date: row.date, minutes: row.minutes }, topic: slimLearning((await data.getLearning(id))!) });
+    },
+  );
+
+  server.registerTool(
+    "delete_learning_session",
+    { title: "Vastgelegde leertijd verwijderen", description: "Verwijder een vastgelegde sessie (id uit get_learning). Alleen op verzoek van Marc.", inputSchema: { id: z.string().uuid() }, annotations: { destructiveHint: true } },
+    async ({ id }) => json({ deleted: !!(await data.deleteLearningSession(id)) }),
+  );
+
+  server.registerTool(
+    "delete_learning",
+    { title: "Leeronderwerp verwijderen", description: "Verwijder een leeronderwerp met de vastgelegde tijd (taken en bronnen blijven bestaan, zonder koppeling). Alleen op verzoek van Marc.", inputSchema: { topic: z.string() }, annotations: { destructiveHint: true } },
+    async ({ topic }) => {
+      const id = (await resolveLearning(topic))!;
+      await data.deleteLearning(id);
+      return json({ deleted: true });
+    },
   );
 
   /* ---- Agenda en reviews ---- */

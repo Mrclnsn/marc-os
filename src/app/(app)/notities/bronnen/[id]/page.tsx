@@ -4,7 +4,7 @@ import { BacklinksPanel, MentionsPanel } from "@/components/brain-parts";
 import { AreaSelect, ClientSelect, Field, ProjectSelect } from "@/components/forms";
 import { LinkEditor } from "@/components/link-editor";
 import { Markdown } from "@/components/markdown";
-import { getBacklinks, getSource, getUnlinkedMentions, linkSuggestions, resolveLinksIn } from "@/lib/data";
+import { findLearning, getBacklinks, getSource, getUnlinkedMentions, linkSuggestions, resolveLinksIn } from "@/lib/data";
 import { AREAS, SOURCE_KIND, SOURCE_STATUS } from "@/lib/labels";
 import { formatDate } from "@/lib/dates";
 import { getOptions } from "@/lib/options";
@@ -16,6 +16,7 @@ export default async function SourcePage({ params, searchParams }: { params: Pro
   const row = await getSource(id);
   if (!row) notFound();
   const { source: s } = row;
+  const learning = s.learningId ? await findLearning(s.learningId) : null;
 
   if (sp.bewerken !== undefined) {
     const [options, suggestions] = await Promise.all([getOptions(), linkSuggestions()]);
@@ -79,6 +80,7 @@ export default async function SourcePage({ params, searchParams }: { params: Pro
               {s.area && <span className="chip">{AREAS[s.area]}</span>}
               {s.clientId && row.clientName && <Link href={`/klanten/${s.clientId}`} className="chip hover:bg-lijn">{row.clientName}</Link>}
               {s.projectId && row.projectName && <Link href={`/projecten/${s.projectId}`} className="chip hover:bg-lijn">◫ {row.projectName}</Link>}
+              {learning && <Link href={`/leren/${learning.id}`} className="chip hover:bg-lijn">△ {learning.title}</Link>}
               {s.author && <span>{s.author}</span>}
               <span>Bewaard {formatDate(s.createdAt.toISOString().slice(0, 10))}{s.capturedVia && s.capturedVia !== "app" ? ` via ${s.capturedVia}` : ""}</span>
             </div>

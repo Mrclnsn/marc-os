@@ -11,6 +11,8 @@ const items: Item[] = [
   { href: "/", label: "Vandaag" },
   { href: "/planning", label: "Planning" },
   { href: "/gezondheid", label: "Gezondheid" },
+  { href: "/doelen", label: "Doelen" },
+  { href: "/leren", label: "Leren" },
   { href: "/inbox", label: "Inbox" },
   { href: "/taken", label: "Taken" },
   { href: "/projecten", label: "Projecten" },

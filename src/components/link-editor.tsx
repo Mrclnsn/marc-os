@@ -5,8 +5,8 @@ import { LINK_PREFIX, PREFIX_OF, linkKey, type LinkKind } from "@/lib/wikilinks"
 
 export type Suggestion = { kind: LinkKind; title: string };
 
-const KIND_LABEL: Record<LinkKind, string> = { note: "Notitie", client: "Klant", project: "Project", source: "Bron" };
-const ORDER: Record<LinkKind, number> = { note: 0, client: 1, project: 2, source: 3 };
+const KIND_LABEL: Record<LinkKind, string> = { note: "Notitie", client: "Klant", project: "Project", source: "Bron", learning: "Leren" };
+const ORDER: Record<LinkKind, number> = { note: 0, client: 1, project: 2, source: 3, learning: 4 };
 
 /**
  * Tekstvak voor markdown met aanvullen van [[links]]: typ [[ en een deel van de naam.
