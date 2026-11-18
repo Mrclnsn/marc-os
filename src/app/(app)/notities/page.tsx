@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/brand";
 import Link from "next/link";
 import { AreaSelect, ClientSelect, NoteTypeSelect } from "@/components/forms";
 import { NoteList } from "@/components/note-list";
+import { BrainTabs } from "@/components/brain-parts";
 import { listNotes } from "@/lib/data";
 import { NOTE_TYPES, type NoteType } from "@/lib/labels";
 import { getOptions } from "@/lib/options";
@@ -20,7 +21,8 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Dossier" title="Notities" />
+      <PageHeader eyebrow="Second brain" title="Notities" />
+      <BrainTabs active="notities" />
 
       <form action={createNoteAction} className="card grid grid-cols-2 gap-2 p-2 md:grid-cols-5">
         <input name="title" required placeholder="Nieuwe notitie..." className="input col-span-2" />
@@ -47,9 +49,10 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
           <option value="">Alle klanten</option>
           {options.clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        <input name="zoek" defaultValue={sp.zoek ?? ""} placeholder="Zoeken in notities" className="input py-1 text-xs" />
+        <input name="zoek" defaultValue={sp.zoek ?? ""} placeholder="Filter op woord" className="input py-1 text-xs" />
         <button className="btn py-1 text-xs">Filter</button>
         {(type || area || sp.klant || sp.zoek) && <Link href="/notities" className="btn-ghost text-xs">Wissen</Link>}
+        <Link href={`/notities/zoeken${sp.zoek ? `?q=${encodeURIComponent(sp.zoek)}` : ""}`} className="btn-ghost ml-auto text-xs">Slim zoeken →</Link>
       </form>
 
       <div className="card"><NoteList rows={rows} /></div>

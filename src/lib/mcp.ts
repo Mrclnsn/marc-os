@@ -173,7 +173,10 @@ const INSTRUCTION_LINES: { text: string; module?: ModuleKey }[] = [
   { text: "- Uren: alles mag uren krijgen (klantwerk, bedrijf algemeen, privé, leren). Er loopt hooguit één timer; start_timer stopt een lopende timer. Voor achteraf schrijven gebruik log_time (\"2 uur aan Vobis, SEO-analyse\" → client \"Vobis\", duration \"2u\", description \"SEO-analyse\"). Declarabel gaat automatisch als de uren onder een afspraak met uurtarief vallen. get_hours geeft het weekoverzicht, te factureren uren, budgetten (waarschuwing vanaf 80%) en het effectief uurtarief per klant.", module: "uren" },
   { text: "- Pipeline: een lead is een kans (nieuw bedrijf of bestaande klant) met status new/contact/quoted/won/lost, kans in procenten en een volgende stap. Een offerte hoort altijd bij een lead en heeft regels per dienst (zelfde velden als een afspraak). accept_quote verwerkt een akkoord met één aanroep: klant aanmaken of activeren, websites per domein, elke regel een actieve afspraak, websiteproject en termijnen (eerste termijn klaar om te factureren), lead gewonnen. Doe accept_quote, set_quote_status en delete-acties alleen als Marc daarom vraagt.", module: "pipeline" },
   { text: "- Aangiftecyclus: per boekhoudklant staat ingesteld welke aangiftes Marc doet (btw per maand/kwartaal/jaar, IB, Vpb, ICP, loonheffingen, overig) met eventueel uitstel (individueel of becon). Daaruit ontstaat per periode automatisch een aangifte-item met wettelijke deadline, datum waarop de stukken binnen moeten zijn en (na afloop van de periode) een taak. Statussen: todo, waiting_docs (wacht op stukken), in_progress, review (klaar voor controle), filed (ingediend), done (afgerond: betaald of ontvangen). list_filings en get_overview tonen signalen (deadline binnen 14 dagen, te laat, stukken ontbreken). draft_docs_reminder geeft een conceptmail om stukken op te vragen; verstuur nooit zelf, Marc verstuurt na akkoord. Wijzig statussen of instellingen alleen als Marc daarom vraagt.", module: "aangiftes" },
-  { text: "- Inbox-items zijn notities van het type \"inbox\" (braindump). Verwerk ze met inbox_to_task of update_note." },
+  { text: "- Inbox-items zijn notities van het type \"inbox\" (braindump). Verwerk ze met inbox_to_task of update_note; een link of idee om te bewaren wordt een bron (add_source)." },
+  { text: "- Second brain: notities zijn markdown en mogen [[links]] bevatten naar andere notities, klanten, projecten en bronnen, op naam: [[Vobis]], [[Gesprek SEO-strategie]]. Is een naam dubbel, gebruik dan een voorvoegsel: [[klant:Vobis]], [[project:...]], [[bron:...]], [[notitie:...]]. Link in gespreksverslagen naar de klant en eerdere notities zodat de backlinks kloppen. get_note geeft ook de links vanuit en naar de notitie; get_backlinks geeft wat naar een klant, project, bron of notitie verwijst." },
+  { text: "- Vragen over wat er eerder is besproken of afgesproken (\"wat hebben we met Vobis afgesproken over SEO?\") beantwoord je met search_knowledge: zoekt op betekenis (als semantisch zoeken aan staat) en op trefwoord in notities en bronnen, en geeft per treffer een stuk tekst. Lees zo nodig de hele notitie met get_note en noem de notities waarop je antwoord steunt." },
+  { text: "- Bronnen zijn links, artikelen, video's en ideeën om te bewaren (add_source; met alleen een url haalt Marc OS titel en beschrijving zelf op). Vat een bron kort samen in summary als Marc daarom vraagt of als hij hem doorstuurt om te bewaren." },
   { text: "- Begin een briefing altijd met get_overview. Sla briefings en samenvattingen op met save_review zodat Marc ze in de app ziet." },
   { text: "- Tijdzone: Europe/Amsterdam. Schrijf in het Nederlands." },
 ];
@@ -181,7 +184,7 @@ const INSTRUCTION_LINES: { text: string; module?: ModuleKey }[] = [
 function instructions(modules: Modules) {
   const off = (Object.keys(MODULES) as ModuleKey[]).filter((k) => !modules[k]);
   const lines = [
-    "Dit is Marc OS: Marc's centrale systeem voor taken, projecten, klanten, notities en reviews.",
+    "Dit is Marc OS: Marc's centrale systeem voor taken, projecten, klanten, notities (second brain met [[links]] en bronnen) en reviews.",
     ...INSTRUCTION_LINES.filter((l) => !l.module || modules[l.module]).map((l) => l.text),
   ];
   if (off.length) {
@@ -412,8 +415,17 @@ export function buildServer(modules: Modules) {
 
   server.registerTool(
     "get_note",
-    { title: "Notitie lezen", description: "Volledige inhoud van een notitie.", inputSchema: { id: z.string().uuid() }, annotations: { readOnlyHint: true } },
-    async ({ id }) => json(await data.getNote(id)),
+    { title: "Notitie lezen", description: "Volledige inhoud van een notitie, met de [[links]] vanuit de notitie en de notities en bronnen die ernaar linken.", inputSchema: { id: z.string().uuid() }, annotations: { readOnlyHint: true } },
+    async ({ id }) => {
+      const row = await data.getNote(id);
+      if (!row) throw new Error("Notitie niet gevonden");
+      const [outgoing, backlinks] = await Promise.all([data.getOutgoing("note", id), data.getBacklinks("note", id)]);
+      return json({
+        ...row,
+        links: outgoing.map((o) => (o.resolved ? { label: o.label, kind: o.resolved.kind, id: o.resolved.id, title: o.resolved.title } : { label: o.label, missing: true })),
+        backlinks: backlinks.map((b) => ({ kind: b.fromKind, id: b.fromId, title: b.title, context: b.contexts })),
+      });
+    },
   );
 
   const noteFields = {
@@ -427,7 +439,7 @@ export function buildServer(modules: Modules) {
 
   server.registerTool(
     "create_note",
-    { title: "Notitie aanmaken", description: "Maak een notitie, bijv. gespreksverslag of info voor het klantdossier.", inputSchema: { title: z.string().min(1), ...noteFields } },
+    { title: "Notitie aanmaken", description: "Maak een notitie, bijv. gespreksverslag of info voor het klantdossier. Body is markdown en mag [[links]] bevatten.", inputSchema: { title: z.string().min(1), ...noteFields } },
     async ({ client, ...rest }) => json(await data.createNote({ ...rest, clientId: await resolveClient(client) })),
   );
 
@@ -438,6 +450,139 @@ export function buildServer(modules: Modules) {
       const patch: Partial<data.NoteInput> = { ...rest };
       if (client !== undefined) patch.clientId = await resolveClient(client);
       return json(await data.updateNote(id, patch));
+    },
+  );
+
+  /* ---- Second brain ---- */
+
+  server.registerTool(
+    "search_knowledge",
+    {
+      title: "Second brain doorzoeken",
+      description:
+        "Zoek in notities en bronnen op betekenis en trefwoord, voor vragen als \"wat hebben we met Vobis afgesproken over SEO?\". Geeft per treffer titel, soort, klant, datum en een stuk tekst (excerpt). mode zegt of er op betekenis is gezocht; reason waarom niet.",
+      inputSchema: {
+        query: z.string().min(1).describe("De vraag of zoekwoorden, gewoon in het Nederlands"),
+        client: z.string().optional().describe("Alleen voor deze klant (id of naam)"),
+        kinds: z.array(z.enum(["note", "source"])).optional(),
+        limit: z.number().int().positive().max(30).optional(),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ query, client, kinds, limit }) => {
+      const r = await data.searchKnowledge(query, { clientId: (await resolveClient(client)) ?? null, kinds, limit: limit ?? 8 });
+      return json({
+        mode: r.mode,
+        reason: r.reason,
+        hits: r.hits.map((h) => ({ kind: h.kind, id: h.id, title: h.title, type: h.label, date: h.date, client: h.clientName, project: h.projectName, match: h.match, excerpt: h.excerpt })),
+      });
+    },
+  );
+
+  const linkKindSchema = z.enum(["note", "client", "project", "source"]);
+
+  server.registerTool(
+    "get_backlinks",
+    {
+      title: "Backlinks",
+      description: "Notities en bronnen die met een [[link]] naar een notitie, klant, project of bron verwijzen, met de regel waarin de link staat. Plus vermeldingen van de naam zonder link.",
+      inputSchema: { kind: linkKindSchema, id: z.string().optional(), name: z.string().optional().describe("Naam als je het id niet hebt (bij klanten ook een deel van de naam)") },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ kind, id, name }) => {
+      let ref = id;
+      if (!ref && name) {
+        if (kind === "client") ref = (await resolveClient(name)) ?? undefined;
+        else {
+          const { linkKey } = await import("./wikilinks");
+          const e = (await data.loadEntities()).find((x) => x.kind === kind && linkKey(x.title) === linkKey(name));
+          ref = e?.id;
+        }
+      }
+      if (!ref) throw new Error("Niet gevonden; geef een id of de exacte naam.");
+      const [backlinks, mentions] = await Promise.all([data.getBacklinks(kind, ref), data.getUnlinkedMentions(kind, ref)]);
+      return json({
+        backlinks: backlinks.map((b) => ({ kind: b.fromKind, id: b.fromId, title: b.title, date: b.date, context: b.contexts })),
+        unlinkedMentions: mentions.map((m) => ({ ref: m.key, title: m.title, context: m.context })),
+      });
+    },
+  );
+
+  const sourceKind = z.enum(["article", "video", "podcast", "book", "course", "idea", "link"]);
+  const sourceStatus = z.enum(["new", "read", "processed"]).describe("new = nog bekijken, read = gelezen, processed = verwerkt");
+  const slimSource = (r: { source: import("@/db/schema").Source; clientName: string | null; projectName: string | null }) => ({
+    id: r.source.id,
+    title: r.source.title,
+    url: r.source.url,
+    kind: r.source.kind,
+    status: r.source.status,
+    author: r.source.author,
+    summary: r.source.summary,
+    client: r.clientName,
+    project: r.projectName,
+    savedAt: r.source.createdAt,
+  });
+
+  server.registerTool(
+    "list_sources",
+    {
+      title: "Bronnen",
+      description: "Bewaarde links, artikelen, video's en ideeën. Nog niet bekeken staan bovenaan.",
+      inputSchema: { status: sourceStatus.optional(), kind: sourceKind.optional(), client: z.string().optional(), search: z.string().optional(), limit: z.number().int().positive().max(200).optional() },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ client, ...rest }) => json((await data.listSources({ ...rest, clientId: (await resolveClient(client)) ?? undefined })).map(slimSource)),
+  );
+
+  server.registerTool(
+    "get_source",
+    { title: "Bron lezen", description: "Een bron met samenvatting, eigen aantekeningen (body) en backlinks.", inputSchema: { id: z.string().uuid() }, annotations: { readOnlyHint: true } },
+    async ({ id }) => {
+      const r = await data.getSource(id);
+      if (!r) throw new Error("Bron niet gevonden");
+      const backlinks = await data.getBacklinks("source", id);
+      return json({ ...slimSource(r), body: r.source.body, backlinks: backlinks.map((b) => ({ kind: b.fromKind, id: b.fromId, title: b.title })) });
+    },
+  );
+
+  const sourceFields = {
+    url: z.string().nullable().optional(),
+    kind: sourceKind.optional().describe("Standaard geraden uit de link"),
+    status: sourceStatus.optional(),
+    author: optText.describe("Maker, kanaal of site"),
+    summary: optText.describe("Korte samenvatting, 2 tot 4 zinnen"),
+    body: optText.describe("Eigen aantekeningen in markdown, mag [[links]] bevatten"),
+    area: area.nullable().optional(),
+    client: z.string().nullable().optional(),
+    projectId: z.string().uuid().nullable().optional(),
+  };
+
+  server.registerTool(
+    "add_source",
+    {
+      title: "Bron bewaren",
+      description: "Bewaar een link, artikel, video of idee. Met alleen een url haalt Marc OS titel, beschrijving en site zelf op.",
+      inputSchema: { title: z.string().optional(), ...sourceFields, capturedVia: z.string().optional().describe("Bijv. whatsapp; standaard mcp") },
+    },
+    async ({ client, capturedVia, ...rest }) => json(await data.createSource({ ...rest, clientId: await resolveClient(client), capturedVia: capturedVia ?? "mcp" })),
+  );
+
+  server.registerTool(
+    "update_source",
+    { title: "Bron wijzigen", description: "Wijzig een bron, bijv. de samenvatting of de status. Body vervangt de hele aantekeningen.", inputSchema: { id: z.string().uuid(), title: z.string().optional(), ...sourceFields } },
+    async ({ id, client, ...rest }) => {
+      const patch: import("./brain").SourcePatch = { ...rest };
+      if (client !== undefined) patch.clientId = await resolveClient(client);
+      return json(await data.updateSource(id, patch));
+    },
+  );
+
+  server.registerTool(
+    "delete_source",
+    { title: "Bron verwijderen", description: "Verwijder een bron. Alleen als Marc daarom vraagt.", inputSchema: { id: z.string().uuid() }, annotations: { destructiveHint: true } },
+    async ({ id }) => {
+      await data.deleteSource(id);
+      return json({ ok: true });
     },
   );
 

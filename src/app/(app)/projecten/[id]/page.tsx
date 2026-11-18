@@ -3,9 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AreaSelect, ClientSelect, Field, ProjectStatusSelect } from "@/components/forms";
 import { NoteList } from "@/components/note-list";
+import { BacklinksPanel } from "@/components/brain-parts";
 import { QuickAddTask } from "@/components/quick-add";
 import { TaskList } from "@/components/task-row";
-import { getProject, listNotes, listTasks, projectHours, recentDescriptions } from "@/lib/data";
+import { getBacklinks, getProject, listNotes, listTasks, projectHours, recentDescriptions } from "@/lib/data";
 import { BudgetLine, ManualTimeForm, RecentEntries } from "@/components/time-parts";
 import { StartTimerButton } from "@/components/timer";
 import { formatHours } from "@/lib/duration";
@@ -20,13 +21,14 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   if (!row) notFound();
   const { project, clientName } = row;
   const modules = await getModules();
-  const [open, done, notesRows, options, hours, descriptions] = await Promise.all([
+  const [open, done, notesRows, options, hours, descriptions, backlinks] = await Promise.all([
     listTasks({ projectId: id, view: "open" }),
     listTasks({ projectId: id, view: "done", limit: 20 }),
     listNotes({ projectId: id, excludeInbox: true }),
     getOptions(),
     projectHours(id),
     recentDescriptions(),
+    getBacklinks("project", id),
   ]);
   const t = today();
 
@@ -72,6 +74,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           <button className="btn">Toevoegen</button>
         </form>
       </section>
+
+      {backlinks.length > 0 && <BacklinksPanel backlinks={backlinks} title="Genoemd in" />}
 
       <details className="card p-4">
         <summary className="cursor-pointer text-sm font-medium">Projectgegevens</summary>

@@ -251,6 +251,64 @@ export const notes = pgTable(
   ],
 );
 
+/* ---------------- Second brain: bronnen en links ---------------- */
+
+export const sourceKindEnum = pgEnum("source_kind", [
+  "article", // artikel
+  "video",
+  "podcast",
+  "book", // boek
+  "course", // cursus
+  "idea", // idee
+  "link", // overige link
+]);
+
+export const sourceStatusEnum = pgEnum("source_status", [
+  "new", // nog bekijken
+  "read", // gelezen of bekeken
+  "processed", // verwerkt (in notities of taken)
+]);
+
+/** Bronnen: links, artikelen, video's en ideeën om te bewaren, met samenvatting en eigen aantekeningen. */
+export const sources = pgTable(
+  "sources",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    title: text("title").notNull(),
+    url: text("url"),
+    kind: sourceKindEnum("kind").notNull().default("link"),
+    status: sourceStatusEnum("status").notNull().default("new"),
+    author: text("author"), // maker, kanaal of site
+    summary: text("summary"), // korte samenvatting (door Marc of Hermes)
+    body: text("body"), // eigen aantekeningen in markdown, met [[links]]
+    area: areaEnum("area"),
+    clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
+    capturedVia: text("captured_via"), // app, inbox, mcp, whatsapp
+    ...timestamps,
+  },
+  (t) => [index("sources_status_idx").on(t.status), index("sources_client_idx").on(t.clientId)],
+);
+
+/**
+ * [[Links]] uit notities en bronnen. Het doel wordt bewaard als tekst (genormaliseerd) en pas bij het lezen
+ * opgezocht, zodat een link vanzelf werkt zodra de notitie, klant of het project met die naam bestaat.
+ */
+export const links = pgTable(
+  "links",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    fromKind: text("from_kind").notNull(), // note | source
+    fromId: uuid("from_id").notNull(),
+    targetKind: text("target_kind"), // note | client | project | source; leeg = automatisch
+    targetKey: text("target_key").notNull(), // naam in kleine letters, zonder dubbele spaties
+    label: text("label").notNull(), // zoals geschreven
+    context: text("context"), // de regel waarin de link staat
+    position: integer("position").notNull().default(0),
+  },
+  (t) => [index("links_from_idx").on(t.fromKind, t.fromId), index("links_target_idx").on(t.targetKey)],
+);
+
 /* ---------------- Afspraken (diensten per klant) en termijnen ---------------- */
 
 export const serviceKindEnum = pgEnum("service_kind", [
@@ -587,6 +645,8 @@ export type Project = typeof projects.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
 export type Note = typeof notes.$inferSelect;
 export type Review = typeof reviews.$inferSelect;
+export type Source = typeof sources.$inferSelect;
+export type Link = typeof links.$inferSelect;
 export type Agreement = typeof agreements.$inferSelect;
 export type Installment = typeof installments.$inferSelect;
 export type TimeEntry = typeof timeEntries.$inferSelect;

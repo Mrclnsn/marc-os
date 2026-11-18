@@ -137,6 +137,7 @@ export async function updateNoteAction(id: string, fd: FormData) {
   await requireSession();
   await data.updateNote(id, noteFromForm(fd));
   refresh();
+  if (s(fd, "view")) redirect(`/notities/${id}`);
 }
 
 export async function deleteNoteAction(id: string, back = "/notities") {
@@ -144,6 +145,71 @@ export async function deleteNoteAction(id: string, back = "/notities") {
   await data.deleteNote(id);
   refresh();
   redirect(back);
+}
+
+/* ---------------- Second brain: bronnen ---------------- */
+
+function sourceFromForm(fd: FormData) {
+  const out: data.SourcePatch = {};
+  for (const k of ["title", "url", "author", "summary", "body"] as const) if (has(fd, k)) out[k] = s(fd, k);
+  if (has(fd, "kind") && s(fd, "kind")) out.kind = s(fd, "kind") as data.SourceInput["kind"];
+  if (has(fd, "status") && s(fd, "status")) out.status = s(fd, "status") as data.SourceInput["status"];
+  if (has(fd, "area")) out.area = s(fd, "area") as "zakelijk" | "prive" | null;
+  if (has(fd, "clientId")) out.clientId = s(fd, "clientId");
+  if (has(fd, "projectId")) out.projectId = s(fd, "projectId");
+  return out;
+}
+
+export async function createSourceAction(fd: FormData) {
+  await requireSession();
+  const input = sourceFromForm(fd);
+  if (!input.url && !input.title) return;
+  const row = await data.createSource({ ...input, capturedVia: "app" });
+  refresh();
+  if (s(fd, "open")) redirect(`/notities/bronnen/${row.id}`);
+}
+
+export async function updateSourceAction(id: string, fd: FormData) {
+  await requireSession();
+  await data.updateSource(id, sourceFromForm(fd));
+  refresh();
+  if (s(fd, "view")) redirect(`/notities/bronnen/${id}`);
+}
+
+export async function setSourceStatusAction(id: string, status: "new" | "read" | "processed") {
+  await requireSession();
+  await data.updateSource(id, { status });
+  refresh();
+}
+
+export async function deleteSourceAction(id: string) {
+  await requireSession();
+  await data.deleteSource(id);
+  refresh();
+  redirect("/notities/bronnen");
+}
+
+/** Inbox-item met een link bewaren als bron. */
+export async function inboxToSourceAction(noteId: string) {
+  await requireSession();
+  const row = await data.getNote(noteId);
+  if (!row) return;
+  const { note } = row;
+  const url = data.firstUrl(`${note.title}\n${note.body ?? ""}`);
+  const title = url && note.title.includes(url) ? null : note.title;
+  const rest = (note.body ?? "").replace(url ?? "\u0000", "").trim();
+  await data.createSource({ url, title, body: rest || null, area: note.area, clientId: note.clientId, projectId: note.projectId, capturedVia: "inbox" });
+  await data.deleteNote(noteId);
+  refresh();
+}
+
+/* ---------------- Second brain: index en export ---------------- */
+
+export async function syncSearchIndexAction() {
+  await requireSession();
+  await data.reindexAllLinks();
+  await data.syncEmbeddings(2000);
+  refresh();
 }
 
 /* ---------------- Projecten ---------------- */

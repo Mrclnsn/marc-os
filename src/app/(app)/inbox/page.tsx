@@ -4,7 +4,8 @@ import { AreaSelect, ClientSelect, NoteTypeSelect, ProjectSelect } from "@/compo
 import { listNotes } from "@/lib/data";
 import { getOptions } from "@/lib/options";
 import { today } from "@/lib/dates";
-import { deleteNoteAction, inboxToNoteAction, inboxToTaskAction } from "../../actions";
+import { deleteNoteAction, inboxToNoteAction, inboxToSourceAction, inboxToTaskAction } from "../../actions";
+import { firstUrl } from "@/lib/data";
 
 export default async function InboxPage() {
   const [items, options] = await Promise.all([listNotes({ type: "inbox" }), getOptions()]);
@@ -42,9 +43,14 @@ export default async function InboxPage() {
               <button className="btn">Bewaar als notitie</button>
             </form>
 
-            <form action={deleteNoteAction.bind(null, note.id, "/inbox")}>
-              <button className="btn-ghost text-xs text-nacht">Weggooien</button>
-            </form>
+            <div className="flex flex-wrap gap-2">
+              <form action={inboxToSourceAction.bind(null, note.id)}>
+                <button className="btn-ghost text-xs text-nacht">{firstUrl(`${note.title}\n${note.body ?? ""}`) ? "Bewaar als bron (link)" : "Bewaar als bron (idee)"}</button>
+              </form>
+              <form action={deleteNoteAction.bind(null, note.id, "/inbox")}>
+                <button className="btn-ghost text-xs text-nacht">Weggooien</button>
+              </form>
+            </div>
           </li>
         ))}
       </ul>

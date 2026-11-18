@@ -5,10 +5,12 @@ import { KpiSwitch, ModuleSwitch } from "@/components/settings-parts";
 import { ThemeChoice } from "@/components/theme-switch";
 import { CockpitStyleSwitch } from "@/components/cockpit-client";
 import { calendarConfigured } from "@/lib/calendar";
+import { searchStatus } from "@/lib/data";
+import { syncSearchIndexAction } from "../../actions";
 import { COCKPIT_COOKIE, KPI_KEYS, KPIS, MODULE_KEYS, MODULES, THEME_COOKIE, getHiddenKpis, getModules, parseCockpitStyle, parseTheme } from "@/lib/settings";
 
 export default async function SettingsPage() {
-  const [modules, hidden] = await Promise.all([getModules(), getHiddenKpis()]);
+  const [modules, hidden, brain] = await Promise.all([getModules(), getHiddenKpis(), searchStatus()]);
   const store = await cookies();
   const theme = parseTheme(store.get(THEME_COOKIE)?.value);
   const cockpitStyle = parseCockpitStyle(store.get(COCKPIT_COOKIE)?.value);
@@ -62,6 +64,43 @@ export default async function SettingsPage() {
         <p className="text-xs text-steen">
           Weer aanzetten: wat stil stond wordt aangevuld. Bij Aangiftes betekent dat: items en taken voor alle perioden die intussen zijn afgelopen.
         </p>
+      </section>
+
+      <section id="second-brain" className="scroll-mt-8 space-y-3">
+        <SectionTitle>Second brain</SectionTitle>
+        <div className="card divide-y divide-lijn">
+          <div className="flex flex-wrap items-start justify-between gap-4 p-4">
+            <div className="min-w-0 max-w-2xl">
+              <p className="font-bold text-nacht">Semantisch zoeken {brain.semantic ? "staat aan" : "staat uit"}</p>
+              {brain.semantic ? (
+                <p className="text-sm text-grafiet">
+                  {brain.provider}, model {brain.model}. {brain.indexed} van {brain.items} notities en bronnen in de index{brain.stale > 0 ? `, ${brain.stale} nog bij te werken` : ""}.
+                  Nieuwe en gewijzigde notities gaan er na opslaan vanzelf in; elke nacht loopt een controle.
+                </p>
+              ) : (
+                <p className="text-sm text-grafiet">
+                  Zoeken werkt op trefwoord (Nederlandse full-text search). {brain.problem ?? (brain.vector ? "" : "pgvector is niet beschikbaar in de database.")}
+                </p>
+              )}
+              <p className="mt-1 text-xs text-steen">
+                Database: pgvector {brain.vector ? "beschikbaar" : "niet beschikbaar"}. Aanzetten: in .env EMBEDDING_PROVIDER=voyage en EMBEDDING_API_KEY (of openai). De provider ziet dan de tekst van notities en bronnen: opnemen in het leveranciersregister.
+              </p>
+              {brain.lastError && <p className="mt-1 text-xs text-nacht">Laatste fout ({brain.lastError.at.slice(0, 16).replace("T", " ")}): {brain.lastError.message}</p>}
+            </div>
+            <form action={syncSearchIndexAction}>
+              <button className="btn">Links en index bijwerken</button>
+            </form>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-4 p-4">
+            <div className="max-w-2xl">
+              <p className="font-bold text-nacht">Obsidian-export</p>
+              <p className="text-sm text-grafiet">
+                Alle notities, bronnen, klanten, projecten en reviews als markdown-map in Obsidian-formaat, met [[links]] en eigenschappen. Op de VPS elke nacht naar /opt/marc-os/obsidian; hier als zip te downloaden. Alleen lezen: wijzigingen in Obsidian gaan niet terug naar Marc OS.
+              </p>
+            </div>
+            <a href="/api/export/obsidian" className="btn">Download zip</a>
+          </div>
+        </div>
       </section>
 
       <section className="space-y-3">

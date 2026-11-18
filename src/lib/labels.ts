@@ -221,3 +221,22 @@ export const OPEN_FILING_STATUSES = ["todo", "waiting_docs", "in_progress", "rev
 export const FILING_WARNING_DAYS = 14;
 /** Standaard: stukken binnen zoveel dagen na het einde van de periode. */
 export const FILING_DOCS_DAYS: Record<BillingPeriod, number> = { month: 10, quarter: 10, year: 59 };
+
+/* Second brain: bronnen */
+export const SOURCE_KIND = {
+  article: "Artikel",
+  video: "Video",
+  podcast: "Podcast",
+  book: "Boek",
+  course: "Cursus",
+  idea: "Idee",
+  link: "Link",
+} as const;
+export type SourceKind = keyof typeof SOURCE_KIND;
+
+export const SOURCE_STATUS = {
+  new: "Nog bekijken",
+  read: "Gelezen",
+  processed: "Verwerkt",
+} as const;
+export type SourceStatus = keyof typeof SOURCE_STATUS;

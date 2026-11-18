@@ -6,11 +6,15 @@ import { clientContacts, clientDocuments, clients, notes, projects, reviews, tas
 import { addDaysIso, nextOccurrence, today, type Recurrence } from "./dates";
 import { listAgreements, listInstallments, markProjectDelivered } from "./agreements";
 import { onTaskCompleted, onTaskReopened } from "./filings";
+import { deleteLinksFrom, syncLinks } from "./brain";
+import { queueIndex, queueRemove } from "./search";
 
 export * from "./agreements";
 export * from "./time";
 export * from "./pipeline";
 export * from "./filings";
+export * from "./brain";
+export { searchKnowledge, searchStatus, syncEmbeddings, type SearchHit, type SearchResult } from "./search";
 
 /* ------------------------------------------------------------------ */
 /* Invoerschema's (gedeeld door formulieren en de MCP-server)          */
@@ -620,6 +624,8 @@ export async function createNote(input: NoteInput) {
     .insert(notes)
     .values({ ...data, noteDate: data.noteDate ?? (data.type && data.type !== "inbox" ? today() : null) })
     .returning();
+  await syncLinks("note", row.id, row.body);
+  queueIndex("note", row.id);
   return row;
 }
 
@@ -633,11 +639,17 @@ export async function capture(text: string) {
 export async function updateNote(id: string, patch: Partial<NoteInput>) {
   const data = noteInput.partial().parse(patch);
   const [row] = await db.update(notes).set(data).where(eq(notes.id, id)).returning();
+  if (row) {
+    if (data.body !== undefined) await syncLinks("note", id, row.body);
+    queueIndex("note", id);
+  }
   return row;
 }
 
 export async function deleteNote(id: string) {
   await db.delete(notes).where(eq(notes.id, id));
+  await deleteLinksFrom("note", id);
+  queueRemove("note", id);
 }
 
 /** Zet een inbox-item om naar een taak en verwijdert het inbox-item. */

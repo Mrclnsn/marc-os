@@ -1,6 +1,7 @@
 services:
   db:
-    image: postgres:17-alpine
+    # Postgres 17 met pgvector (semantisch zoeken in de second brain)
+    image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
       POSTGRES_DB: marcos
@@ -20,6 +21,7 @@ services:
     build:
       context: .
       target: tools
+    env_file: .env
     environment:
       DATABASE_URL: postgres://marcos:${POSTGRES_PASSWORD}@db:5432/marcos
     command: ["npx", "tsx", "scripts/migrate.ts"]

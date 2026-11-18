@@ -6,9 +6,10 @@ import { ClientBasicForm, ClientDetails, ClientEditForm, ContactList, DocumentLi
 import { getModules } from "@/lib/settings";
 import { NoteTypeSelect } from "@/components/forms";
 import { NoteList } from "@/components/note-list";
+import { BacklinksPanel } from "@/components/brain-parts";
 import { QuickAddTask } from "@/components/quick-add";
 import { TaskList } from "@/components/task-row";
-import { clientFilings, clientHours, getClientDossierFull, listLeads, listNotes, listProjects, listTasks, recentDescriptions } from "@/lib/data";
+import { clientFilings, clientHours, getBacklinks, getClientDossierFull, listLeads, listNotes, listProjects, listTasks, recentDescriptions } from "@/lib/data";
 import { LeadLine } from "@/components/pipeline-parts";
 import { FilingRows, NewFilingForm, ScheduleList } from "@/components/filing-parts";
 import { BillingQueue, ManualTimeForm, RecentEntries, StartTimerForm } from "@/components/time-parts";
@@ -26,7 +27,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   const { client, contacts, websites, documents, agreements, installments, mrrCents } = dossier;
   const primary = contacts.find((c) => c.isPrimary) ?? contacts[0];
 
-  const [tasks, projectsRows, notesRows, options, hours, descriptions, leadRows, filingData] = await Promise.all([
+  const [tasks, projectsRows, notesRows, options, hours, descriptions, leadRows, filingData, backlinks] = await Promise.all([
     listTasks({ clientId: id, view: "open" }),
     listProjects({ clientId: id, includeClosed: true }),
     listNotes({ clientId: id, excludeInbox: true }),
@@ -35,6 +36,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     recentDescriptions(),
     listLeads({ clientId: id }),
     clientFilings(id),
+    getBacklinks("client", id),
   ]);
   const bookkeeping = agreements.filter((a) => a.kind === "bookkeeping");
   const showFilings = bookkeeping.length > 0 || filingData.schedules.length > 0 || filingData.open.length > 0 || filingData.closed.length > 0;
@@ -221,6 +223,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           <button className="btn">Toevoegen</button>
         </form>
       </section>
+
+      {backlinks.length > 0 && <BacklinksPanel backlinks={backlinks} title="Genoemd in" />}
 
       <form action={deleteClientAction.bind(null, id)} className="border-t border-lijn pt-4">
         <button className="btn-ghost text-xs">Klant verwijderen (contactpersonen, websites, documentlinks, afspraken en termijnen gaan mee; taken, projecten en notities blijven)</button>

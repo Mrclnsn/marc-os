@@ -124,6 +124,9 @@ APP_PASSWORD_HASH=$HASH
 MCP_TOKEN=$(openssl rand -hex 32)
 CALENDAR_ICS_URLS=$CAL
 APP_TIMEZONE=Europe/Amsterdam
+# Semantisch zoeken (second brain): voyage of openai, met sleutel. Leeg = zoeken op trefwoord.
+EMBEDDING_PROVIDER=
+EMBEDDING_API_KEY=
 EOF
   chmod 600 .env
   ok ".env aangemaakt (alleen leesbaar voor root)"
@@ -161,6 +164,13 @@ cat >/etc/cron.d/marc-os-backup <<EOF
 15 3 * * * root cd $DIR && docker compose exec -T db pg_dump -U marcos marcos | gzip > backups/marcos-\$(date +\%F).sql.gz && find backups -name '*.sql.gz' -mtime +30 -delete
 EOF
 ok "Dagelijkse back-up ingesteld ($DIR/backups)"
+
+# Second brain: elke nacht om 03:45 links en zoekindex bijwerken en de Obsidian-export schrijven
+mkdir -p "$DIR/obsidian"
+cat >/etc/cron.d/marc-os-second-brain <<EOF
+45 3 * * * root cd $DIR && docker compose run --rm -T -v $DIR/obsidian:/export migrate npx tsx scripts/second-brain.ts nightly /export >> $DIR/backups/second-brain.log 2>&1
+EOF
+ok "Nachtelijke Obsidian-export ingesteld ($DIR/obsidian)"
 
 bold "Klaar"
 echo "  App:       https://$DOMAIN"
