@@ -71,8 +71,16 @@ ok "Hermes draait"
 API_KEY="$(envget HERMES_API_KEY)"
 toolsets="$(docker compose exec -T app wget -qO- --header "Authorization: Bearer $API_KEY" http://hermes:8642/v1/toolsets 2>/dev/null || true)"
 if [[ -n "$toolsets" ]]; then
-  echo "$toolsets" | grep -q "marcos" && ok "Marc OS gekoppeld via MCP" || warn "Marc OS (mcp-marcos) staat niet in de toolsets. Zie: docker compose logs hermes | grep -i mcp"
-  echo "$toolsets" | grep -qi '"terminal"' && warn "De terminal-tools staan nog aan voor de API. Controleer platform_toolsets in hermes/config.yaml.template."
+  # /v1/toolsets noemt alle ingebouwde toolsets met "enabled"; MCP-servers staan er niet in (die test stap 5)
+  risky="$(echo "$toolsets" | python3 -c 'import json,sys
+try:
+    d=json.load(sys.stdin).get("data",[])
+    print(" ".join(t["name"] for t in d if t.get("enabled") and t.get("name") in ("terminal","file","code_execution","browser","web")))
+except Exception:
+    print("?")' 2>/dev/null || echo "?")"
+  if [[ -z "$risky" ]]; then ok "Geen terminal, bestanden, code of browser aan voor de API"
+  elif [[ "$risky" == "?" ]]; then warn "Toolsets niet te lezen; controleer met: docker compose exec hermes hermes tools list"
+  else warn "Deze toolsets staan aan voor de API: $risky. Controleer platform_toolsets in hermes/config.yaml.template."; fi
 else
   warn "Toolsets niet op te vragen; sla over"
 fi
