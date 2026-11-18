@@ -178,7 +178,7 @@ Uitgangspunt: Marc werkt vanaf december 2026 fulltime voor zijn eigen bedrijf. H
 | MCP-koppeling in Claude | Gekoppeld (custom connector "Marc OS") |
 | Back-ups buiten de VPS | Mac haalt dagelijks op (launchd, 07:15) naar `~/Backups/Marc OS`, plus Obsidian-export naar `~/Obsidian/Marc OS` |
 | Vaste briefings | Nog niet ingepland (gesprek 13, via Hermes) |
-| Hermes | Nog te installeren op de VPS: `update.sh`, daarna `hermes-setup.sh` |
+| Hermes | Geïnstalleerd op de VPS (18 november, 23:20) met `hermes-setup.sh`, model `claude-sonnet-5-5`. Back-upcontrole gerepareerd (commit `8744fd6`: valse fout bij een dump groter dan 64 KB) |
 
 ## Infrastructuur
 
@@ -492,7 +492,8 @@ Plus één taak: "Handleiding webbeheer" (SVWW). De Notion-workspace "Freelance 
 - [ ] Mail en website van marclonsain.nl testen na de verhuizing (testmail, site bekijken); DKIM bij Hostinger-mail aanzetten
 - [ ] Leveranciersregister ISO 27001: Hostinger (VPS, Düsseldorf), Apple/Google push-diensten (alleen versleutelde meldingstekst)
 - [ ] Ochtendbriefing, dagafsluiting en weekreview inplannen als vaste taken (gesprek 13, via Hermes)
-- [ ] Op de VPS: `update.sh` (migratie 0013, nieuwe sleutels in `.env`), dan `hermes-setup.sh` met een Anthropic API-sleutel. Daarna in de app de chat proberen en een voorstel goedkeuren
+- [x] Op de VPS: `update.sh` (migratie 0013) en `hermes-setup.sh` (18 november)
+- [ ] In de app de chat met Hermes proberen en een voorstel goedkeuren
 - [ ] Leveranciersregister ISO 27001: Anthropic (Claude API voor Hermes); bij Anthropic controleren dat API-gegevens niet voor training worden gebruikt en de DPA vastleggen
 - [ ] Instellingen → Hermes: nalopen wat zonder akkoord mag
 - [ ] Lokale map `~/marc-os` op de Mac bijwerken (`git pull`): staat nog op gesprek 7
