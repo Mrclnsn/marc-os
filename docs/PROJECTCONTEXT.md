@@ -1,6 +1,6 @@
 # Marc OS: projectcontext
 
-*Stand van zaken: 17 november 2026, na gesprek 6 (cockpit en modules aan/uit)*
+*Stand van zaken: 18 november 2026, na gesprek 11 (second brain)*
 
 ## Doel
 
@@ -78,6 +78,19 @@ Uitgangspunt: Marc werkt vanaf december 2026 fulltime voor zijn eigen bedrijf. H
 | Cockpit (eerste opzet, gesprek 6) | Vandaag in panelen met één korte accentlijn. KPI-tegels (vandaag, achterstallig, inbox, agenda; met modules aan ook uren, MRR, te factureren, openstaande offertes, aangiftes binnen 14 dagen), per tegel aan/uit op Instellingen (verborgen tegels worden opgeslagen, dus nieuwe tegels verschijnen vanzelf). Signalen in één blok, met voorrang bovenaan. Tijdlijn: hele-dag-items, agenda met "nu"-markering, nog vrij tot het einde van de werkdag, inschatting van de taken voor vandaag | Volgens ontwerp |
 | Werkdag | Voorlopig vast 09:00 tot 17:30 (`WORKDAY` in `src/lib/cockpit.ts`), voor "nog vrij". Wordt in gesprek 8 vervangen door de dagritme-sjablonen | Eenvoudig tot het dagritme er is |
 | Plekken voor later | `GoalBar` (gesprek 10), `HabitsPanel` (gesprek 8) en `BriefingPanel` en `AgentsPanel` (nu automatische briefing en vaste lijst; gesprek 12/13 echte Hermes-briefing, akkoordwachtrij en routinestatus) in `src/components/cockpit.tsx`. Ze tonen niets zolang er geen gegevens zijn | Cockpit hoeft later niet om te bouwen |
+| Second brain: bron | Marc OS is de bron; Obsidian krijgt een export (alleen lezen) | Volgens ontwerp: geen synchronisatieproblemen, notities blijven gekoppeld aan klanten en projecten |
+| [[Links]] | Obsidian-stijl in markdown: `[[Naam]]`, `[[Naam\|tekst]]`, `[[Naam#Kopje]]`. Zonder voorvoegsel zoekt hij in de volgorde notitie, klant, project, bron; bij dubbele namen `[[klant:Vobis]]`, `[[project:...]]`, `[[bron:...]]`, `[[notitie:...]]`. Links in code tellen niet. Inbox-items zijn geen linkdoel | Bekend uit Obsidian; voorvoegsel alleen als het nodig is (de editor zet het er zelf voor) |
+| Links opslaan | Tabel `links` met het doel als tekst (naam in kleine letters), opgezocht bij het lezen. Bij opslaan van een notitie of bron worden de links opnieuw opgebouwd; bestaande notities eenmalig bij het eerste gebruik (`settings.links_version`) | Een link naar iets dat nog niet bestaat werkt vanzelf zodra het er is; hernoemen van het doel breekt de link wel (zoals bij een titel in Obsidian) |
+| Link naar iets dat niet bestaat | Grijs en gestippeld; aantikken opent "Nieuwe notitie" met die titel (formulier, maakt niets aan zonder opslaan) | Zoals Obsidian, zonder spooknotities door prefetch |
+| Backlinks | Op notitie, bron, klant en project ("Links naar hier" / "Genoemd in"), met de regel waarin de link staat. Plus "Genoemd zonder link": notities en bronnen die de naam noemen (namen binnen een andere link tellen niet) | Volgens ontwerp |
+| Notitie weergeven | Standaard leesweergave (eigen veilige markdown-weergave: kopjes, lijsten met vinkjes, tabellen, citaten, code, links), knop Bewerken. Lege notitie opent direct in bewerken. Editor vult `[[` aan met notities, klanten, projecten en bronnen; Cmd/Ctrl+Enter slaat op | Lezen en klikken door links is het doel; geen extra pakketten |
+| Grafiek | Eigen krachtenmodel in SVG (geen d3). Knopen: notitie (dicht rondje), bron (open rondje), klant (vierkant), project (ruit), bestaat nog niet (stippelrondje). Lijnen: doorgetrokken = [[link]], gestippeld = koppeling in de app (notitie/bron bij klant of project, project bij klant). Klanten en projecten zonder verbinding blijven weg; losse notities niet. Filters, zoeken, slepen, pannen, zoomen en knijpen; past zich in beeld. Lokale grafiek (2 stappen) op elke notitie | Zelfde gevoel als Obsidian, werkt op Mac en telefoon |
+| Bronnen | Eigen object (`sources`): titel, link, soort (artikel/video/podcast/boek/cursus/idee/link, geraden uit de link), status (nog bekijken/gelezen/verwerkt), maker of site, samenvatting, eigen aantekeningen met [[links]], gebied, klant, project, hoe binnengekomen (app/inbox/mcp/whatsapp). Met alleen een link haalt de app titel, beschrijving en site op (5 seconden, faalt stil). Inbox-item → "Bewaar als bron" | Volgens ontwerp; Hermes vult straks de samenvatting (add_source/update_source) |
+| Zoeken | Altijd op trefwoord: Nederlandse full-text search op titel, klant, project en tekst, woorden met OF (meer treffers = hoger), plus deelwoorden als vangnet. Als het kan ook op betekenis (pgvector), samengevoegd met reciprocal rank fusion. De zoekpagina en `search_knowledge` zeggen welke manier is gebruikt en waarom niet | Werkt altijd, wordt beter zodra embeddings er zijn |
+| Semantisch zoeken: opslag | Tabel `embeddings` (soort, id, stuk, model, hash, tekst, vector) wordt door de app zelf aangemaakt met `create extension vector`, buiten de migraties om. Kan dat niet, dan valt zoeken netjes terug op trefwoord (opnieuw proberen na 10 minuten). Vector zonder vaste lengte, per model opgeslagen: van model wisselen kan zonder migratie. Geen index (exact zoeken), prima tot vele duizenden stukken | Lokaal met PGlite (pgvector-extensie geladen door `npm run local`) en op de VPS met de image `pgvector/pgvector:pg17` |
+| Semantisch zoeken: embeddings | `.env`: `EMBEDDING_PROVIDER=voyage` (aanbevolen, meertalig; standaardmodel `voyage-4`) of `openai` (`text-embedding-3-small`), met `EMBEDDING_API_KEY`, optioneel `EMBEDDING_MODEL`. Zonder sleutel: alleen trefwoord. Notities en bronnen in stukken van ca. 1.800 tekens met titel, soort, klant, project en datum erbij. Na opslaan op de achtergrond bijgewerkt (ongewijzigde tekst kost geen aanroep), bij elke zoekvraag max. 25 achterstallige items, en elke nacht alles. `local-test` is alleen voor tests | ISO 27001: de provider ziet de tekst van notities en bronnen; opnemen in het leveranciersregister vóór aanzetten |
+| Obsidian-export | Map met Notities/, Bronnen/, Klanten/, Projecten/, Reviews/ en een indexbestand "Marc OS.md". Eigenschappen (YAML) per bestand, links omgezet naar het pad (`[[Klanten/Vobis\|Vobis]]`) zodat ze ook bij dubbele namen kloppen. Klanten met vaste informatie, contactpersonen (alleen naam en rol), projecten, notities en bronnen; projecten met open taken. Inbox-items gaan niet mee. Alleen de eigen mappen worden beheerd (oude bestanden weg, ongewijzigde niet opnieuw geschreven); `.obsidian` en eigen mappen blijven staan | Bladeren in Obsidian, nooit vastzitten; geen e-mail of telefoon van contactpersonen in een losse map |
+| Export: wanneer en waar | VPS: elke nacht 03:45 links en index bijwerken en de export naar `/opt/marc-os/obsidian` (cron `marc-os-second-brain`, log in `backups/second-brain.log`). Zip downloaden op Instellingen → Second brain. Mac: `scripts/obsidian-mac.sh` haalt de zip op met de MCP-token (in `~/.marc-os-token`) en kan dagelijks via crontab. Lokaal nu al: `npm run obsidian -- "~/Obsidian/Marc OS"` naast `npm run local` | Dagelijks, op de VPS en eventueel de Mac (volgens ontwerp) |
 | Stukken opvragen | Conceptmail in MLC-toon (je, voornaam, direct) per soort aangifte met een lijst van stukken, aan de primaire contactpersoon (anders het factuuradres). "Open in mail" opent hem in je mailprogramma; Marc verstuurt zelf. Later kan Hermes dezelfde tekst voorbereiden (draft_docs_reminder) | Alles wat de deur uitgaat, gaat via Marc |
 
 ## Huidige status
@@ -94,7 +107,8 @@ Uitgangspunt: Marc werkt vanaf december 2026 fulltime voor zijn eigen bedrijf. H
 | Gesprek 4: pipeline | Klaar (commit `d10ca90`) |
 | Gesprek 5: aangiftecyclus | Klaar (commit `3cde210`) |
 | Gesprek 6: cockpit en modules aan/uit | Klaar (commits `3992447` en `5dafb26`: cockpit naar de video met Strak/Iron Man). Geavanceerde modules staan standaard uit |
-| Volgende gesprek | Second brain (gesprek 11, naar voren gehaald), daarna live op de VPS (gesprek 7) |
+| Gesprek 11: second brain | Klaar (commit b73a4dc). Getest met PGlite: links, backlinks, grafiek, bronnen, zoeken op trefwoord en op betekenis (pgvector lokaal, testmodus), terugval zonder pgvector en zonder sleutel, Obsidian-export (script en zip), MCP-tools. Echte embeddings (Voyage/OpenAI) nog niet getest: geen sleutel |
+| Volgende gesprek | Live op de VPS (gesprek 7) |
 | VPS | Besteld en draait, nog niet geïnstalleerd |
 | Domein `os.marclonsain.nl` | Nog geen DNS-record |
 | Verhuizing `marclonsain.nl` naar Hostinger | Besloten, nog niet gestart |
@@ -151,7 +165,7 @@ Tip: zet het `os`-record nu al bij de huidige provider, zodat de installatie nie
 | **Afspraken** | KPI's (MRR, jaaromzet vast, klaar om te factureren, gefactureerd open), te factureren termijnen, afspraken die binnen 30 dagen eindigen, verwachte omzet 12 maanden, MRR per dienst en per klant, alle afspraken (lopend/concept/beëindigd/alle), gefactureerde en geplande termijnen |
 | **Aangiftes** | KPI's (te doen, deadline binnen 14 dagen, stukken ontbreken, ingediend, afgerond dit jaar), melding bij een boekhoudklant zonder instellingen, deadline binnen 14 dagen, stukken nog niet binnen, overige open aangiftes, komend (periode loopt nog), losse aangifte toevoegen. Tabbladen Lopende perioden / Ingediend / Afgerond (per jaar) / Instellingen. Per aangifte een pagina met deadline, uitkomst, verloop, conceptmail voor de stukken en bewerken |
 | **Projecten (detail)** | Plus: knop "Start timer", uren totaal en declarabel, budget van een gekoppelde uurtarief-afspraak, laatste registraties, handmatig toevoegen |
-| **Notities** | Soorten: notitie, meeting, telefoon, e-mail, besluit, info, idee. Te koppelen aan klant, project, gebied |
+| **Notities** (second brain) | Tabbladen Notities / Bronnen / Grafiek / Zoeken. Notities: soorten notitie, meeting, telefoon, e-mail, besluit, info, idee; te koppelen aan klant, project, gebied; leesweergave met [[links]], backlinks, uitgaande links, "genoemd zonder link" en lokale grafiek; editor met aanvullen van [[. Bronnen: link plakken (titel en beschrijving vanzelf), status, samenvatting, aantekeningen. Grafiek: alles met verbindingen. Zoeken: vraag of zoekwoorden, op betekenis en trefwoord, filter op klant en soort |
 | **Reviews** | Briefings, dagafsluitingen, weekreviews en maandreviews van de AI |
 
 Verder: een **timerbalk** op elke pagina zolang er een timer loopt (telefoon: boven de onderbalk; desktop: bovenaan), een ▶-knop bij elke taak om direct een timer te starten, terugkerende taken (bij afronden wordt de volgende automatisch aangemaakt), agenda-koppeling via ICS (Google/iCloud, alleen lezen), installeerbaar als app op de telefoon, login met één wachtwoord.
@@ -174,9 +188,12 @@ Verder: een **timerbalk** op elke pagina zolang er een timer loopt (telefoon: bo
 | Document (`client_documents`) | klant, soort (offerte/overeenkomst/verwerkersovereenkomst/overig), titel, link, datum, notitie |
 | Project (`projects`) | naam, gebied, klant, status (idee/gepland/actief/wacht/afgerond/gearchiveerd), start, deadline, omschrijving |
 | Taak (`tasks`) | titel, gebied, klant, project, status (te doen/bezig/wacht op/klaar), plannen op, deadline, prioriteit (1-3), inschatting, herhaling, notities |
-| Notitie (`notes`) | titel, inhoud (markdown), soort (incl. `inbox`), gebied, klant, project, datum |
+| Notitie (`notes`) | titel, inhoud (markdown met [[links]]), soort (incl. `inbox`), gebied, klant, project, datum |
+| Bron (`sources`) | titel, link, soort, status, maker/site, samenvatting, aantekeningen (markdown), gebied, klant, project, binnengekomen via |
+| Link (`links`) | van (note/source + id), doelsoort (leeg of voorvoegsel), doel (naam in kleine letters), label, regel eromheen, volgorde |
+| Embedding (`embeddings`, door de app aangemaakt als pgvector er is) | soort, id, stuk, model, hash, tekst, vector |
 | Review (`reviews`) | soort (dag/week/maand), periode, tekst |
-| Instelling (`settings`) | sleutel, waarde (jsonb), bijgewerkt. Nu: `modules` (welke modules aan staan) en `hidden_kpis` (verborgen KPI-tegels) |
+| Instelling (`settings`) | sleutel, waarde (jsonb), bijgewerkt. Nu: `modules` (welke modules aan staan), `hidden_kpis` (verborgen KPI-tegels) en `links_version` (links eenmalig opgebouwd) |
 
 Begrippen:
 - **Gebied**: `zakelijk` of `prive`. Zakelijk zonder klant = algemeen bedrijfswerk.
@@ -190,8 +207,9 @@ Begrippen:
 - Postgres met Drizzle ORM; migraties in `drizzle/`
 - MCP-server via `@modelcontextprotocol/sdk` (stateless Streamable HTTP)
 - node-ical voor agenda's
-- Lokaal: PGlite als aparte server (`pglite-server`), zodat er maar één proces de database open heeft
-- Productie: Docker Compose met Postgres 17, de app en Caddy (automatische HTTPS)
+- Lokaal: PGlite als aparte server (`pglite-server`, met de pgvector-extensie), zodat er maar één proces de database open heeft
+- Productie: Docker Compose met Postgres 17 met pgvector (`pgvector/pgvector:pg17`), de app en Caddy (automatische HTTPS)
+- Semantisch zoeken: embeddings via de HTTP-API van Voyage of OpenAI, zonder extra pakketten
 
 ### Mappenstructuur
 
@@ -215,8 +233,18 @@ src/lib/settings.ts   instellingen lezen en schrijven (modules aan/uit, verborge
 src/lib/cockpit.ts    alles voor Vandaag: KPI's, signalen, tijdlijn
 src/components/cockpit.tsx  panelen, tegels, signalen, tijdlijn en de plekken voor doelbalk, gewoontes en Hermes
 src/lib/calendar.ts   ICS-agenda's
+src/lib/wikilinks.ts  [[links]] lezen en opzoeken (zonder database, ook in de browser)
+src/lib/brain.ts      second brain: links bijhouden, backlinks, vermeldingen, grafiek, bronnen (via data.ts geëxporteerd)
+src/lib/search.ts     zoeken: trefwoord, pgvector, indexeren, status (via data.ts geëxporteerd)
+src/lib/embeddings.ts embedding-providers (Voyage, OpenAI)
+src/lib/obsidian.ts   Obsidian-export opbouwen; obsidian-write.ts schrijft hem weg (alleen script)
+src/lib/zip.ts        zip zonder extra pakketten
+src/components/markdown.tsx    markdown-weergave met [[links]]
+src/components/link-editor.tsx editor met aanvullen van [[
+src/components/graph-view.tsx  grafiek (krachtenmodel in SVG)
+src/app/api/export/obsidian/   zip-download (sessie of Bearer MCP_TOKEN)
 src/components/       interface-onderdelen, incl. brand.tsx (beeldmerk, paginakop, sectiekop)
-scripts/              setup-server.sh, update.sh, migrate, seed, local, hash-password
+scripts/              setup-server.sh, update.sh, migrate, seed, local, hash-password, second-brain (export/reindex/nightly), obsidian-mac.sh
 public/brand/         MLC-logo's (gecorrigeerd: stroke-linejoin round)
 ```
 
@@ -228,6 +256,8 @@ public/brand/         MLC-logo's (gecorrigeerd: stroke-linejoin round)
 - Caddy schrijft geen access-logs (geheime URL komt niet in logbestanden).
 - Dagelijkse database-back-up om 03:15, 30 dagen bewaard (`/opt/marc-os/backups`). Advies: ook buiten de VPS bewaren.
 - Geheimen staan alleen in `.env` op de server (chmod 600), nooit in git.
+- De zip-export (`/api/export/obsidian`) werkt met de app-sessie of met de MCP-token als Bearer; ook die token is dus een wachtwoord voor alle notities.
+- Semantisch zoeken stuurt tekst van notities en bronnen naar de embedding-provider; staat uit tot er een sleutel in `.env` staat.
 
 ## Installatie op de VPS
 
@@ -247,6 +277,8 @@ public/brand/         MLC-logo's (gecorrigeerd: stroke-linejoin round)
 
 Bijwerken na nieuwe code: `bash /opt/marc-os/scripts/update.sh`
 
+Semantisch zoeken aanzetten: in `/opt/marc-os/.env` `EMBEDDING_PROVIDER=voyage` en `EMBEDDING_API_KEY=...` invullen, dan `docker compose up -d` en op Instellingen → Second brain "Links en index bijwerken".
+
 Let op: het script is gecontroleerd op syntax, maar nog niet op een echte verse server gedraaid. Ubuntu 26.04 is nieuwer dan waarvoor het oorspronkelijk geschreven was; er is een terugval voor de Docker-installatie ingebouwd.
 
 ## Lokaal draaien (proefomgeving)
@@ -263,13 +295,15 @@ npm run local
 
 Open http://localhost:3000, wachtwoord `marc-os`. Data staat in `.local-pg`. Stoppen met Ctrl+C. Lokale data gaat niet mee naar de VPS.
 
+Second brain lokaal: `npm run local` laadt pgvector in PGlite. Semantisch zoeken lokaal proberen: `EMBEDDING_PROVIDER=voyage` en `EMBEDDING_API_KEY=...` in `.env.local` zetten en opnieuw starten. Obsidian-export in een tweede terminalvenster (terwijl `npm run local` draait): `npm run obsidian -- "$HOME/Obsidian/Marc OS"`.
+
 ## Koppeling met Claude (MCP)
 
 Na installatie: in Claude → Instellingen → Connectors → Custom connector, met URL `https://os.marclonsain.nl/api/mcp/<MCP_TOKEN>`.
 
 Let op: tools van uitgeschakelde modules worden niet aangeboden. Na het aan- of uitzetten van een module in Claude de connector opnieuw laden (of een nieuw gesprek starten) zodat de toollijst klopt.
 
-Beschikbare tools (alle modules aan): `get_overview` (inclusief aangiftes: te laat, deadline binnen 14 dagen, stukken ontbreken; pipeline-signalen, domeinen die binnen 30 dagen verlopen, MRR, te factureren termijnen, aflopende afspraken, uren deze week, lopende timer en budgetwaarschuwingen), `list_tasks`, `create_task`, `update_task`, `complete_task`, `delete_task`, `completed_tasks`, `capture`, `inbox_to_task`, `list_notes`, `get_note`, `create_note`, `update_note`, `list_clients` (filter op status en tag), `get_client` (volledig dossier, inclusief afspraken, termijnen en MRR), `create_client` (met optioneel primaire contactpersoon), `update_client`, `add_contact`, `update_contact`, `delete_contact`, `list_websites` (met `expiringWithinDays`), `add_website`, `update_website`, `delete_website`, `add_document`, `delete_document`, `list_projects`, `get_project`, `create_project`, `update_project`, `list_agreements`, `create_agreement`, `update_agreement`, `deliver_agreement`, `delete_agreement`, `list_installments`, `add_installment`, `update_installment`, `delete_installment`, `get_revenue` (MRR, per dienst/klant, verwachte omzet), `get_timer`, `start_timer`, `stop_timer`, `log_time` (duur als tekst, bijv. "2u"), `list_time_entries`, `update_time_entry`, `delete_time_entry`, `get_hours` (weekoverzicht, te factureren uren, budgetten, effectief uurtarief), `invoice_hours`, `get_pipeline`, `list_leads`, `get_lead`, `create_lead`, `update_lead`, `delete_lead`, `list_quotes`, `get_quote`, `create_quote` (maakt zo nodig eerst een lead), `update_quote`, `add_quote_line`, `update_quote_line`, `delete_quote_line`, `set_quote_status`, `accept_quote`, `list_filings` (open aangiftes met signaal), `get_filing`, `update_filing`, `create_filing` (losse aangifte), `draft_docs_reminder` (conceptmail, verstuurt niets), `list_filing_schedules`, `set_filing_schedule`, `delete_filing_schedule`, `get_calendar`, `save_review` (met `append` om onder een bestaande review toe te voegen), `list_reviews`.
+Beschikbare tools (alle modules aan): `get_overview` (inclusief aangiftes: te laat, deadline binnen 14 dagen, stukken ontbreken; pipeline-signalen, domeinen die binnen 30 dagen verlopen, MRR, te factureren termijnen, aflopende afspraken, uren deze week, lopende timer en budgetwaarschuwingen), `list_tasks`, `create_task`, `update_task`, `complete_task`, `delete_task`, `completed_tasks`, `capture`, `inbox_to_task`, `list_notes`, `get_note` (met links vanuit en naar de notitie), `create_note`, `update_note`, `list_clients` (filter op status en tag), `get_client` (volledig dossier, inclusief afspraken, termijnen en MRR), `create_client` (met optioneel primaire contactpersoon), `update_client`, `add_contact`, `update_contact`, `delete_contact`, `list_websites` (met `expiringWithinDays`), `add_website`, `update_website`, `delete_website`, `add_document`, `delete_document`, `list_projects`, `get_project`, `create_project`, `update_project`, `list_agreements`, `create_agreement`, `update_agreement`, `deliver_agreement`, `delete_agreement`, `list_installments`, `add_installment`, `update_installment`, `delete_installment`, `get_revenue` (MRR, per dienst/klant, verwachte omzet), `get_timer`, `start_timer`, `stop_timer`, `log_time` (duur als tekst, bijv. "2u"), `list_time_entries`, `update_time_entry`, `delete_time_entry`, `get_hours` (weekoverzicht, te factureren uren, budgetten, effectief uurtarief), `invoice_hours`, `get_pipeline`, `list_leads`, `get_lead`, `create_lead`, `update_lead`, `delete_lead`, `list_quotes`, `get_quote`, `create_quote` (maakt zo nodig eerst een lead), `update_quote`, `add_quote_line`, `update_quote_line`, `delete_quote_line`, `set_quote_status`, `accept_quote`, `list_filings` (open aangiftes met signaal), `get_filing`, `update_filing`, `create_filing` (losse aangifte), `draft_docs_reminder` (conceptmail, verstuurt niets), `list_filing_schedules`, `set_filing_schedule`, `delete_filing_schedule`, `search_knowledge` (second brain doorzoeken op betekenis en trefwoord, met tekstfragmenten), `get_backlinks`, `list_sources`, `get_source`, `add_source` (met alleen een url haalt hij titel en beschrijving op), `update_source`, `delete_source`, `get_calendar`, `save_review` (met `append` om onder een bestaande review toe te voegen), `list_reviews`.
 
 ### Vaste taken om in te plannen
 
@@ -314,7 +348,8 @@ Plus één taak: "Handleiding webbeheer" (SVWW). De Notion-workspace "Freelance 
 ## Openstaande punten
 
 ### Nu
-- [ ] Lokale map `marc-os` op de Mac bijwerken (`git pull`, stond nog op gesprek 4) en `npm run local`: migratie 0007 (instellingen) draait vanzelf, daarna staan de geavanceerde modules uit
+- [ ] Lokale map `marc-os` op de Mac bijwerken (`git pull`, daarna `npm install` voor de pgvector-extensie) en `npm run local`: migraties 0007 (instellingen) en 0008 (second brain) draaien vanzelf
+- [ ] Embedding-provider kiezen (Voyage aanbevolen), API-sleutel aanmaken en de provider opnemen in het leveranciersregister (ISO 27001); daarna `EMBEDDING_PROVIDER` en `EMBEDDING_API_KEY` in `.env` (VPS) of `.env.local` (lokaal)
 - [ ] Op de Mac `node -v` controleren (moet 22 of hoger zijn), dan `npm run local` en het klantdossier en de afspraken per klant invullen
 - [ ] DNS-record `os.marclonsain.nl` → `179.67.202.123`
 - [ ] Installatiescript draaien op de VPS
