@@ -18,8 +18,11 @@ if [[ -z "${BACKUP_PASSPHRASE:-}" ]]; then
 fi
 
 echo "Controleren of de back-up te ontsleutelen is..."
-openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -pass env:BACKUP_PASSPHRASE <"$FILE" | gunzip | head -c 4000 | grep -q "PostgreSQL database dump" \
+# Eerst het hele bestand (ontsleutelen en uitpakken), dan het begin; niet in één pijplijn met head (pipefail + SIGPIPE)
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -pass env:BACKUP_PASSPHRASE <"$FILE" | gunzip -t 2>/dev/null \
   || { echo "Niet te ontsleutelen: verkeerde sleutel of beschadigd bestand." >&2; exit 1; }
+header=$(set +o pipefail; openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -pass env:BACKUP_PASSPHRASE <"$FILE" 2>/dev/null | gunzip 2>/dev/null | head -c 4000)
+grep -q "PostgreSQL database dump" <<<"$header" || { echo "Dit bestand is geen PostgreSQL-dump." >&2; exit 1; }
 
 echo
 echo "Dit VERVANGT alle gegevens in Marc OS door de back-up $FILE."

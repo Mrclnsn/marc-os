@@ -50,10 +50,17 @@ case "$JOB" in
       rm -f "$tmp"
       fail "Back-up mislukt" "pg_dump of versleutelen ging fout, zie logs/cron.log op de VPS"
     fi
-    # Controle: is het bestand te ontsleutelen en een echte dump?
-    if ! openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -pass env:BACKUP_PASSPHRASE <"$tmp" | gunzip | head -c 4000 | grep -q "PostgreSQL database dump"; then
+    # Controle: is het hele bestand te ontsleutelen en uit te pakken, en is het een echte dump?
+    # (Niet "| head" in één pijplijn met pipefail: bij een dump groter dan 64 KB stopt head eerder
+    #  en krijgt gunzip SIGPIPE, waardoor een goede back-up als mislukt telt.)
+    if ! openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -pass env:BACKUP_PASSPHRASE <"$tmp" | gunzip -t 2>/dev/null; then
       rm -f "$tmp"
       fail "Back-up mislukt" "de versleutelde back-up was niet terug te lezen"
+    fi
+    header=$(set +o pipefail; openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -pass env:BACKUP_PASSPHRASE <"$tmp" 2>/dev/null | gunzip 2>/dev/null | head -c 4000)
+    if ! grep -q "PostgreSQL database dump" <<<"$header"; then
+      rm -f "$tmp"
+      fail "Back-up mislukt" "de back-up is geen PostgreSQL-dump"
     fi
     mv "$tmp" "$out"
     chmod 644 "$out"

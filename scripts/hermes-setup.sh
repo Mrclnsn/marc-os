@@ -82,10 +82,10 @@ body='{"model":"hermes-agent","messages":[{"role":"user","content":"Test vanuit 
 answer="$(docker compose exec -T app wget -qO- -T 180 --header "Authorization: Bearer $API_KEY" --header "Content-Type: application/json" --post-data "$body" http://hermes:8642/v1/chat/completions 2>&1 || true)"
 if echo "$answer" | grep -q '"content"'; then
   ok "Hermes antwoordt:"
-  echo "$answer" | sed -n 's/.*"content": *"\([^"]*\)".*/    \1/p' | head -3
+  echo "$answer" | sed -n 's/.*"content": *"\([^"]*\)".*/    \1/p' | head -3 || true
 else
   warn "Geen antwoord op de test. Uitvoer:"
-  echo "$answer" | head -5
+  echo "$answer" | head -5 || true
   echo "  Logboek: docker compose logs --tail 60 hermes"
 fi
 
