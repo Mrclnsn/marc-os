@@ -1,6 +1,6 @@
 # Marc OS: projectcontext
 
-*Stand van zaken: 18 november 2026, na gesprek 11 (second brain)*
+*Stand van zaken: 18 november 2026, gesprek 7 (live op de VPS): code klaar en getest, installatie op de VPS door Marc*
 
 ## Doel
 
@@ -90,7 +90,18 @@ Uitgangspunt: Marc werkt vanaf december 2026 fulltime voor zijn eigen bedrijf. H
 | Semantisch zoeken: opslag | Tabel `embeddings` (soort, id, stuk, model, hash, tekst, vector) wordt door de app zelf aangemaakt met `create extension vector`, buiten de migraties om. Kan dat niet, dan valt zoeken netjes terug op trefwoord (opnieuw proberen na 10 minuten). Vector zonder vaste lengte, per model opgeslagen: van model wisselen kan zonder migratie. Geen index (exact zoeken), prima tot vele duizenden stukken | Lokaal met PGlite (pgvector-extensie geladen door `npm run local`) en op de VPS met de image `pgvector/pgvector:pg17` |
 | Semantisch zoeken: embeddings | `.env`: `EMBEDDING_PROVIDER=voyage` (aanbevolen, meertalig; standaardmodel `voyage-4`) of `openai` (`text-embedding-3-small`), met `EMBEDDING_API_KEY`, optioneel `EMBEDDING_MODEL`. Zonder sleutel: alleen trefwoord. Notities en bronnen in stukken van ca. 1.800 tekens met titel, soort, klant, project en datum erbij. Na opslaan op de achtergrond bijgewerkt (ongewijzigde tekst kost geen aanroep), bij elke zoekvraag max. 25 achterstallige items, en elke nacht alles. `local-test` is alleen voor tests | ISO 27001: de provider ziet de tekst van notities en bronnen; opnemen in het leveranciersregister vóór aanzetten |
 | Obsidian-export | Map met Notities/, Bronnen/, Klanten/, Projecten/, Reviews/ en een indexbestand "Marc OS.md". Eigenschappen (YAML) per bestand, links omgezet naar het pad (`[[Klanten/Vobis\|Vobis]]`) zodat ze ook bij dubbele namen kloppen. Klanten met vaste informatie, contactpersonen (alleen naam en rol), projecten, notities en bronnen; projecten met open taken. Inbox-items gaan niet mee. Alleen de eigen mappen worden beheerd (oude bestanden weg, ongewijzigde niet opnieuw geschreven); `.obsidian` en eigen mappen blijven staan | Bladeren in Obsidian, nooit vastzitten; geen e-mail of telefoon van contactpersonen in een losse map |
-| Export: wanneer en waar | VPS: elke nacht 03:45 links en index bijwerken en de export naar `/opt/marc-os/obsidian` (cron `marc-os-second-brain`, log in `backups/second-brain.log`). Zip downloaden op Instellingen → Second brain. Mac: `scripts/obsidian-mac.sh` haalt de zip op met de MCP-token (in `~/.marc-os-token`) en kan dagelijks via crontab. Lokaal nu al: `npm run obsidian -- "~/Obsidian/Marc OS"` naast `npm run local` | Dagelijks, op de VPS en eventueel de Mac (volgens ontwerp) |
+| Export: wanneer en waar | VPS: elke nacht 03:45 links en index bijwerken en de export naar `/opt/marc-os/obsidian` (`scripts/cron.sh second-brain`, log in `logs/cron.log`). Zip downloaden op Instellingen → Second brain. Mac: `scripts/mac-install.sh` vraagt naar een Obsidian-map; de dagelijkse Mac-taak haalt dan ook de zip op (via `scripts/obsidian-mac.sh`, met de MCP-token in `~/.marc-os-token`). Lokaal nu al: `npm run obsidian -- "~/Obsidian/Marc OS"` naast `npm run local` | Dagelijks, op de VPS en eventueel de Mac (volgens ontwerp) |
+| Pushmeldingen | Web Push met een eigen service worker (`public/sw.js`, alleen meldingen, geen offline-cache). Per apparaat aanzetten op Instellingen → Pushmeldingen, met testmelding en lijst van apparaten. Op de iPhone alleen vanuit de app op het beginscherm (iOS 16.4+) | Geen extra dienst nodig; werkt op iPhone, Mac en andere browsers |
+| VAPID-sleutels | Maakt de app zelf aan bij het eerste gebruik en bewaart ze in `settings` (`vapid`). Kan ook via `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` in `.env`. Andere sleutels = elk apparaat opnieuw aanmelden (gebeurt vanzelf bij openen van Instellingen) | Geen extra installatiestap |
+| Soorten meldingen | Ochtendoverzicht (werkdagen 07:30: taken voor vandaag, achterstallig, eerste afspraak, eerste taak), deadlines (09:00: taak met deadline vandaag of te laat; meer dan 3 = één samenvatting), van Claude/Hermes (`send_push`), systeem (back-up of export mislukt, back-up niet opgehaald). Elke soort aan/uit (`settings.push_prefs`, standaard aan). Verlopen apparaten (404/410) worden opgeruimd | Keuze Marc (gesprek 7); herinneringen bij dagritmeblokken komen in gesprek 8 |
+| Vaste taken op de VPS | Eén cron-bestand `/etc/cron.d/marc-os` (door `scripts/install-cron.sh`), elke taak via `scripts/cron.sh`: back-up 03:15, second brain 03:45, ochtendmelding 07:30 (ma-vr), deadlines 09:00. Meldingen gaan via de app (`POST /api/notify/<soort>` met de MCP-token). Logboek `logs/cron.log` (logrotate). Servertijdzone Europe/Amsterdam | Eén plek, update.sh houdt hem bij |
+| Back-ups | Elke nacht `pg_dump` → gzip → AES-256 (openssl, pbkdf2) met `BACKUP_PASSPHRASE` uit `.env`, daarna terug gelezen als controle; `backups/marcos-<datum>.sql.gz.enc`, 30 dagen. De sleutel staat ook in de wachtwoordmanager | Versleuteld, zodat een kopie buiten de VPS (Mac, Time Machine) veilig is |
+| Back-ups buiten de VPS | De Mac haalt elke ochtend (07:15, of zodra hij daarna wakker wordt; launchd) de nieuwste back-up op via `/api/export/backup` met de MCP-token, naar `~/Backups/Marc OS`, 90 dagen bewaard. Na 3 dagen zonder ophalen, of zonder back-up van vannacht, een systeemmelding | Keuze Marc: geen nieuwe leverancier voor ISO 27001; Time Machine neemt ze mee |
+| Terugzetten | `scripts/restore.sh <bestand>`: controleert eerst of het bestand te ontsleutelen is, vraagt om HERSTEL, maakt een veiligheidskopie en zet dan terug | Nooit per ongeluk |
+| Bijwerken | `scripts/update.sh`: code ophalen, `.env` aanvullen (`ensure-env.sh`), cron bijwerken, back-up vooraf, bouwen en herstarten, health-check (bij falen het logboek en de terugweg) | Eén script, veilig |
+| `.env` lezen in scripts | Niet meer `source`n maar per sleutel uitlezen | Agenda-links bevatten `|` en `&`, die bash anders uitvoert |
+| Telefoon-app | PNG-iconen met het MLC-beeldmerk op Nacht (192, 512, maskable, apple-touch-icon 180), manifest met snelkoppelingen Braindump en Taken | iOS gebruikt geen SVG-iconen op het beginscherm |
+| SSH | Setup biedt aan wachtwoord-login uit te zetten als er een SSH-sleutel staat | ISO 27001; alleen met sleutel |
 | Stukken opvragen | Conceptmail in MLC-toon (je, voornaam, direct) per soort aangifte met een lijst van stukken, aan de primaire contactpersoon (anders het factuuradres). "Open in mail" opent hem in je mailprogramma; Marc verstuurt zelf. Later kan Hermes dezelfde tekst voorbereiden (draft_docs_reminder) | Alles wat de deur uitgaat, gaat via Marc |
 
 ## Huidige status
@@ -108,9 +119,10 @@ Uitgangspunt: Marc werkt vanaf december 2026 fulltime voor zijn eigen bedrijf. H
 | Gesprek 5: aangiftecyclus | Klaar (commit `3cde210`) |
 | Gesprek 6: cockpit en modules aan/uit | Klaar (commits `3992447` en `5dafb26`: cockpit naar de video met Strak/Iron Man). Geavanceerde modules staan standaard uit |
 | Gesprek 11: second brain | Klaar (commit b73a4dc). Getest met PGlite: links, backlinks, grafiek, bronnen, zoeken op trefwoord en op betekenis (pgvector lokaal, testmodus), terugval zonder pgvector en zonder sleutel, Obsidian-export (script en zip), MCP-tools. Echte embeddings (Voyage/OpenAI) nog niet getest: geen sleutel |
-| Volgende gesprek | Live op de VPS (gesprek 7) |
+| Gesprek 7: live op de VPS | Code klaar (commit `e9bb1a0`): pushmeldingen, telefoon-app, versleutelde back-ups met ophalen door de Mac, vaste taken, update- en herstelscript. Getest met PGlite en een productie-build: meldingen (ook foutpad), back-up-endpoint, service worker, manifest, `send_push`, versleutelen en terug lezen. Nog te doen door Marc: DNS-record, installatiescript, telefoon, Claude, Mac. Een echte push naar een telefoon is pas op de VPS te testen |
+| Volgende gesprek | Gesprek 7 afronden (installatie), daarna gesprek 8 |
 | VPS | Besteld en draait, nog niet geïnstalleerd |
-| Domein `os.marclonsain.nl` | Nog geen DNS-record |
+| Domein `os.marclonsain.nl` | Nog geen DNS-record (Marc maakt het bij de huidige provider) |
 | Verhuizing `marclonsain.nl` naar Hostinger | Besloten, nog niet gestart |
 | MCP-koppeling in Claude | Nog niet (na installatie op VPS) |
 | Vaste briefings | Nog niet ingepland |
@@ -154,7 +166,7 @@ Tip: zet het `os`-record nu al bij de huidige provider, zodat de installatie nie
 | Pagina | Inhoud |
 |---|---|
 | **Vandaag** (cockpit) | Begroeting met datum en weeknummer, filter Alles / Zakelijk / Privé, plek voor de doelbalk, KPI-tegels, braindump-balk, briefing van de AI (Hermes-paneel), signalen in één blok (achterstallige taken, deadlines vandaag en morgen, agenda die niet laadt, volle inbox; met modules aan ook aangiftes, pipeline, offertes, te factureren, aflopende afspraken, budget maatwerk en domeinen), achterstallig, paneel Vandaag met tijdlijn (agenda, nu-markering, nog vrij, inschatting) en de taken voor vandaag, komende 7 dagen. Op de telefoon staan de signalen boven de taken |
-| **Instellingen** | Thema (systeem/licht/donker), modules aan/uit, KPI-tegels op Vandaag, uitleg agenda-koppeling |
+| **Instellingen** | Thema (systeem/licht/donker), cockpitstijl, modules aan/uit, second brain (index, Obsidian-zip), pushmeldingen (dit apparaat aanzetten, testmelding, apparaten, soorten aan/uit), back-ups (laatste op de VPS, laatst opgehaald door de Mac, download), koppeling met Claude (MCP-URL tonen), KPI-tegels op Vandaag, uitleg agenda-koppeling |
 | **Inbox** | Braindump-items omzetten naar taak of notitie, of weggooien |
 | **Taken** | Weergaven: alle open, vandaag, komende 14 dagen, zonder datum, afgerond. Filters: klantwerk, bedrijf algemeen, privé, per klant, zoeken |
 | **Projecten** | Gegroepeerd in Klanten / Bedrijf algemeen / Privé, met voortgang |
@@ -193,7 +205,8 @@ Verder: een **timerbalk** op elke pagina zolang er een timer loopt (telefoon: bo
 | Link (`links`) | van (note/source + id), doelsoort (leeg of voorvoegsel), doel (naam in kleine letters), label, regel eromheen, volgorde |
 | Embedding (`embeddings`, door de app aangemaakt als pgvector er is) | soort, id, stuk, model, hash, tekst, vector |
 | Review (`reviews`) | soort (dag/week/maand), periode, tekst |
-| Instelling (`settings`) | sleutel, waarde (jsonb), bijgewerkt. Nu: `modules` (welke modules aan staan), `hidden_kpis` (verborgen KPI-tegels) en `links_version` (links eenmalig opgebouwd) |
+| Instelling (`settings`) | sleutel, waarde (jsonb), bijgewerkt. Nu: `modules` (welke modules aan staan), `hidden_kpis` (verborgen KPI-tegels), `links_version` (links eenmalig opgebouwd), `push_prefs` (soorten meldingen), `vapid` (sleutels voor push) en `backup_last_pulled` (wanneer de Mac de back-up ophaalde) |
+| Push-apparaat (`push_subscriptions`) | endpoint (uniek), p256dh, auth, label (bijv. iPhone, Mac (Safari)), laatste succes, laatste fout, aantal fouten, aangemaakt |
 
 Begrippen:
 - **Gebied**: `zakelijk` of `prive`. Zakelijk zonder klant = algemeen bedrijfswerk.
@@ -238,13 +251,20 @@ src/lib/brain.ts      second brain: links bijhouden, backlinks, vermeldingen, gr
 src/lib/search.ts     zoeken: trefwoord, pgvector, indexeren, status (via data.ts geëxporteerd)
 src/lib/embeddings.ts embedding-providers (Voyage, OpenAI)
 src/lib/obsidian.ts   Obsidian-export opbouwen; obsidian-write.ts schrijft hem weg (alleen script)
+src/lib/push.ts       pushmeldingen: apparaten, VAPID, versturen, ochtendoverzicht, deadlines, back-upcontrole
+src/components/push-settings.tsx  service worker registreren, meldingen aanzetten, testmelding, soorten aan/uit
+src/app/push-actions.ts           server actions voor pushmeldingen
+src/app/api/notify/[kind]/        vaste meldingen voor de cron (Bearer MCP_TOKEN)
+src/app/api/export/backup/        versleutelde back-ups downloaden (sessie of Bearer MCP_TOKEN)
+src/app/api/push/renew/           vernieuwd abonnement vanuit de service worker
+public/sw.js          service worker (alleen meldingen)
 src/lib/zip.ts        zip zonder extra pakketten
 src/components/markdown.tsx    markdown-weergave met [[links]]
 src/components/link-editor.tsx editor met aanvullen van [[
 src/components/graph-view.tsx  grafiek (krachtenmodel in SVG)
 src/app/api/export/obsidian/   zip-download (sessie of Bearer MCP_TOKEN)
 src/components/       interface-onderdelen, incl. brand.tsx (beeldmerk, paginakop, sectiekop)
-scripts/              setup-server.sh, update.sh, migrate, seed, local, hash-password, second-brain (export/reindex/nightly), obsidian-mac.sh
+scripts/              setup-server.sh, update.sh, ensure-env.sh, install-cron.sh, cron.sh (back-up, second brain, meldingen), restore.sh, migrate, seed, local, hash-password, second-brain (export/reindex/nightly), mac-install.sh en mac-daily.sh (back-up en Obsidian naar de Mac), obsidian-mac.sh
 public/brand/         MLC-logo's (gecorrigeerd: stroke-linejoin round)
 ```
 
@@ -254,32 +274,43 @@ public/brand/         MLC-logo's (gecorrigeerd: stroke-linejoin round)
 - Database niet van buitenaf bereikbaar; firewall alleen SSH, HTTP en HTTPS.
 - MCP-koppeling alleen met geheim token (`MCP_TOKEN`). De MCP-URL is een wachtwoord. Bij uitlekken: token vervangen in `.env` en herstarten.
 - Caddy schrijft geen access-logs (geheime URL komt niet in logbestanden).
-- Dagelijkse database-back-up om 03:15, 30 dagen bewaard (`/opt/marc-os/backups`). Advies: ook buiten de VPS bewaren.
+- Dagelijkse database-back-up om 03:15, versleuteld (AES-256, sleutel `BACKUP_PASSPHRASE` in `.env` en in de wachtwoordmanager), 30 dagen op de VPS en 90 dagen op de Mac.
+- `/api/export/backup` werkt met de app-sessie of de MCP-token; de bestanden zijn versleuteld, dus zonder back-upsleutel onbruikbaar.
+- `/api/notify/...` werkt alleen met de MCP-token (voor de cron op de VPS).
+- Optioneel: SSH alleen met sleutel (setup-server.sh vraagt het).
 - Geheimen staan alleen in `.env` op de server (chmod 600), nooit in git.
 - De zip-export (`/api/export/obsidian`) werkt met de app-sessie of met de MCP-token als Bearer; ook die token is dus een wachtwoord voor alle notities.
 - Semantisch zoeken stuurt tekst van notities en bronnen naar de embedding-provider; staat uit tot er een sleutel in `.env` staat.
 
 ## Installatie op de VPS
 
-1. DNS-record `os` → `179.67.202.123` aanmaken.
-2. Op de Mac:
+1. **DNS**: bij de huidige provider (nameservers zxcs) een A-record `os` → `179.67.202.123`. Controle op de Mac: `dig +short os.marclonsain.nl` geeft het IP-adres.
+2. **Code op de Mac bijwerken** en het script naar de VPS sturen:
    ```bash
-   git clone https://github.com/Mrclnsn/marc-os.git && cd marc-os
+   cd ~/marc-os && git pull
+   ssh-copy-id root@179.67.202.123          # eenmalig: inloggen met je SSH-sleutel
    scp scripts/setup-server.sh root@179.67.202.123:
-   ssh root@179.67.202.123
-   bash setup-server.sh
+   ssh -t root@179.67.202.123 "bash setup-server.sh"
    ```
 3. Het script vraagt om:
    - een **deploy key** toe te voegen op GitHub (repo → Settings → Deploy keys, alleen lezen);
-   - het **inlogwachtwoord** voor de app (minimaal 12 tekens);
-   - eventueel **agenda-links** (kan later in `/opt/marc-os/.env`).
-4. Het script doet de rest: systeemupdates, fail2ban, automatische beveiligingsupdates, Docker, firewall, code ophalen, `.env` met geheimen, starten, Notion-klanten importeren, dagelijkse back-up. Aan het eind toont het de MCP-URL.
+   - het **domein** (Enter = os.marclonsain.nl) en het **inlogwachtwoord** voor de app (minimaal 12 tekens);
+   - eventueel **agenda-links** (kan later in `/opt/marc-os/.env`);
+   - of wachtwoord-login via SSH uit mag (ja, als `ssh-copy-id` gelukt is).
+4. Het script doet de rest: systeemupdates, tijdzone, fail2ban, automatische beveiligingsupdates, Docker, firewall, code ophalen, `.env` met geheimen en back-upsleutel, starten, Notion-klanten importeren, vaste taken, eerste back-up. Aan het eind toont het de MCP-URL en de **back-upsleutel: direct in de wachtwoordmanager zetten**.
+5. **Telefoon**: open https://os.marclonsain.nl in Safari, log in, Deel → Zet op beginscherm. Open de app vanaf het beginscherm → Instellingen → Pushmeldingen → Meldingen aanzetten → Testmelding.
+6. **Claude**: Instellingen → Connectors → Custom connector, met de MCP-URL (ook te zien in de app op Instellingen → Koppeling met Claude).
+7. **Mac**: `cd ~/marc-os && bash scripts/mac-install.sh` (token plakken, map voor back-ups, eventueel Obsidian-map). Daarna toont Instellingen → Back-ups "laatst opgehaald door de Mac".
 
 Bijwerken na nieuwe code: `bash /opt/marc-os/scripts/update.sh`
 
-Semantisch zoeken aanzetten: in `/opt/marc-os/.env` `EMBEDDING_PROVIDER=voyage` en `EMBEDDING_API_KEY=...` invullen, dan `docker compose up -d` en op Instellingen → Second brain "Links en index bijwerken".
+Terugzetten: `bash /opt/marc-os/scripts/restore.sh backups/marcos-<datum>.sql.gz.enc`
 
-Let op: het script is gecontroleerd op syntax, maar nog niet op een echte verse server gedraaid. Ubuntu 26.04 is nieuwer dan waarvoor het oorspronkelijk geschreven was; er is een terugval voor de Docker-installatie ingebouwd.
+Handige commando's op de VPS (in `/opt/marc-os`): `docker compose ps`, `docker compose logs --tail 50 app`, `tail logs/cron.log`, `bash scripts/cron.sh morning` (ochtendmelding nu sturen).
+
+Semantisch zoeken aanzetten: in `/opt/marc-os/.env` `EMBEDDING_PROVIDER=voyage` en `EMBEDDING_API_KEY=...` invullen, dan `docker compose up -d` en op Instellingen → Second brain "Links en index bijwerken". Eerst Voyage opnemen in het leveranciersregister.
+
+Let op: de scripts zijn gecontroleerd op syntax en de onderdelen zijn lokaal getest, maar de installatie is nog niet op een echte verse server gedraaid. Ubuntu 26.04 is nieuw; er is een terugval voor de Docker-installatie ingebouwd.
 
 ## Lokaal draaien (proefomgeving)
 
@@ -303,7 +334,7 @@ Na installatie: in Claude → Instellingen → Connectors → Custom connector, 
 
 Let op: tools van uitgeschakelde modules worden niet aangeboden. Na het aan- of uitzetten van een module in Claude de connector opnieuw laden (of een nieuw gesprek starten) zodat de toollijst klopt.
 
-Beschikbare tools (alle modules aan): `get_overview` (inclusief aangiftes: te laat, deadline binnen 14 dagen, stukken ontbreken; pipeline-signalen, domeinen die binnen 30 dagen verlopen, MRR, te factureren termijnen, aflopende afspraken, uren deze week, lopende timer en budgetwaarschuwingen), `list_tasks`, `create_task`, `update_task`, `complete_task`, `delete_task`, `completed_tasks`, `capture`, `inbox_to_task`, `list_notes`, `get_note` (met links vanuit en naar de notitie), `create_note`, `update_note`, `list_clients` (filter op status en tag), `get_client` (volledig dossier, inclusief afspraken, termijnen en MRR), `create_client` (met optioneel primaire contactpersoon), `update_client`, `add_contact`, `update_contact`, `delete_contact`, `list_websites` (met `expiringWithinDays`), `add_website`, `update_website`, `delete_website`, `add_document`, `delete_document`, `list_projects`, `get_project`, `create_project`, `update_project`, `list_agreements`, `create_agreement`, `update_agreement`, `deliver_agreement`, `delete_agreement`, `list_installments`, `add_installment`, `update_installment`, `delete_installment`, `get_revenue` (MRR, per dienst/klant, verwachte omzet), `get_timer`, `start_timer`, `stop_timer`, `log_time` (duur als tekst, bijv. "2u"), `list_time_entries`, `update_time_entry`, `delete_time_entry`, `get_hours` (weekoverzicht, te factureren uren, budgetten, effectief uurtarief), `invoice_hours`, `get_pipeline`, `list_leads`, `get_lead`, `create_lead`, `update_lead`, `delete_lead`, `list_quotes`, `get_quote`, `create_quote` (maakt zo nodig eerst een lead), `update_quote`, `add_quote_line`, `update_quote_line`, `delete_quote_line`, `set_quote_status`, `accept_quote`, `list_filings` (open aangiftes met signaal), `get_filing`, `update_filing`, `create_filing` (losse aangifte), `draft_docs_reminder` (conceptmail, verstuurt niets), `list_filing_schedules`, `set_filing_schedule`, `delete_filing_schedule`, `search_knowledge` (second brain doorzoeken op betekenis en trefwoord, met tekstfragmenten), `get_backlinks`, `list_sources`, `get_source`, `add_source` (met alleen een url haalt hij titel en beschrijving op), `update_source`, `delete_source`, `get_calendar`, `save_review` (met `append` om onder een bestaande review toe te voegen), `list_reviews`.
+Beschikbare tools (alle modules aan): `get_overview` (inclusief aangiftes: te laat, deadline binnen 14 dagen, stukken ontbreken; pipeline-signalen, domeinen die binnen 30 dagen verlopen, MRR, te factureren termijnen, aflopende afspraken, uren deze week, lopende timer en budgetwaarschuwingen), `list_tasks`, `create_task`, `update_task`, `complete_task`, `delete_task`, `completed_tasks`, `capture`, `inbox_to_task`, `list_notes`, `get_note` (met links vanuit en naar de notitie), `create_note`, `update_note`, `list_clients` (filter op status en tag), `get_client` (volledig dossier, inclusief afspraken, termijnen en MRR), `create_client` (met optioneel primaire contactpersoon), `update_client`, `add_contact`, `update_contact`, `delete_contact`, `list_websites` (met `expiringWithinDays`), `add_website`, `update_website`, `delete_website`, `add_document`, `delete_document`, `list_projects`, `get_project`, `create_project`, `update_project`, `list_agreements`, `create_agreement`, `update_agreement`, `deliver_agreement`, `delete_agreement`, `list_installments`, `add_installment`, `update_installment`, `delete_installment`, `get_revenue` (MRR, per dienst/klant, verwachte omzet), `get_timer`, `start_timer`, `stop_timer`, `log_time` (duur als tekst, bijv. "2u"), `list_time_entries`, `update_time_entry`, `delete_time_entry`, `get_hours` (weekoverzicht, te factureren uren, budgetten, effectief uurtarief), `invoice_hours`, `get_pipeline`, `list_leads`, `get_lead`, `create_lead`, `update_lead`, `delete_lead`, `list_quotes`, `get_quote`, `create_quote` (maakt zo nodig eerst een lead), `update_quote`, `add_quote_line`, `update_quote_line`, `delete_quote_line`, `set_quote_status`, `accept_quote`, `list_filings` (open aangiftes met signaal), `get_filing`, `update_filing`, `create_filing` (losse aangifte), `draft_docs_reminder` (conceptmail, verstuurt niets), `list_filing_schedules`, `set_filing_schedule`, `delete_filing_schedule`, `search_knowledge` (second brain doorzoeken op betekenis en trefwoord, met tekstfragmenten), `get_backlinks`, `list_sources`, `get_source`, `add_source` (met alleen een url haalt hij titel en beschrijving op), `update_source`, `delete_source`, `get_calendar`, `save_review` (met `append` om onder een bestaande review toe te voegen), `list_reviews`, `send_push` (pushmelding naar Marc's telefoon).
 
 ### Vaste taken om in te plannen
 
@@ -352,8 +383,11 @@ Plus één taak: "Handleiding webbeheer" (SVWW). De Notion-workspace "Freelance 
 - [ ] Embedding-provider kiezen (Voyage aanbevolen), API-sleutel aanmaken en de provider opnemen in het leveranciersregister (ISO 27001); daarna `EMBEDDING_PROVIDER` en `EMBEDDING_API_KEY` in `.env` (VPS) of `.env.local` (lokaal)
 - [ ] Op de Mac `node -v` controleren (moet 22 of hoger zijn), dan `npm run local` en het klantdossier en de afspraken per klant invullen
 - [ ] DNS-record `os.marclonsain.nl` → `179.67.202.123`
-- [ ] Installatiescript draaien op de VPS
+- [ ] Installatiescript draaien op de VPS (zie Installatie op de VPS) en de back-upsleutel in de wachtwoordmanager zetten
+- [ ] App op het beginscherm van de telefoon, pushmeldingen aanzetten en testen
 - [ ] MCP-koppeling toevoegen in Claude
+- [ ] Op de Mac `bash scripts/mac-install.sh` (back-ups en Obsidian)
+- [ ] Leveranciersregister ISO 27001: Hostinger (VPS, Düsseldorf), Apple/Google push-diensten (alleen versleutelde meldingstekst)
 - [ ] Ochtendbriefing, dagafsluiting en weekreview inplannen als vaste taken
 - [ ] Agenda-links (ICS) toevoegen
 - [ ] Ideale week in de agenda zetten
