@@ -213,3 +213,4 @@ echo "  Logboek:        $DIR/logs/cron.log"
 echo
 echo "  Volgende stappen: telefoon-app en meldingen (Instellingen → Pushmeldingen),"
 echo "  connector in Claude, en op de Mac: bash scripts/mac-install.sh"
+echo "  Hermes (AI-assistent) installeren: bash $DIR/scripts/hermes-setup.sh"

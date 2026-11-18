@@ -20,4 +20,8 @@ if ! has BACKUP_PASSPHRASE; then
 fi
 grep -q '^EMBEDDING_PROVIDER=' "$ENV" || printf '%s\n' "# Semantisch zoeken (second brain): voyage of openai, met sleutel. Leeg = zoeken op trefwoord." "EMBEDDING_PROVIDER=" "EMBEDDING_API_KEY=" >>"$ENV"
 grep -q '^APP_TIMEZONE=' "$ENV" || add APP_TIMEZONE Europe/Amsterdam
+# Hermes (gesprek 12): eigen MCP-sleutel (schrijven alleen via de akkoordwachtrij) en sleutel voor zijn API
+has HERMES_MCP_TOKEN || add HERMES_MCP_TOKEN "$(openssl rand -hex 32)"
+has HERMES_API_KEY || add HERMES_API_KEY "$(openssl rand -hex 32)"
+grep -q '^ANTHROPIC_API_KEY=' "$ENV" || printf '%s\n' "# Hermes: Anthropic API-sleutel en model. Installeren met scripts/hermes-setup.sh" "ANTHROPIC_API_KEY=" "HERMES_MODEL=claude-sonnet-5-5" "HERMES_URL=" >>"$ENV"
 chmod 600 "$ENV"

@@ -24,12 +24,13 @@ const items: Item[] = [
   { href: "/aangiftes", label: "Aangiftes", module: "aangiftes" },
   { href: "/notities", label: "Notities" },
   { href: "/reviews", label: "Reviews" },
+  { href: "/hermes", label: "Hermes" },
 ];
 
 /** Vijf vaste plekken in de onderbalk op de telefoon; de rest staat in de kop. */
 const BOTTOM = ["/", "/planning", "/inbox", "/taken", "/projecten"];
 
-export function Nav({ inbox, footer, modules }: { inbox: number; footer: React.ReactNode; modules: Modules }) {
+export function Nav({ inbox, pending = 0, footer, modules }: { inbox: number; pending?: number; footer: React.ReactNode; modules: Modules }) {
   const path = usePathname();
   const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
   const visible = items.filter((i) => !i.module || modules[i.module]);
@@ -48,7 +49,7 @@ export function Nav({ inbox, footer, modules }: { inbox: number; footer: React.R
         </Link>
         <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3">
           {visible.map((i) => (
-            <NavLink key={i.href} item={i} on={active(i.href)} badge={i.href === "/inbox" ? inbox : 0} />
+            <NavLink key={i.href} item={i} on={active(i.href)} badge={i.href === "/inbox" ? inbox : i.href === "/hermes" ? pending : 0} />
           ))}
           <div className="mt-auto pb-2 pt-4">
             <NavLink item={{ href: "/instellingen", label: "Instellingen" }} on={active("/instellingen")} badge={0} />

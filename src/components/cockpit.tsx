@@ -4,6 +4,8 @@ import { HabitCheckList } from "./habit-parts";
 import { formatDuration } from "@/lib/duration";
 import { Beeldmerk } from "./brand";
 import { StatusChip } from "./goal-view";
+import { ProposalCard } from "./hermes-parts";
+import type { ProposalView } from "@/app/hermes-actions";
 
 /*
  * Cockpit-onderdelen. Werken in beide stijlen: "strak" (MLC) en "ironman" (HUD).
@@ -153,7 +155,7 @@ export function BriefingPanel({ hud, briefing, auto, at, nowLabel }: { hud: bool
             {briefing ? `Hermes · briefing ${at ?? ""}` : `Briefing · ${nowLabel}`}
           </p>
           <p className="mt-2 whitespace-pre-wrap text-[16px] leading-relaxed text-nacht md:text-[17px]">{briefing ? briefing.body : auto}</p>
-          {!briefing && <p className="mt-2 text-xs text-steen">Automatisch samengesteld uit je taken en agenda. Vanaf gesprek 12 schrijft Hermes hier je ochtendbriefing.</p>}
+          {!briefing && <p className="mt-2 text-xs text-steen">Automatisch samengesteld uit je taken en agenda. Zodra de vaste routine loopt (gesprek 13), schrijft Hermes hier je ochtendbriefing.</p>}
         </div>
       </div>
     </section>
@@ -162,30 +164,45 @@ export function BriefingPanel({ hud, briefing, auto, at, nowLabel }: { hud: bool
 
 /* ---------------- Hermes en agents ---------------- */
 
-type AgentRow = { name: string; role: string; status: "actief" | "klaar" | "gepland"; detail: string };
+export type AgentsData = {
+  status: { configured: boolean; online: boolean };
+  pending: ProposalView[];
+  pendingTotal: number;
+  hermesLast: { at: string; summary: string } | null;
+  claudeLast: { at: string; summary: string } | null;
+  routines: { name: string; when: string; done: boolean }[];
+};
 
-const AGENTS: AgentRow[] = [
-  { name: "Hermes", role: "Assistent", status: "gepland", detail: "gesprek 12" },
-  { name: "Executive assistant", role: "Planning en briefings", status: "gepland", detail: "rol" },
-  { name: "Coach", role: "Dagritme, gewoontes, sport", status: "gepland", detail: "rol" },
-  { name: "Kennis", role: "Second brain", status: "gepland", detail: "rol" },
-  { name: "Administratie", role: "Uren, aangiftes, facturen", status: "gepland", detail: "rol" },
-  { name: "Claude (MCP)", role: "Grotere klussen", status: "klaar", detail: "na livegang" },
-];
+const ago = (iso: string) => {
+  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (min < 1) return "zojuist";
+  if (min < 60) return `${min} min`;
+  if (min < 24 * 60) return `${Math.round(min / 60)} uur`;
+  return `${Math.round(min / 1440)} d`;
+};
 
-const ROUTINES = [
-  { name: "Ochtendbriefing", when: "werkdagen 07:30" },
-  { name: "Dagafsluiting", when: "werkdagen 17:30" },
-  { name: "Weekreview", when: "vrijdag 15:00" },
-];
-
-export function AgentsPanel({ hasBriefing }: { hasBriefing: boolean }) {
-  const dot = (s: AgentRow["status"]) =>
-    s === "actief" ? "accent bg-nacht" : s === "klaar" ? "border border-nacht bg-transparent" : "border border-steen bg-transparent";
+export function AgentsPanel({ data }: { data: AgentsData }) {
+  const { status } = data;
+  const hermes = status.online ? "actief" : status.configured ? "offline" : "gepland";
+  const rows: { name: string; role: string; status: "actief" | "klaar" | "gepland" | "offline"; detail: string }[] = [
+    {
+      name: "Hermes",
+      role: data.hermesLast ? data.hermesLast.summary : "Assistent in de app",
+      status: hermes,
+      detail: status.online ? (data.hermesLast ? ago(data.hermesLast.at) : "online") : status.configured ? "offline" : "installeren",
+    },
+    { name: "Executive assistant", role: "Planning en briefings", status: status.online ? "klaar" : "gepland", detail: "rol" },
+    { name: "Coach", role: "Dagritme, gewoontes, sport", status: status.online ? "klaar" : "gepland", detail: "rol" },
+    { name: "Kennis", role: "Second brain", status: status.online ? "klaar" : "gepland", detail: "rol" },
+    { name: "Administratie", role: "Uren, aangiftes, facturen", status: status.online ? "klaar" : "gepland", detail: "rol" },
+    { name: "Claude (MCP)", role: data.claudeLast ? data.claudeLast.summary : "Grotere klussen", status: "klaar", detail: data.claudeLast ? ago(data.claudeLast.at) : "gekoppeld" },
+  ];
+  const dot = (s: (typeof rows)[number]["status"]) =>
+    s === "actief" ? "accent bg-nacht" : s === "klaar" ? "border border-nacht bg-transparent" : s === "offline" ? "border-2 border-nacht bg-transparent" : "border border-steen bg-transparent";
   return (
-    <Panel title="Hermes · agents" aside="akkoord nodig: 0">
+    <Panel title="Hermes · agents" aside={<Link href="/hermes?tab=akkoord" className="hover:text-nacht">akkoord nodig: {data.pendingTotal}</Link>}>
       <ul className="divide-y divide-lijn">
-        {AGENTS.map((a) => (
+        {rows.map((a) => (
           <li key={a.name} className="flex items-center gap-3 px-4 py-2.5">
             <span aria-hidden className={`h-2.5 w-2.5 shrink-0 rounded-full ${dot(a.status)}`} />
             <span className="min-w-0 flex-1">
@@ -196,13 +213,26 @@ export function AgentsPanel({ hasBriefing }: { hasBriefing: boolean }) {
           </li>
         ))}
       </ul>
+      {data.pending.length > 0 && (
+        <div className="space-y-2 border-t border-lijn px-4 py-3">
+          <p className="hud-mono text-[10px] uppercase tracking-[0.14em] text-steen">Akkoord nodig</p>
+          {data.pending.map((p) => (
+            <ProposalCard key={p.id} proposal={p} via="cockpit" compact />
+          ))}
+          {data.pendingTotal > data.pending.length && (
+            <Link href="/hermes?tab=akkoord" className="block text-xs text-steen hover:text-nacht">
+              Nog {data.pendingTotal - data.pending.length} → alle voorstellen
+            </Link>
+          )}
+        </div>
+      )}
       <div className="border-t border-lijn px-4 py-3">
         <p className="hud-mono mb-2 text-[10px] uppercase tracking-[0.14em] text-steen">Vaste routines</p>
         <ul className="space-y-1.5 text-sm">
-          {ROUTINES.map((r, i) => (
+          {data.routines.map((r) => (
             <li key={r.name} className="flex items-center justify-between gap-3">
               <span className="text-grafiet">{r.name}</span>
-              <span className="text-xs text-steen">{i === 0 && hasBriefing ? "vandaag gedaan" : r.when}</span>
+              <span className={`text-xs ${r.done ? "font-bold text-nacht" : "text-steen"}`}>{r.done ? "gedaan" : r.when}</span>
             </li>
           ))}
         </ul>

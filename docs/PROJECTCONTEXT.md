@@ -1,6 +1,6 @@
 # Marc OS: projectcontext
 
-*Stand van zaken: 18 november 2026, na gesprek 10 (doelen met on-track-status en leren)*
+*Stand van zaken: 18 november 2026, na gesprek 12 (Hermes: installatie, chat in de app, akkoordwachtrij)*
 
 ## Doel
 
@@ -110,7 +110,21 @@ Uitgangspunt: Marc werkt vanaf december 2026 fulltime voor zijn eigen bedrijf. H
 | Leren: opzet | Leeronderwerp (`learning_topics`): titel, soort (cursus, boek, vaardigheid, certificering, overig), gebied, status (idee, bezig, gepauzeerd, afgerond), doel, link, voortgang (met een eenheid zoals hoofdstukken "4 van 12", anders procenten), uren-doel, gestart (vanzelf bij bezig), streefdatum, afgerond op (vanzelf), aantekeningen in markdown met [[links]]. Pagina **Leren** met tijd deze week en maand, bezig, ideeën, afgerond | Volgens ontwerp |
 | Leren: tijd | Eigen sessies per onderwerp (`learning_sessions`: datum, minuten, notitie, bron app/mcp/whatsapp), los van de module Uren, zodat het werkt terwijl Uren uit staat. Invoer zoals bij uren ("45", "1:30", "1u"). Eerste tijd bij een idee zet het onderwerp op bezig | Doel "3 uur per week leren" meetbaar zonder module Uren |
 | Leren: leerplan, bronnen, notities | Leerplan = gewone taken met `learning_id` (plannen in een leren-blok, terugkerend blijft gekoppeld). Bronnen met `learning_id` (op de pagina een link plakken). Notities via [[leren:Titel]] (knop "+ Notitie" vult de link al in) en backlinks op het onderwerp. Leeronderwerpen zijn linkdoel, knoop in de grafiek (driehoek) en map Leren/ in de Obsidian-export | Second brain blijft één geheel |
-| Plekken voor later | `GoalBar` is gevuld (gesprek 10). `BriefingPanel` en `AgentsPanel` (nu automatische briefing en vaste lijst; gesprek 12/13 echte Hermes-briefing, akkoordwachtrij en routinestatus) in `src/components/cockpit.tsx`. Ze tonen niets zolang er geen gegevens zijn | Cockpit hoeft later niet om te bouwen |
+| Plekken voor later | `GoalBar` is gevuld (gesprek 10). `AgentsPanel` is gevuld (gesprek 12: status, akkoordwachtrij, laatste activiteit, routines). `BriefingPanel` toont de opgeslagen dag-review; de echte ochtendbriefing van Hermes komt met de vaste routines (gesprek 13) | Cockpit hoeft later niet om te bouwen |
+| Hermes: wat | **Hermes Agent** van Nous Research (open source, MIT), Docker-image `nousresearch/hermes-agent:stable`, als dienst `hermes` in dezelfde Docker Compose als de app. Model: Claude via de Anthropic API (`HERMES_MODEL`, standaard `claude-sonnet-5-5`) | Volgens ontwerp: één agent met rollen, op de eigen VPS |
+| Hermes: netwerk | Geen poorten naar buiten. De app praat met Hermes via `http://hermes:8642` (OpenAI-compatibele API met `HERMES_API_KEY`), Hermes met Marc OS via `http://app:3000/api/mcp` | Niets extra's open op internet |
+| Hermes: aan/uit | Docker Compose-profiel `hermes` (`COMPOSE_PROFILES=hermes` in `.env`, gezet door `scripts/hermes-setup.sh`). Zonder profiel draait alles zoals voorheen | Installatie is een losse, bewuste stap |
+| Hermes: sleutels | Hermes krijgt alleen `ANTHROPIC_API_KEY`, zijn API-sleutel en zijn eigen MCP-sleutel (`HERMES_MCP_TOKEN`), geen `env_file`: niet de database, sessie- of back-upsleutels | Minste rechten (ISO 27001) |
+| Hermes: tools | Alleen Marc OS (MCP-server `marcos`), zijn geheugen en een takenlijstje (`platform_toolsets` in `hermes/config.yaml.template`). Geen terminal, bestanden of browser. `hermes-setup.sh` waarschuwt als de terminal toch aan staat | Klein aanvalsoppervlak |
+| Hermes: config | `hermes/config.yaml.template` en `hermes/SOUL.md` (persoonlijkheid, regels, toon: Nederlands, kort, geen gedachtestreepjes) in de repo; `scripts/hermes-config.sh` schrijft ze naar `hermes-data/` (UID 10000, chmod 700). `update.sh` doet dat bij elke update en haalt de nieuwste `stable` op. De vorige config blijft als `config.yaml.vorige` | Instellingen in git, niet met de hand op de server |
+| Akkoordwachtrij: hoe | De MCP-server kent twee rollen op sleutel: `MCP_TOKEN` = Marc (Claude, cron, Mac; alles direct) en `HERMES_MCP_TOKEN` = Hermes. Met de Hermes-sleutel gaat lezen direct, en wordt elke schrijfactie **op de server** omgezet in een voorstel (tool + argumenten + titel + reden). Na akkoord voert Marc OS dezelfde tool uit met de opgeslagen argumenten (gecontroleerd met hetzelfde schema). Een voorstel kan maar één keer worden uitgevoerd | Hermes kan er niet omheen, ook niet bij een fout of een geslaagde prompt-injectie |
+| Akkoord geven | In de chat onder het antwoord, op Hermes → Akkoord (ook "Alles akkoord"), en in de cockpit (paneel Hermes · agents). Afwijzen met een reden (Hermes ziet die via `list_proposals`). Aanpassen: velden als JSON bewerken voor akkoord (wordt gecontroleerd; label "aangepast"). Hermes kan een eigen voorstel intrekken (`withdraw_proposal`) | Met één tik; WhatsApp ("ja"/"nee") volgt in gesprek 13 |
+| Zonder akkoord | Per schrijfactie in te stellen op Instellingen → Hermes. Standaard aan: braindump vastleggen (`capture`), gewoonte afvinken, training, leertijd en doelstand vastleggen, bron bewaren, review opslaan en pushmelding. Verwijderen, offertes (status, akkoord), uren factureren en klant aanmaken/wijzigen gaan altijd via akkoord (`NEVER_AUTO`) | Volgens ontwerp: vastleggen en afvinken mag, alles met gevolgen na akkoord |
+| Logboek | Tabel `agent_log`: wie (hermes, claude, marc), wat (gelezen, direct, voorstel, akkoord, afgewezen, ingetrokken, uitgevoerd, mislukt, chat), tool, samenvatting, voorstel. Schrijfacties van Claude via MCP komen er ook in. Pagina Hermes → Logboek (filter op wie, leesacties optioneel). Ruim een jaar bewaard | ISO 27001: wie deed wat en wanneer |
+| Chat in de app | Pagina **Hermes** (Chat, Akkoord, Logboek) en een ronde Hermes-knop rechtsonder op elke pagina (op de telefoon boven de onderbalk) die de chat als paneel opent, met het aantal open voorstellen. De app stuurt elk bericht naar Hermes' `/v1/responses` met `conversation = marc-os-<gesprek-id>`: de geschiedenis voor het model houdt Hermes zelf bij; Marc OS bewaart de berichten voor de weergave (`chat_threads`, `chat_messages`) met de gebruikte tools en de voorstellen van dat antwoord | Overal bereikbaar, op Mac en telefoon |
+| Chat: stroom | `/api/hermes/chat` (alleen met sessie) geeft per regel JSON (thread, tool, delta, done, error). Next comprimeert niet meer (`compress: false`), Caddy comprimeert alles behalve `/api/hermes/*`, zodat tekst direct verschijnt | Antwoorden komen woord voor woord binnen |
+| Meldingen bij voorstellen | Pushmelding (soort "Van Claude en Hermes") als er een voorstel binnenkomt terwijl Marc niet in de app-chat zit, hooguit één per 10 minuten, met link naar Hermes → Akkoord | Niet storen tijdens een gesprek, wel als Hermes iets klaarzet (routines in gesprek 13) |
+| Lokaal testen | `npm run hermes-mock` (naast `npm run local`) start een nep-Hermes die via de Hermes-sleutel met Marc OS praat: "taak: ..." wordt een voorstel, "inbox: ..." gaat direct, "voorstellen" toont de wachtrij. In `.env.local`: `HERMES_URL=http://127.0.0.1:8642`, `HERMES_API_KEY=mock` (`HERMES_MCP_TOKEN` zet `npm run local` zelf) | Testen zonder Anthropic-sleutel |
 | Second brain: bron | Marc OS is de bron; Obsidian krijgt een export (alleen lezen) | Volgens ontwerp: geen synchronisatieproblemen, notities blijven gekoppeld aan klanten en projecten |
 | [[Links]] | Obsidian-stijl in markdown: `[[Naam]]`, `[[Naam\|tekst]]`, `[[Naam#Kopje]]`. Zonder voorvoegsel zoekt hij in de volgorde notitie, klant, project, bron, leeronderwerp; bij dubbele namen `[[klant:Vobis]]`, `[[project:...]]`, `[[bron:...]]`, `[[notitie:...]]`, `[[leren:...]]` (gesprek 10). Links in code tellen niet. Inbox-items zijn geen linkdoel | Bekend uit Obsidian; voorvoegsel alleen als het nodig is (de editor zet het er zelf voor) |
 | Links opslaan | Tabel `links` met het doel als tekst (naam in kleine letters), opgezocht bij het lezen. Bij opslaan van een notitie of bron worden de links opnieuw opgebouwd; bestaande notities eenmalig bij het eerste gebruik (`settings.links_version`) | Een link naar iets dat nog niet bestaat werkt vanzelf zodra het er is; hernoemen van het doel breekt de link wel (zoals bij een titel in Obsidian) |
@@ -156,13 +170,15 @@ Uitgangspunt: Marc werkt vanaf december 2026 fulltime voor zijn eigen bedrijf. H
 | Gesprek 9: Apple Health | Klaar (commit `a5981a2`). Getest met PGlite en een productie-build: zending in het formaat van Health Auto Export (per dag en per uur, kJ, oude en nieuwe trainingsvelden, slaap per nacht en per fase), opnieuw sturen zonder dubbeltelling, uur naar dag, verkeerde sleutel en kapotte JSON, pagina op Mac en telefoon, training met de hand, doelen, gewoontes automatisch aan en weer uit (handmatig vinkje blijft), cockpit, MCP-tools. Nog: `update.sh` op de VPS en Health Auto Export instellen op de iPhone |
 | Gesprek 7: live op de VPS | Code klaar (commit `e9bb1a0`): pushmeldingen, telefoon-app, versleutelde back-ups met ophalen door de Mac, vaste taken, update- en herstelscript. Getest met PGlite en een productie-build: meldingen (ook foutpad), back-up-endpoint, service worker, manifest, `send_push`, versleutelen en terug lezen. Geïnstalleerd en getest op de VPS (18 november, 20:40): containers gezond, eerste versleutelde back-up, pgvector 0.8.7, nachtelijke export (7 bestanden), cron, MCP-koppeling in Claude, pushmelding via `send_push` afgeleverd op de telefoon, Mac haalt de back-up op en schrijft de Obsidian-map `~/Obsidian/Marc OS` |
 | Gesprek 10: doelen en leren | Klaar (commit `991f23c`). Getest met PGlite en een productie-build: alle meetwijzen (MRR met module uit, uren leren per week, gewoonte, handmatig met metingen, mijlpalen met datums, subdoelen, sportsessies en gewicht uit gezondheid), on-track-berekening, voorbeelden met één klik, formulier, cockpit (doelbalk, tegel, signalen), Mac en telefoon, leeronderwerpen met tijd, leerplan, notities met [[leren:...]] en backlinks, grafiek, Obsidian-export, MCP-tools. Nog op de VPS: `update.sh` (migratie 0012) |
-| Volgende gesprek | Gesprek 12: Hermes 1 |
+| Gesprek 12: Hermes 1 | Code klaar (zie commit in het werkplan). Getest met PGlite, een productie-build en een nep-Hermes: rollen op sleutel (Hermes 64 tools met `list_proposals`/`withdraw_proposal`, Claude 62), schrijven wordt voorstel, `capture` direct, verkeerde sleutel 401, chat met stroom per regel (ook via de productieserver), voorstellen onder het antwoord, akkoord voert uit (taak bestaat), afwijzen met reden, aanpassen met controle (onbekend veld geweigerd), Hermes ziet de uitkomst, instellingen per actie (aan, uit, altijd-akkoord vergrendeld), cockpitpaneel in Strak en Iron Man, chatpaneel op Mac en telefoon, logboek, `docker compose config` met en zonder profiel, `hermes-config.sh`. Nog niet getest met de echte Hermes: dat gebeurt bij `hermes-setup.sh` op de VPS |
+| Volgende gesprek | Gesprek 13: Hermes 2 (WhatsApp en vaste routines) |
 | VPS | Draait: Marc OS op https://os.marclonsain.nl (Docker: app, Postgres met pgvector, Caddy) |
 | Domein `os.marclonsain.nl` | A-record bij Hostinger → `179.67.202.123` |
 | Verhuizing `marclonsain.nl` naar Hostinger | Gedaan (18 november). Nameservers Hostinger (dns-parking.com), MX en SPF naar Hostinger-mail, website op 2.57.91.91. Marc controleert of mail en website goed werken |
 | MCP-koppeling in Claude | Gekoppeld (custom connector "Marc OS") |
 | Back-ups buiten de VPS | Mac haalt dagelijks op (launchd, 07:15) naar `~/Backups/Marc OS`, plus Obsidian-export naar `~/Obsidian/Marc OS` |
-| Vaste briefings | Nog niet ingepland |
+| Vaste briefings | Nog niet ingepland (gesprek 13, via Hermes) |
+| Hermes | Nog te installeren op de VPS: `update.sh`, daarna `hermes-setup.sh` |
 
 ## Infrastructuur
 
@@ -220,6 +236,7 @@ Tip: zet het `os`-record nu al bij de huidige provider, zodat de installatie nie
 | **Projecten (detail)** | Plus: knop "Start timer", uren totaal en declarabel, budget van een gekoppelde uurtarief-afspraak, laatste registraties, handmatig toevoegen |
 | **Notities** (second brain) | Tabbladen Notities / Bronnen / Grafiek / Zoeken. Notities: soorten notitie, meeting, telefoon, e-mail, besluit, info, idee; te koppelen aan klant, project, gebied; leesweergave met [[links]], backlinks, uitgaande links, "genoemd zonder link" en lokale grafiek; editor met aanvullen van [[. Bronnen: link plakken (titel en beschrijving vanzelf), status, samenvatting, aantekeningen. Grafiek: alles met verbindingen. Zoeken: vraag of zoekwoorden, op betekenis en trefwoord, filter op klant en soort |
 | **Reviews** | Briefings, dagafsluitingen, weekreviews en maandreviews van de AI |
+| **Hermes** | Tabbladen Chat (gesprekken links/rechts, berichten met gebruikte tools, voorstellen met Akkoord/Afwijzen), Akkoord (wacht op akkoord met "Alles akkoord", afgehandeld), Logboek (wie deed wat, filter, leesacties optioneel). Plus de Hermes-knop op elke pagina |
 
 Verder: een **timerbalk** op elke pagina zolang er een timer loopt (telefoon: boven de onderbalk; desktop: bovenaan), een ▶-knop bij elke taak om direct een timer te starten, terugkerende taken (bij afronden wordt de volgende automatisch aangemaakt), agenda-koppeling via ICS (Google/iCloud/Outlook, alleen lezen, links toe te voegen op Instellingen → Agenda), installeerbaar als app op de telefoon, login met één wachtwoord.
 
@@ -250,6 +267,10 @@ Verder: een **timerbalk** op elke pagina zolang er een timer loopt (telefoon: bo
 | Leeronderwerp (`learning_topics`) | titel, soort, gebied, status, doel, link, voortgang (gedaan, totaal, eenheid), uren-doel, gestart, streefdatum, afgerond op, aantekeningen, volgorde |
 | Leersessie (`learning_sessions`) | onderwerp, datum, minuten, notitie, bron |
 | Embedding (`embeddings`, door de app aangemaakt als pgvector er is) | soort, id, stuk, model, hash, tekst, vector |
+| Voorstel (`agent_proposals`) | actor, tool, argumenten (jsonb), titel, reden, status (pending/running/executed/failed/rejected/withdrawn), aangemaakt, besloten op, besloten via (app/chat/cockpit/whatsapp), notitie bij besluit, aangepast, resultaat, fout |
+| Logregel (`agent_log`) | tijdstip, actor (hermes/claude/marc), soort, tool, samenvatting, voorstel, details |
+| Chatgesprek (`chat_threads`) | titel (eerste bericht), aangemaakt, bijgewerkt |
+| Chatbericht (`chat_messages`) | gesprek, rol (user/assistant), tekst, tools, voorstellen, fout |
 | Review (`reviews`) | soort (dag/week/maand), periode, tekst |
 | Instelling (`settings`) | sleutel, waarde (jsonb), bijgewerkt. Nu: `modules` (welke modules aan staan), `hidden_kpis` (verborgen KPI-tegels), `links_version` (links eenmalig opgebouwd), `push_prefs` (soorten meldingen), `health_token` (sleutel Apple Health), `health_goals` (gezondheidsdoelen), `vapid` (sleutels voor push), `backup_last_pulled` (wanneer de Mac de back-up ophaalde) en `block_reminders` (welke blokherinneringen vandaag al verstuurd zijn) |
 | Dagritme (`rhythms`) | naam, weekdagen (1-7), werkdag begin/einde, volgorde |
@@ -323,6 +344,13 @@ src/lib/search.ts     zoeken: trefwoord, pgvector, indexeren, status (via data.t
 src/lib/embeddings.ts embedding-providers (Voyage, OpenAI)
 src/lib/obsidian.ts   Obsidian-export opbouwen; obsidian-write.ts schrijft hem weg (alleen script)
 src/lib/push.ts       pushmeldingen: apparaten, VAPID, versturen, ochtendoverzicht, deadlines, back-upcontrole
+src/lib/agent.ts      Hermes: voorstellen, logboek, wat zonder akkoord mag, chatgeschiedenis, melding bij voorstel
+src/lib/hermes.ts     verbinding met Hermes: status, chat via /v1/responses (stroom)
+src/lib/mcp.ts        ook: rollen (tokenRole), voorstellen in agent-modus, executeTool/approveProposal/editProposal, writeTools
+src/app/api/hermes/chat/  chat vanuit de app (sessie), regels JSON
+src/app/hermes-actions.ts  akkoord, afwijzen, aanpassen, alles akkoord, instellingen, gesprek laden
+src/app/(app)/hermes/      pagina Hermes; src/components/hermes-parts.tsx (voorstelkaart, chat, Hermes-knop)
+hermes/               config.yaml.template en SOUL.md voor Hermes; scripts/hermes-setup.sh en hermes-config.sh; scripts/hermes-mock.ts
 src/components/push-settings.tsx  service worker registreren, meldingen aanzetten, testmelding, soorten aan/uit
 src/app/push-actions.ts           server actions voor pushmeldingen
 src/app/api/notify/[kind]/        vaste meldingen voor de cron (Bearer MCP_TOKEN)
@@ -352,6 +380,9 @@ public/brand/         MLC-logo's (gecorrigeerd: stroke-linejoin round)
 - Geheimen staan alleen in `.env` op de server (chmod 600), nooit in git.
 - De zip-export (`/api/export/obsidian`) werkt met de app-sessie of met de MCP-token als Bearer; ook die token is dus een wachtwoord voor alle notities.
 - Semantisch zoeken stuurt tekst van notities en bronnen naar de embedding-provider; staat uit tot er een sleutel in `.env` staat.
+- Hermes heeft een eigen MCP-sleutel (`HERMES_MCP_TOKEN`): daarmee kan hij alles lezen, maar alleen voorstellen doen; uitvoeren gebeurt pas na akkoord van Marc (afgedwongen op de server). Bij uitlekken: sleutel vervangen in `.env` en `docker compose up -d`.
+- Hermes is niet van buitenaf bereikbaar (geen poorten); zijn API werkt alleen met `HERMES_API_KEY`. De chat in de app vraagt om de sessie.
+- Hermes stuurt gegevens uit Marc OS (taken, notities, klantnamen, gezondheid als je ernaar vraagt) naar de Anthropic API om te kunnen antwoorden: Anthropic in het leveranciersregister. Notities en bronnen zijn voor Hermes informatie, geen opdrachten (staat in SOUL.md), en alles met gevolgen gaat toch via akkoord.
 - Apple Health (`/api/health/import`) werkt alleen met de eigen gezondheidssleutel (Instellingen → Apple Health), niet met de sessie of de MCP-token, en kan alleen gegevens aanleveren. Bij uitlekken: "Nieuwe sleutel" en Health Auto Export aanpassen. Gezondheidsgegevens zijn bijzondere persoonsgegevens (van Marc zelf); ze gaan rechtstreeks van de telefoon naar de VPS en staan in de versleutelde back-ups.
 
 ## Installatie op de VPS
@@ -373,12 +404,13 @@ public/brand/         MLC-logo's (gecorrigeerd: stroke-linejoin round)
 5. **Telefoon**: open https://os.marclonsain.nl in Safari, log in, Deel → Zet op beginscherm. Open de app vanaf het beginscherm → Instellingen → Pushmeldingen → Meldingen aanzetten → Testmelding.
 6. **Claude**: Instellingen → Connectors → Custom connector, met de MCP-URL (ook te zien in de app op Instellingen → Koppeling met Claude).
 7. **Mac**: `cd ~/marc-os && bash scripts/mac-install.sh` (token plakken, map voor back-ups, eventueel Obsidian-map). Daarna toont Instellingen → Back-ups "laatst opgehaald door de Mac".
+8. **Hermes** (gesprek 12): eerst `bash /opt/marc-os/scripts/update.sh`, dan `bash /opt/marc-os/scripts/hermes-setup.sh`. Het script vraagt om een Anthropic API-sleutel (console.anthropic.com → API keys) en het model, zet Hermes aan, haalt de image op, controleert of Hermes draait en Marc OS via MCP ziet, en doet een korte test. Daarna: chat via de Hermes-knop in de app.
 
 Bijwerken na nieuwe code: `bash /opt/marc-os/scripts/update.sh`
 
 Terugzetten: `bash /opt/marc-os/scripts/restore.sh backups/marcos-<datum>.sql.gz.enc`
 
-Handige commando's op de VPS (in `/opt/marc-os`): `docker compose ps`, `docker compose logs --tail 50 app`, `tail logs/cron.log`, `bash scripts/cron.sh morning` (ochtendmelding nu sturen).
+Handige commando's op de VPS (in `/opt/marc-os`): `docker compose ps`, `docker compose logs --tail 50 app`, `docker compose logs --tail 50 hermes`, `tail logs/cron.log`, `bash scripts/cron.sh morning` (ochtendmelding nu sturen), `docker compose exec hermes hermes tools list` (welke tools Hermes heeft).
 
 Semantisch zoeken aanzetten: in `/opt/marc-os/.env` `EMBEDDING_PROVIDER=voyage` en `EMBEDDING_API_KEY=...` invullen, dan `docker compose up -d` en op Instellingen → Second brain "Links en index bijwerken". Eerst Voyage opnemen in het leveranciersregister.
 
@@ -403,6 +435,8 @@ Second brain lokaal: `npm run local` laadt pgvector in PGlite. Semantisch zoeken
 ## Koppeling met Claude (MCP)
 
 Na installatie: in Claude → Instellingen → Connectors → Custom connector, met URL `https://os.marclonsain.nl/api/mcp/<MCP_TOKEN>`.
+
+Hermes gebruikt dezelfde server met zijn eigen sleutel (`HERMES_MCP_TOKEN`, header `Authorization: Bearer ...` op `http://app:3000/api/mcp`): dan worden schrijfacties voorstellen en zijn er twee extra tools, `list_proposals` en `withdraw_proposal`. Claude (met `MCP_TOKEN`) werkt zoals altijd direct; zijn schrijfacties staan wel in het logboek.
 
 Let op: tools van uitgeschakelde modules worden niet aangeboden. Na het aan- of uitzetten van een module in Claude de connector opnieuw laden (of een nieuw gesprek starten) zodat de toollijst klopt.
 
@@ -457,7 +491,11 @@ Plus één taak: "Handleiding webbeheer" (SVWW). De Notion-workspace "Freelance 
 - [ ] Back-upsleutel (`BACKUP_PASSPHRASE`) in de wachtwoordmanager (controleren)
 - [ ] Mail en website van marclonsain.nl testen na de verhuizing (testmail, site bekijken); DKIM bij Hostinger-mail aanzetten
 - [ ] Leveranciersregister ISO 27001: Hostinger (VPS, Düsseldorf), Apple/Google push-diensten (alleen versleutelde meldingstekst)
-- [ ] Ochtendbriefing, dagafsluiting en weekreview inplannen als vaste taken
+- [ ] Ochtendbriefing, dagafsluiting en weekreview inplannen als vaste taken (gesprek 13, via Hermes)
+- [ ] Op de VPS: `update.sh` (migratie 0013, nieuwe sleutels in `.env`), dan `hermes-setup.sh` met een Anthropic API-sleutel. Daarna in de app de chat proberen en een voorstel goedkeuren
+- [ ] Leveranciersregister ISO 27001: Anthropic (Claude API voor Hermes); bij Anthropic controleren dat API-gegevens niet voor training worden gebruikt en de DPA vastleggen
+- [ ] Instellingen → Hermes: nalopen wat zonder akkoord mag
+- [ ] Lokale map `~/marc-os` op de Mac bijwerken (`git pull`): staat nog op gesprek 7
 - [ ] Na `update.sh`: agenda-links (ICS) toevoegen op Instellingen → Agenda
 - [ ] Dagritmes nalopen en aanpassen (Planning → Dagritme): tijden, blokken, welke een herinnering geven
 - [ ] Eerste gewoontes toevoegen (Planning → Gewoontes), eventueel met automatisch afvinken uit Apple Health
@@ -475,4 +513,3 @@ Plus één taak: "Handleiding webbeheer" (SVWW). De Notion-workspace "Freelance 
 - [ ] Doelen per maand/kwartaal als eigen object in de app
 - [ ] Snelle invoer op de telefoon verbeteren (bijv. via Telegram of spraak naar de AI)
 - [ ] Extra gebieden (bijv. vereniging) als dat nodig blijkt
-- [ ] Eventueel later: eigen agent (bijv. Hermes Agent van Nous Research) op dezelfde MCP-koppeling

@@ -92,6 +92,13 @@
       "when": 1795035672006,
       "tag": "0012_doelen_leren",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795038955558,
+      "tag": "0013_hermes",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,7 @@
 {$DOMAIN} {
-	encode zstd gzip
+	# Niet comprimeren voor de chat met Hermes: die stroomt per regel binnen
+	@comprimeer not path /api/hermes/*
+	encode @comprimeer zstd gzip
 
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"

@@ -53,6 +53,11 @@ if (!existsSync(ENV)) {
   if (fixed !== env) writeFileSync(ENV, fixed);
 }
 
+// Hermes (gesprek 12): eigen MCP-sleutel, ook in een bestaande .env.local
+if (!/^HERMES_MCP_TOKEN=.+/m.test(readFileSync(ENV, "utf8"))) {
+  writeFileSync(ENV, `${readFileSync(ENV, "utf8").replace(/\n*$/, "\n")}HERMES_MCP_TOKEN=${randomBytes(32).toString("hex")}\n`);
+}
+
 // Overige instellingen uit .env.local voor de stappen hieronder
 for (const line of readFileSync(ENV, "utf8").split("\n")) {
   const m = line.match(/^([A-Z_]+)=(.*)$/);

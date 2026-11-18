@@ -54,3 +54,6 @@ backups/
 # VPS: logboeken en nachtelijke Obsidian-export
 logs/
 obsidian/
+
+# VPS: gegevens van Hermes (geheugen, gesprekken, sleutels)
+hermes-data/

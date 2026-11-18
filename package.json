@@ -14,7 +14,8 @@
     "seed": "tsx scripts/seed.ts",
     "local": "pglite-server --db=./.local-pg --port=54329 --max-connections=4 --extensions=@electric-sql/pglite-pgvector:vector --include-database-url --run \"tsx scripts/local.ts\"",
     "obsidian": "tsx scripts/second-brain.ts export",
-    "second-brain": "tsx scripts/second-brain.ts"
+    "second-brain": "tsx scripts/second-brain.ts",
+    "hermes-mock": "tsx scripts/hermes-mock.ts"
   },
   "dependencies": {
     "@fontsource/carlito": "^5.3.0",

@@ -46,6 +46,34 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  # Hermes (gesprek 12): de AI-assistent, naast de app. Alleen intern bereikbaar (geen poorten naar buiten).
+  # Staat aan met COMPOSE_PROFILES=hermes in .env (zet scripts/hermes-setup.sh).
+  hermes:
+    image: nousresearch/hermes-agent:${HERMES_IMAGE_TAG:-stable}
+    profiles: ["hermes"]
+    restart: unless-stopped
+    command: ["gateway", "run"]
+    # Bewust geen env_file: Hermes krijgt alleen zijn eigen sleutels, niet die van de database of de app
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      API_SERVER_ENABLED: "true"
+      API_SERVER_HOST: 0.0.0.0
+      API_SERVER_PORT: "8642"
+      API_SERVER_KEY: ${HERMES_API_KEY:-}
+      API_SERVER_MODEL_NAME: hermes-agent
+      # Eigen MCP-sleutel: lezen direct, wijzigen alleen als voorstel in de akkoordwachtrij
+      MARC_OS_MCP_TOKEN: ${HERMES_MCP_TOKEN:-}
+      TZ: Europe/Amsterdam
+    volumes:
+      # Geheugen, gesprekken, config.yaml en SOUL.md (gevuld door scripts/hermes-config.sh)
+      - ./hermes-data:/opt/data
+    depends_on:
+      - app
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped

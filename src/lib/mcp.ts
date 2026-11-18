@@ -9,15 +9,31 @@ import { getEvents, calendarConfigured } from "./calendar";
 import { addDaysIso, today, weekStart } from "./dates";
 import { formatDuration, parseDuration } from "./duration";
 import { getModules, MODULES, type ModuleKey, type Modules } from "./settings";
+import * as agent from "./agent";
 
 /* ---------------- Authenticatie ---------------- */
 
-export function tokenOk(token: string | null | undefined): boolean {
-  const expected = process.env.MCP_TOKEN;
+function same(token: string | null | undefined, expected: string | undefined): boolean {
   if (!expected || expected.length < 24 || !token) return false;
   const a = Buffer.from(token);
   const b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/** De MCP-token van Marc (Claude, cron, Mac): alles mag direct. */
+export function tokenOk(token: string | null | undefined): boolean {
+  return same(token, process.env.MCP_TOKEN);
+}
+
+/**
+ * Wie belt er aan? owner = MCP_TOKEN (Claude en de vaste taken; alles direct),
+ * agent = HERMES_MCP_TOKEN (Hermes; lezen direct, schrijven als voorstel in de akkoordwachtrij).
+ */
+export type McpRole = "owner" | "agent";
+export function tokenRole(token: string | null | undefined): McpRole | null {
+  if (same(token, process.env.MCP_TOKEN)) return "owner";
+  if (same(token, process.env.HERMES_MCP_TOKEN)) return "agent";
+  return null;
 }
 
 /* ---------------- Hulpfuncties ---------------- */
@@ -261,16 +277,158 @@ function instructions(modules: Modules) {
   return lines.join("\n");
 }
 
-export function buildServer(modules: Modules) {
-  const server = new McpServer({ name: "marc-os", version: "0.1.0" }, { instructions: instructions(modules) });
+/* ---------------- Rollen, akkoordwachtrij en logboek (gesprek 12) ---------------- */
 
-  // Tools van uitgeschakelde modules worden niet geregistreerd, zodat Claude (en straks Hermes) er niet mee werkt
-  const register = server.registerTool.bind(server);
-  server.registerTool = ((name: string, config: unknown, cb: unknown) => {
+type ToolConfig = {
+  title?: string;
+  description?: string;
+  inputSchema?: z.ZodRawShape;
+  annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean };
+};
+type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean };
+type ToolCb = (args: Record<string, unknown>, extra: unknown) => Promise<ToolResult>;
+export type ToolEntry = { name: string; config: ToolConfig; cb: ToolCb; readOnly: boolean };
+
+export type BuildOptions = {
+  /** owner: alles direct (met logboek van schrijfacties). agent: Hermes, schrijven wordt een voorstel. */
+  role?: McpRole;
+  /** Tools die Hermes zonder akkoord mag uitvoeren */
+  autoTools?: string[];
+  /** Vul deze map met alle aangeboden tools (voor uitvoeren na akkoord en de instellingen) */
+  collect?: Map<string, ToolEntry>;
+};
+
+const AGENT_INSTRUCTIONS = [
+  "",
+  "Akkoordwachtrij (je bent Hermes, verbonden met je eigen sleutel):",
+  "- Lezen gaat direct. Elke actie die iets wijzigt, wordt een VOORSTEL in Marc's akkoordwachtrij en is dan nog NIET uitgevoerd. Het antwoord van de tool zegt status pending met een voorstel-id.",
+  "- Zeg dan tegen Marc kort wat je voorstelt en dat het op zijn akkoord wacht (in de app met één tik). Doe niet alsof het al gebeurd is.",
+  "- Geef bij een voorstel in reden een korte uitleg (één zin) waarom.",
+  "- Doe één voorstel per ding. Hangt een tweede actie af van de eerste (bijv. taak in een nieuw project), stel dan eerst de eerste voor en wacht op akkoord (list_proposals) voordat je de tweede voorstelt.",
+  "- Zegt Marc \"pas aan: ...\", trek je eigen voorstel in met withdraw_proposal en doe een nieuw voorstel.",
+  "- Sommige acties mag je zonder akkoord doen (Marc stelt dat in): dan voert de tool ze direct uit en staat er executed. Daarbij horen meestal vastleggen en afvinken.",
+  "- Alles wat je doet wordt gelogd. Verstuur nooit iets namens Marc naar anderen.",
+].join("\n");
+
+const argSummary = (args: Record<string, unknown>) =>
+  Object.entries(args)
+    .filter(([, v]) => v !== undefined && v !== null && v !== "")
+    .slice(0, 4)
+    .map(([k, v]) => `${k}=${String(typeof v === "object" ? JSON.stringify(v) : v).slice(0, 40)}`)
+    .join(", ");
+
+export function buildServer(modules: Modules, opts: BuildOptions = {}) {
+  const role = opts.role ?? "owner";
+  const auto = new Set(opts.autoTools ?? []);
+  const server = new McpServer(
+    { name: "marc-os", version: "0.2.0" },
+    { instructions: instructions(modules) + (role === "agent" ? AGENT_INSTRUCTIONS : "") },
+  );
+
+  // Tools van uitgeschakelde modules worden niet geregistreerd, zodat Claude en Hermes er niet mee werken.
+  // Voor Hermes (agent) worden schrijfacties omgezet in voorstellen; alles wordt gelogd.
+  const register = server.registerTool.bind(server) as unknown as (n: string, c: ToolConfig, f: ToolCb) => unknown;
+  server.registerTool = ((name: string, config: ToolConfig, cb: ToolCb) => {
     const m = TOOL_MODULE[name];
     if (m && !modules[m]) return undefined;
-    return (register as (n: string, c: unknown, f: unknown) => unknown)(name, config, cb);
-  }) as typeof server.registerTool;
+    const readOnly = !!config.annotations?.readOnlyHint;
+    opts.collect?.set(name, { name, config, cb, readOnly });
+
+    if (role === "owner") {
+      if (readOnly || opts.collect) return register(name, config, cb);
+      // Claude (of de vaste taken): direct uitvoeren, schrijfacties in het logboek
+      return register(name, config, async (args, extra) => {
+        const res = await cb(args, extra);
+        if (!res.isError) void agent.log({ actor: "claude", kind: "direct", tool: name, summary: `${config.title ?? name}${args && Object.keys(args).length ? ` (${argSummary(args)})` : ""}` });
+        return res;
+      });
+    }
+
+    if (readOnly) {
+      return register(name, config, async (args, extra) => {
+        void agent.log({ actor: "hermes", kind: "read", tool: name, summary: `${config.title ?? name}${args && Object.keys(args).length ? ` (${argSummary(args)})` : ""}` });
+        return cb(args, extra);
+      });
+    }
+
+    if (auto.has(name) && !agent.NEVER_AUTO.has(name)) {
+      return register(
+        name,
+        { ...config, description: `${config.description ?? ""} (Mag zonder akkoord: wordt direct uitgevoerd.)` },
+        async (args, extra) => {
+          const res = await cb(args, extra);
+          const title = await agent.describeCall(name, config.title, args);
+          void agent.log({ actor: "hermes", kind: res.isError ? "failed" : "direct", tool: name, summary: title, detail: { args } });
+          return res;
+        },
+      );
+    }
+
+    // Schrijfactie zonder toestemming vooraf: een voorstel in de wachtrij
+    return register(
+      name,
+      {
+        ...config,
+        description: `${config.description ?? ""} (Wordt een voorstel in Marc's akkoordwachtrij; pas na zijn akkoord uitgevoerd.)`,
+        inputSchema: { ...(config.inputSchema ?? {}), reden: z.string().max(300).optional().describe("Korte uitleg voor Marc waarom je dit voorstelt") },
+        annotations: { ...config.annotations, readOnlyHint: false },
+      },
+      async (input) => {
+        const { reden, ...args } = input as Record<string, unknown> & { reden?: string };
+        const title = await agent.describeCall(name, config.title, args);
+        const p = await agent.createProposal({ tool: name, args, title, reason: reden ?? null });
+        void agent.notifyNewProposal(title);
+        return json({
+          status: "pending",
+          proposal: { id: p.id, title },
+          message: "Voorstel staat in Marc's akkoordwachtrij en is nog NIET uitgevoerd. Na zijn akkoord voert Marc OS het uit; met list_proposals zie je de uitkomst.",
+        });
+      },
+    );
+  }) as unknown as typeof server.registerTool;
+
+  if (role === "agent") {
+    server.registerTool(
+      "list_proposals",
+      {
+        title: "Mijn voorstellen",
+        description: "Voorstellen in de akkoordwachtrij: open (pending) of afgehandeld (executed = uitgevoerd na akkoord, rejected = afgewezen met eventueel een reden van Marc, failed = mislukt bij uitvoeren, withdrawn = ingetrokken). Met ids één of meer specifieke voorstellen.",
+        inputSchema: {
+          status: z.enum(["pending", "decided", "all"]).optional().describe("Standaard all"),
+          ids: z.array(z.string().uuid()).optional(),
+          limit: z.number().int().positive().max(50).optional(),
+        },
+        annotations: { readOnlyHint: true },
+      },
+      async ({ status, ids, limit }) =>
+        json(
+          (await agent.listProposals({ status: status ?? "all", ids, limit: limit ?? 20 })).map((p) => ({
+            id: p.id,
+            title: p.title,
+            tool: p.tool,
+            status: p.status,
+            reason: p.reason,
+            createdAt: p.createdAt,
+            decidedAt: p.decidedAt,
+            note: p.decisionNote,
+            editedByMarc: p.edited || undefined,
+            result: p.status === "executed" ? p.result : undefined,
+            error: p.error ?? undefined,
+          })),
+        ),
+    );
+
+    server.registerTool(
+      "withdraw_proposal",
+      {
+        title: "Voorstel intrekken",
+        description: "Trek een eigen voorstel in dat nog op akkoord wacht (bijv. als Marc iets anders wil; doe daarna een nieuw voorstel).",
+        inputSchema: { id: z.string().uuid(), note: z.string().optional() },
+        annotations: { readOnlyHint: true },
+      },
+      async ({ id, note }) => json({ withdrawn: !!(await agent.withdrawProposal(id, note)) }),
+    );
+  }
 
   server.registerTool(
     "get_overview",
@@ -2176,9 +2334,72 @@ export function buildServer(modules: Modules) {
   return server;
 }
 
+/** Alle tools die nu aangeboden worden (met de modules van dit moment). */
+export async function toolRegistry(): Promise<Map<string, ToolEntry>> {
+  const collect = new Map<string, ToolEntry>();
+  buildServer(await getModules(), { collect });
+  return collect;
+}
+
+/** Schrijfacties die Hermes kan voorstellen, voor de instellingen (welke mogen zonder akkoord). */
+export async function writeTools() {
+  return [...(await toolRegistry()).values()]
+    .filter((t) => !t.readOnly)
+    .map((t) => ({ name: t.name, title: t.config.title ?? t.name, destructive: !!t.config.annotations?.destructiveHint, neverAuto: agent.NEVER_AUTO.has(t.name) }));
+}
+
+/** Voer een tool uit met opgeslagen argumenten (na akkoord). Gooit een fout met een leesbare melding. */
+export async function executeTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+  const entry = (await toolRegistry()).get(name);
+  if (!entry) throw new Error(`De actie ${name} is nu niet beschikbaar (staat de module uit?).`);
+  const parsed = z.object(entry.config.inputSchema ?? {}).strict().safeParse(args);
+  if (!parsed.success) throw new Error(`Ongeldige gegevens: ${parsed.error.issues.map((i) => `${i.path.join(".") || "invoer"}: ${i.message}`).join("; ")}`);
+  const res = await entry.cb(parsed.data, {});
+  const text = res.content?.map((c) => c.text).join("\n") ?? "";
+  if (res.isError) throw new Error(text || "Mislukt");
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+/** Een voorstel uitvoeren na akkoord van Marc. Kan maar één keer (claimProposal). */
+export async function approveProposal(id: string, via: agent.DecidedVia, note?: string | null) {
+  const p = await agent.claimProposal(id);
+  if (!p) {
+    const now = await agent.getProposal(id);
+    return { ok: false as const, error: now ? `Dit voorstel is al ${now.status === "running" ? "bezig" : "afgehandeld"}.` : "Voorstel niet gevonden.", proposal: now };
+  }
+  await agent.log({ actor: "marc", kind: "approved", tool: p.tool, summary: `Akkoord: ${p.title}`, proposalId: id, detail: { via, edited: p.edited } });
+  try {
+    const result = await executeTool(p.tool, p.args as Record<string, unknown>);
+    const done = await agent.finishProposal(id, { ok: true, result }, via, note);
+    await agent.log({ actor: "hermes", kind: "executed", tool: p.tool, summary: `Uitgevoerd: ${p.title}`, proposalId: id });
+    return { ok: true as const, proposal: done };
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
+    const done = await agent.finishProposal(id, { ok: false, error }, via, note);
+    await agent.log({ actor: "hermes", kind: "failed", tool: p.tool, summary: `Mislukt: ${p.title}: ${error}`, proposalId: id });
+    return { ok: false as const, error, proposal: done };
+  }
+}
+
+/** Argumenten van een open voorstel aanpassen (Marc, voor akkoord). Wordt eerst gecontroleerd. */
+export async function editProposal(id: string, args: Record<string, unknown>) {
+  const p = await agent.getProposal(id);
+  if (!p || p.status !== "pending") throw new Error("Dit voorstel staat niet meer open.");
+  const entry = (await toolRegistry()).get(p.tool);
+  if (!entry) throw new Error("Deze actie is nu niet beschikbaar.");
+  const parsed = z.object(entry.config.inputSchema ?? {}).strict().safeParse(args);
+  if (!parsed.success) throw new Error(`Ongeldige gegevens: ${parsed.error.issues.map((i) => `${i.path.join(".") || "invoer"}: ${i.message}`).join("; ")}`);
+  return agent.updateProposalArgs(id, args);
+}
+
 /** Stateless: per request een nieuwe server en transport. */
-export async function handleMcp(req: Request): Promise<Response> {
-  const server = buildServer(await getModules());
+export async function handleMcp(req: Request, role: McpRole = "owner"): Promise<Response> {
+  const modules = await getModules();
+  const server = buildServer(modules, { role, autoTools: role === "agent" ? await agent.getAutoTools() : undefined });
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
   await server.connect(transport);
   try {

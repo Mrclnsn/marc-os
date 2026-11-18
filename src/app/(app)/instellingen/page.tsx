@@ -10,6 +10,10 @@ import { searchStatus } from "@/lib/data";
 import { syncSearchIndexAction } from "../../actions";
 import { PushPrefSwitch, PushThisDevice, RemoveDeviceButton } from "@/components/push-settings";
 import { HealthTokenBox } from "@/components/health-parts";
+import { AutoToolSwitch } from "@/components/hermes-parts";
+import { getAutoTools } from "@/lib/agent";
+import { hermesConfig, hermesStatus } from "@/lib/hermes";
+import { writeTools } from "@/lib/mcp";
 import { getHealthToken, listHealthImports } from "@/lib/health";
 import { PUSH_KIND_KEYS, PUSH_KINDS, getPushPrefs, lastBackupPull, listBackups, listDevices, vapidPublicKey } from "@/lib/push";
 import { COCKPIT_COOKIE, KPI_KEYS, KPIS, MODULE_KEYS, MODULES, THEME_COOKIE, getHiddenKpis, getModules, parseCockpitStyle, parseTheme } from "@/lib/settings";
@@ -27,6 +31,8 @@ export default async function SettingsPage() {
     getHealthToken(),
     listHealthImports(8),
   ]);
+  const [hermes, autoTools, tools] = await Promise.all([hermesStatus(true), getAutoTools(), writeTools()]);
+  const hermesCfg = hermesConfig();
   const backups = listBackups();
   const host = process.env.DOMAIN ?? (await headers()).get("host") ?? "os.marclonsain.nl";
   const mcpUrl = process.env.MCP_TOKEN ? `https://${host}/api/mcp/${process.env.MCP_TOKEN}` : null;
@@ -231,6 +237,40 @@ export default async function SettingsPage() {
             </div>
           )}
         </div>
+      </section>
+
+      <section id="hermes" className="scroll-mt-8 space-y-3">
+        <SectionTitle aside={<span className="text-xs text-steen">{hermes.online ? "online" : hermes.configured ? "offline" : "niet geïnstalleerd"}</span>}>Hermes</SectionTitle>
+        <div className="card space-y-2 p-4 text-sm">
+          {!hermesCfg.configured ? (
+            <p className="text-grafiet">
+              Hermes is nog niet geïnstalleerd. Op de VPS: <code className="chip">bash /opt/marc-os/scripts/hermes-setup.sh</code> (vraagt om een Anthropic API-sleutel).
+            </p>
+          ) : (
+            <p className="text-grafiet">
+              Hermes draait naast de app op de VPS ({hermesCfg.url}){hermes.online ? "" : `, maar reageert nu niet${hermes.error ? ` (${hermes.error})` : ""}`}. Hij praat met Marc OS via een eigen MCP-sleutel: lezen gaat direct,
+              wijzigen wordt een voorstel in de <Link href="/hermes?tab=akkoord" className="underline">akkoordwachtrij</Link>. Alles staat in het <Link href="/hermes?tab=logboek" className="underline">logboek</Link>.
+            </p>
+          )}
+          <p className="text-xs text-steen">{process.env.HERMES_MCP_TOKEN ? "MCP-sleutel voor Hermes (HERMES_MCP_TOKEN) staat in .env." : "HERMES_MCP_TOKEN ontbreekt in .env (wordt aangemaakt door update.sh)."}</p>
+        </div>
+        <p className="max-w-2xl pt-2 text-sm text-steen">
+          Wat Hermes zonder akkoord mag doen. Uit = eerst een voorstel dat je goedkeurt. Verwijderen, offertes, factureren en klantgegevens gaan altijd via akkoord.
+        </p>
+        <ul className="card divide-y divide-lijn">
+          {tools.map((t) => (
+            <li key={t.name} className="flex items-center justify-between gap-4 px-4 py-2.5">
+              <div className="min-w-0">
+                <p className={t.neverAuto ? "text-steen" : "text-grafiet"}>{t.title}</p>
+                <p className="text-xs text-steen">
+                  {t.name}
+                  {t.neverAuto ? " · altijd via akkoord" : ""}
+                </p>
+              </div>
+              <AutoToolSwitch tool={t.name} on={autoTools.includes(t.name)} label={`${t.title} zonder akkoord`} disabled={t.neverAuto} />
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section id="claude" className="scroll-mt-8 space-y-3">

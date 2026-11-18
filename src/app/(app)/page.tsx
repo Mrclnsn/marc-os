@@ -9,6 +9,37 @@ import { getCockpit } from "@/lib/cockpit";
 import { TIMEZONE, addDaysIso, formatLong } from "@/lib/dates";
 import { COCKPIT_COOKIE, parseCockpitStyle } from "@/lib/modules";
 import { getOptions } from "@/lib/options";
+import type { AgentsData } from "@/components/cockpit";
+import { hermesStatus } from "@/lib/hermes";
+import * as agent from "@/lib/agent";
+import { listReviews } from "@/lib/data";
+import { toView } from "@/app/hermes-actions";
+import { weekStart } from "@/lib/dates";
+
+/** Gegevens voor het paneel Hermes en agents: status, akkoordwachtrij, laatste activiteit en vaste routines. */
+async function agentsData(today: string, hasBriefing: boolean): Promise<AgentsData> {
+  const [status, pending, pendingTotal, hermesLast, claudeLast, weekReviews] = await Promise.all([
+    hermesStatus(),
+    agent.listProposals({ status: "pending", limit: 4 }),
+    agent.pendingCount(),
+    agent.lastActivity("hermes"),
+    agent.lastActivity("claude"),
+    listReviews("week", 1),
+  ]);
+  const ws = weekStart(today);
+  return {
+    status: { configured: status.configured, online: status.online },
+    pending: await Promise.all(pending.map(toView)),
+    pendingTotal,
+    hermesLast: hermesLast ? { at: hermesLast.at.toISOString(), summary: hermesLast.summary } : null,
+    claudeLast: claudeLast ? { at: claudeLast.at.toISOString(), summary: claudeLast.summary } : null,
+    routines: [
+      { name: "Ochtendbriefing", when: "werkdagen 07:30", done: hasBriefing },
+      { name: "Dagafsluiting", when: "werkdagen 17:30", done: false },
+      { name: "Weekreview", when: "vrijdag 15:00", done: weekReviews.some((r) => r.periodDate === ws) },
+    ],
+  };
+}
 
 function greeting() {
   const hour = Number(new Intl.DateTimeFormat("nl-NL", { hour: "numeric", hour12: false, timeZone: TIMEZONE }).format(new Date()));
@@ -29,6 +60,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const { gebied } = await searchParams;
   const area = gebied === "zakelijk" || gebied === "prive" ? gebied : undefined;
   const [c, options, store] = await Promise.all([getCockpit(area), getOptions(), cookies()]);
+  const agents = await agentsData(c.date, !!c.briefing);
   const style = parseCockpitStyle(store.get(COCKPIT_COOKIE)?.value);
   const hud = style === "ironman";
   const t = c.date;
@@ -103,7 +135,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
           {/* Links: Hermes en agents (op een smaller scherm onder de rest) */}
           <div className="min-w-0 space-y-5 min-[1024px]:col-span-2 min-[1360px]:order-1 min-[1360px]:col-span-1">
-            <AgentsPanel hasBriefing={!!c.briefing} />
+            <AgentsPanel data={agents} />
           </div>
         </div>
       </div>

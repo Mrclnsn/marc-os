@@ -18,6 +18,10 @@ after=$(git rev-parse --short HEAD)
 bold "2/5 Instellingen en vaste taken"
 bash scripts/ensure-env.sh
 bash scripts/install-cron.sh
+if grep -qE '^COMPOSE_PROFILES=.*hermes' .env; then
+  bash scripts/hermes-config.sh
+  docker compose pull -q hermes || echo "  Hermes: nieuwe versie ophalen mislukt, de huidige blijft draaien"
+fi
 
 bold "3/5 Back-up vooraf"
 if docker compose ps --status running --services | grep -qx db; then

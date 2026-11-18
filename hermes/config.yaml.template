@@ -1,0 +1,27 @@
+# Hermes voor Marc OS. Beheerd door scripts/hermes-config.sh: dit bestand wordt bij elke update
+# opnieuw geschreven uit hermes/config.yaml.template in de repo (de vorige versie blijft als config.yaml.vorige).
+# Sleutels staan niet hier maar in de omgeving van de container (docker-compose.yml, .env van Marc OS).
+
+model:
+  provider: anthropic
+  default: "__HERMES_MODEL__"
+
+# Marc OS via MCP, over het interne Docker-netwerk. De sleutel is die van Hermes:
+# lezen gaat direct, alles wat iets wijzigt wordt een voorstel in Marc's akkoordwachtrij.
+mcp_servers:
+  marcos:
+    url: "http://app:3000/api/mcp"
+    headers:
+      Authorization: "Bearer ${MARC_OS_MCP_TOKEN}"
+    timeout: 120
+    connect_timeout: 30
+
+# Alleen wat Hermes nodig heeft: Marc OS, zijn eigen geheugen en een takenlijstje.
+# Geen terminal, bestanden, browser of code uitvoeren.
+platform_toolsets:
+  api_server: [mcp-marcos, memory, todo]
+  cli: [mcp-marcos, memory, todo]
+
+gateway:
+  api_server:
+    max_concurrent_runs: 3

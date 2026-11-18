@@ -1001,3 +1001,83 @@ export type GoalEntry = typeof goalEntries.$inferSelect;
 export type GoalMilestone = typeof goalMilestones.$inferSelect;
 export type LearningTopic = typeof learningTopics.$inferSelect;
 export type LearningSession = typeof learningSessions.$inferSelect;
+
+/* ---------------- Hermes (gesprek 12) ---------------- */
+
+/**
+ * Akkoordwachtrij: een schrijfactie die Hermes wil doen, opgeslagen als MCP-aanroep (tool + argumenten).
+ * Na akkoord voert Marc OS de aanroep zelf uit. Status: pending → executed / failed / rejected / withdrawn.
+ */
+export const agentProposals = pgTable(
+  "agent_proposals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    actor: text("actor").notNull().default("hermes"),
+    tool: text("tool").notNull(),
+    args: jsonb("args").notNull(),
+    title: text("title").notNull(),
+    /** Korte uitleg van Hermes waarom */
+    reason: text("reason"),
+    status: text("status").notNull().default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    /** Waar besloten: app, chat, cockpit, whatsapp */
+    decidedVia: text("decided_via"),
+    decisionNote: text("decision_note"),
+    /** Argumenten zijn voor akkoord door Marc aangepast */
+    edited: boolean("edited").notNull().default(false),
+    result: jsonb("result"),
+    error: text("error"),
+  },
+  (t) => [index("agent_proposals_status_idx").on(t.status, t.createdAt)],
+);
+
+/** Logboek van alles wat Hermes (en Claude via MCP) doet: lezen, voorstellen, akkoord, uitvoeren. Voor ISO 27001. */
+export const agentLog = pgTable(
+  "agent_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    /** hermes, claude of marc */
+    actor: text("actor").notNull(),
+    /** read, direct (zonder akkoord uitgevoerd), proposed, approved, rejected, withdrawn, executed, failed, chat */
+    kind: text("kind").notNull(),
+    tool: text("tool"),
+    summary: text("summary").notNull(),
+    proposalId: uuid("proposal_id"),
+    detail: jsonb("detail"),
+  },
+  (t) => [index("agent_log_at_idx").on(t.at)],
+);
+
+/** Chatgesprekken met Hermes in de app. De geschiedenis voor het model houdt Hermes zelf bij (conversation). */
+export const chatThreads = pgTable("chat_threads", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull().default("Nieuw gesprek"),
+  ...timestamps,
+});
+
+export const chatMessages = pgTable(
+  "chat_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    threadId: uuid("thread_id")
+      .notNull()
+      .references(() => chatThreads.id, { onDelete: "cascade" }),
+    /** user of assistant */
+    role: text("role").notNull(),
+    content: text("content").notNull(),
+    /** Tools die Hermes in dit antwoord gebruikte (namen) */
+    tools: jsonb("tools").$type<string[]>(),
+    /** Voorstellen die tijdens dit antwoord zijn gemaakt */
+    proposalIds: jsonb("proposal_ids").$type<string[]>(),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("chat_messages_thread_idx").on(t.threadId, t.createdAt)],
+);
+
+export type AgentProposal = typeof agentProposals.$inferSelect;
+export type AgentLogRow = typeof agentLog.$inferSelect;
+export type ChatThread = typeof chatThreads.$inferSelect;
+export type ChatMessage = typeof chatMessages.$inferSelect;

@@ -121,6 +121,11 @@ Web Push met een service worker (`public/sw.js`). Op de iPhone werkt het alleen 
 - De database is niet van buitenaf bereikbaar.
 - De MCP-koppeling werkt alleen met het geheime `MCP_TOKEN`. Behandel de MCP-URL als een wachtwoord. Lekt hij uit, verander dan `MCP_TOKEN` en herstart (`docker compose up -d`).
 - Caddy schrijft geen access-logs, zodat de geheime URL niet in logbestanden belandt.
+- Hermes (AI-assistent) heeft een eigen MCP-sleutel (`HERMES_MCP_TOKEN`): lezen gaat direct, elke schrijfactie wordt een voorstel dat Marc goedkeurt (Hermes → Akkoord). Hermes is niet van buitenaf bereikbaar.
+
+### Hermes (AI-assistent)
+
+Installeren na de gewone installatie: `bash /opt/marc-os/scripts/hermes-setup.sh` (vraagt om een Anthropic API-sleutel). Hermes draait als dienst `hermes` (Compose-profiel `hermes`) met de image `nousresearch/hermes-agent:stable`. Configuratie en persoonlijkheid staan in `hermes/` en worden bij elke update door `scripts/hermes-config.sh` naar `hermes-data/` geschreven. Lokaal testen zonder sleutel: `npm run hermes-mock` naast `npm run local`.
 
 ## Agenda koppelen
 
