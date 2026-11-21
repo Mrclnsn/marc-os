@@ -74,7 +74,6 @@ services:
       WEBHOOK_SECRET: ${HERMES_WEBHOOK_SECRET:-}
       # Sleutel van de akkoord-plugin ("ja"/"nee" naar Marc OS); het model zelf heeft geen tools om hem te gebruiken
       MARC_OS_WHATSAPP_TOKEN: ${WHATSAPP_APPROVE_TOKEN:-}
-      HERMES_LOCAL_STT_LANGUAGE: nl
       TZ: Europe/Amsterdam
     volumes:
       # Geheugen, gesprekken, config.yaml en SOUL.md (gevuld door scripts/hermes-config.sh)
@@ -84,8 +83,26 @@ services:
     deploy:
       resources:
         limits:
-          # 3 GB: ruimte voor spraak omzetten op de VPS (faster-whisper small)
-          memory: 3G
+          memory: 2G
+
+  # Spraak naar tekst voor Hermes (gesprek 13): faster-whisper op de VPS zelf, geen externe dienst.
+  # Eigen container omdat de Hermes-image faster-whisper niet meelevert. Alleen intern (http://stt:8000).
+  stt:
+    build: ./stt
+    profiles: ["hermes"]
+    restart: unless-stopped
+    environment:
+      STT_MODEL: ${STT_MODEL:-small}
+      STT_LANGUAGE: nl
+      STT_THREADS: "2"
+      STT_API_KEY: ${STT_API_KEY:-}
+    volumes:
+      # Het model (ca. 500 MB) wordt bij de eerste start opgehaald en hier bewaard
+      - stt-models:/models
+    deploy:
+      resources:
+        limits:
+          memory: 2G
 
   caddy:
     image: caddy:2-alpine
@@ -105,5 +122,6 @@ services:
 
 volumes:
   db-data:
+  stt-models:
   caddy-data:
   caddy-config:

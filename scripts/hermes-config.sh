@@ -17,7 +17,7 @@ sed "s|__HERMES_MODEL__|$MODEL|g" "$DIR/hermes/config.yaml.template" >"$tmp"
 # WhatsApp (gesprek 13): alleen als het aan staat (scripts/whatsapp-setup.sh)
 if [[ "$(envget HERMES_WHATSAPP)" == "true" ]]; then
   printf '\n' >>"$tmp"
-  cat "$DIR/hermes/whatsapp.yaml.template" >>"$tmp"
+  sed "s|__STT_API_KEY__|$(envget STT_API_KEY)|g" "$DIR/hermes/whatsapp.yaml.template" >>"$tmp"
 fi
 if [[ -f "$DATA/config.yaml" ]] && ! cmp -s "$tmp" "$DATA/config.yaml"; then
   cp "$DATA/config.yaml" "$DATA/config.yaml.vorige"

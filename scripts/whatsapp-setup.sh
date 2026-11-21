@@ -71,18 +71,11 @@ fi
 ok "Gekoppeld"
 
 bold "3/5 WhatsApp aanzetten en herstarten"
-# Spraak omzetten op de VPS: faster-whisper zit niet standaard in de image en wordt daar niet vanzelf geïnstalleerd
-echo "  Spraakherkenning installeren (eenmalig, kan een paar minuten duren)..."
-if docker compose exec -T hermes hermes pm install --extra stt-whisper >/tmp/marcos-stt.log 2>&1; then
-  ok "Spraakherkenning (faster-whisper) geïnstalleerd"
-else
-  warn "Spraakherkenning installeren mislukt (zie /tmp/marcos-stt.log). Tekstberichten werken wel."
-fi
 envset HERMES_WHATSAPP true
 chmod 600 "$ENV"
 bash scripts/hermes-config.sh
-docker compose up -d app hermes
-ok "Hermes en de app herstart met WhatsApp aan"
+docker compose up -d --build app hermes stt
+ok "Hermes, spraakherkenning en de app herstart met WhatsApp aan"
 
 bold "4/5 Controle"
 API_KEY="$(envget HERMES_API_KEY)"
@@ -103,6 +96,10 @@ else
   docker compose logs --tail 30 hermes | grep -i -E "whatsapp|bridge" || docker compose logs --tail 30 hermes
   echo "  Opnieuw koppelen: bash $DIR/scripts/whatsapp-setup.sh"
 fi
+stt="$(app_get http://stt:8000/health || true)"
+if echo "$stt" | grep -q '"ready": true'; then ok "Spraakherkenning klaar (model geladen)"
+elif echo "$stt" | grep -q '"status"'; then warn "Spraakherkenning start nog (model wordt opgehaald, kan een paar minuten duren): $stt"
+else warn "Spraakherkenning (stt) reageert niet. Kijk met: docker compose logs --tail 30 stt"; fi
 webhook="$(app_get http://hermes:8644/health || true)"
 echo "$webhook" | grep -q '"ok"' && ok "Webhook voor berichten van Marc OS draait (alleen intern)" || warn "Webhook reageert niet op http://hermes:8644/health"
 

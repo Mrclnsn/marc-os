@@ -27,5 +27,6 @@ grep -q '^ANTHROPIC_API_KEY=' "$ENV" || printf '%s\n' "# Hermes: Anthropic API-s
 # WhatsApp via Hermes (gesprek 13): sleutels altijd klaarzetten, aanzetten met scripts/whatsapp-setup.sh
 has HERMES_WEBHOOK_SECRET || add HERMES_WEBHOOK_SECRET "$(openssl rand -hex 32)"
 has WHATSAPP_APPROVE_TOKEN || add WHATSAPP_APPROVE_TOKEN "$(openssl rand -hex 32)"
+has STT_API_KEY || add STT_API_KEY "$(openssl rand -hex 24)"
 grep -q '^HERMES_WHATSAPP=' "$ENV" || printf '%s\n' "# WhatsApp via Hermes: aanzetten met scripts/whatsapp-setup.sh" "HERMES_WHATSAPP=false" "WHATSAPP_NUMBER=" "WHATSAPP_HOME_CHANNEL=" >>"$ENV"
 chmod 600 "$ENV"

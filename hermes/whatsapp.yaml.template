@@ -16,16 +16,17 @@ display:
       tool_progress: "off"
       interim_assistant_messages: false
 
-# Spraakberichten: omzetten op de VPS zelf (faster-whisper), Nederlands. Geen externe dienst.
-# Het eerste spraakbericht duurt langer: dan wordt het model (small, ca. 500 MB) eenmalig opgehaald.
+# Spraakberichten: omzetten op de VPS zelf (eigen container stt met faster-whisper, model small), Nederlands.
+# Geen externe dienst. Het eerste bericht na de installatie duurt langer: dan wordt het model eenmalig opgehaald.
 stt:
   enabled: true
   echo_transcripts: true
-  provider: local
+  provider: openai
   language: nl
-  local:
-    model: small
-    language: nl
+  openai:
+    base_url: http://stt:8000/v1
+    api_key: __STT_API_KEY__
+    model: whisper-1
 
 # Uitgaande berichten van Marc OS (routines, testbericht): webhook alleen op het interne Docker-netwerk
 # (geen poort naar buiten), ondertekend met WEBHOOK_SECRET. deliver_only: het model doet niets, de tekst
