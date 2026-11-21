@@ -71,6 +71,13 @@ fi
 ok "Gekoppeld"
 
 bold "3/5 WhatsApp aanzetten en herstarten"
+# Spraak omzetten op de VPS: faster-whisper zit niet standaard in de image en wordt daar niet vanzelf geïnstalleerd
+echo "  Spraakherkenning installeren (eenmalig, kan een paar minuten duren)..."
+if docker compose exec -T hermes hermes pm install --extra stt-whisper >/tmp/marcos-stt.log 2>&1; then
+  ok "Spraakherkenning (faster-whisper) geïnstalleerd"
+else
+  warn "Spraakherkenning installeren mislukt (zie /tmp/marcos-stt.log). Tekstberichten werken wel."
+fi
 envset HERMES_WHATSAPP true
 chmod 600 "$ENV"
 bash scripts/hermes-config.sh
