@@ -1,4 +1,5 @@
 import "server-only";
+import type { HabitMoment } from "@/lib/rhythm-shared";
 import { latestSection } from "./routines-shared";
 import { calendarConfigured, getEvents, type CalendarEvent } from "./calendar";
 import { blockTaskTitles, currentAndNext, dayRhythms, freeWithin, type DayRhythm } from "./rhythm";
@@ -117,7 +118,7 @@ export type HourWindow = {
   work: { from: number; to: number } | null;
 };
 
-export type HabitToday = { id: string; title: string; done: boolean; due: boolean; streak: number; streakUnit: string; weekPct: number | null; frequency: string; block: string | null };
+export type HabitToday = { id: string; title: string; done: boolean; due: boolean; streak: number; streakUnit: string; weekPct: number | null; frequency: string; block: string | null; time?: string | null; moment?: HabitMoment | null };
 
 export type Goal = {
   id: string | null;
@@ -461,7 +462,7 @@ export async function getCockpit(area?: "zakelijk" | "prive"): Promise<Cockpit> 
     overdue,
     upcoming,
     briefing,
-    habits: visibleHabits.map((h) => ({ id: h.id, title: h.title, done: h.doneToday, due: h.dueToday, streak: h.streak, streakUnit: h.streakUnit, weekPct: h.week.pct, frequency: h.frequencyLabel, block: h.blockTitle })),
+    habits: visibleHabits.map((h) => ({ id: h.id, title: h.title, done: h.doneToday, due: h.dueToday, streak: h.streak, streakUnit: h.streakUnit, weekPct: h.week.pct, frequency: h.whenLabel, block: h.blockTitle, time: h.time, moment: h.momentKey })),
     rhythm: { name: dayToday.rhythm?.name ?? null, current: blockNow ? `${blockNow.title} tot ${blockNow.endTime}` : null, next: blockNext ? `${blockNext.startTime} ${blockNext.title}` : null },
   };
 }

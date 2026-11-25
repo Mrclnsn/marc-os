@@ -18,7 +18,7 @@ import { PLANNABLE_KINDS, toMin, type BlockKind } from "./rhythm-shared";
 export const PUSH_KINDS = {
   morning: { label: "Ochtendoverzicht", description: "Werkdagen 07:30: taken voor vandaag, achterstallig en je eerste afspraak." },
   deadlines: { label: "Deadlines", description: "Elke dag 09:00: taken met een deadline vandaag of die te laat zijn." },
-  blocks: { label: "Dagritme", description: "Bij het begin van een dagritmeblok met herinnering (dagstart, diep werk, sport, dagafsluiting), met wat je erin hebt gepland. Per blok aan te zetten op Planning → Dagritme." },
+  blocks: { label: "Dagritme", description: "Bij het begin van een dagritmeblok met herinnering (dagstart, diep werk, sport, dagafsluiting), met wat je erin hebt gepland. Per blok aan te zetten op Planning → Dagritme. Ook gewoontes met een vast tijdstip en herinnering." },
   routines: { label: "Routines van Hermes", description: "Als de ochtendbriefing, dagafsluiting, weekreview of een andere vaste routine klaar is (per routine aan te zetten op Hermes → Routines)." },
   assistant: { label: "Van Claude en Hermes", description: "Meldingen die de assistent via de MCP-koppeling stuurt (send_push)." },
   system: { label: "Systeem", description: "Als de nachtelijke back-up of export mislukt, of de Mac de back-up een paar dagen niet heeft opgehaald." },
@@ -250,6 +250,34 @@ export async function deadlineMessages(): Promise<PushMessage[]> {
       tag: `deadline-${r.id}`,
     };
   });
+}
+
+/* ------------------------------------------------------------------ */
+/* Herinneringen bij gewoontes met een vast tijdstip (cron elke 5 min) */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Gewoontes met "herinnering" en een vast tijdstip dat in de afgelopen 6 minuten viel, die vandaag moeten
+ * en nog niet zijn afgevinkt. Per dag bijgehouden, dus nooit dubbel.
+ */
+export async function habitReminderMessages(): Promise<PushMessage[]> {
+  const t = today();
+  const now = nowMinutes();
+  const sent = await readSetting<SentBlocks>("habit_reminders");
+  const already = new Set(sent?.date === t ? sent.ids : []);
+  const due = (await listHabits()).filter((h) => {
+    if (!h.remind || !h.time || already.has(h.id) || !h.dueToday || h.doneToday) return false;
+    const at = toMin(h.time);
+    return at <= now && at > now - 6;
+  });
+  if (!due.length) return [];
+  await writeSetting("habit_reminders", { date: t, ids: [...already, ...due.map((h) => h.id)] } satisfies SentBlocks);
+  return due.map((h) => ({
+    title: h.title,
+    body: `${h.time} · ${h.whenLabel.replace(/ om \d\d:\d\d| \(herinnering\)/g, "")}${h.streak >= 2 ? ` · ${h.streak} ${h.streakUnit} op rij` : ""}`,
+    url: "/planning/gewoontes",
+    tag: `habit-${h.id}`,
+  }));
 }
 
 /* ------------------------------------------------------------------ */

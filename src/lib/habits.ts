@@ -4,7 +4,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { habitChecks, habits, rhythmBlocks, type Habit } from "@/db/schema";
 import { addDaysIso, today, weekStart } from "./dates";
-import { frequencyLabel, isoWeekday } from "./rhythm-shared";
+import { frequencyLabel, habitMoment, habitWhenLabel, HABIT_MOMENT_KEYS, isoWeekday, momentOfTime, type HabitMoment } from "./rhythm-shared";
 
 /*
  * Gewoontes (gesprek 8): afvinken per dag, met reeks (streak) en percentage per week en maand.
@@ -29,6 +29,12 @@ export const habitInput = z.object({
   timesPerWeek: z.number().int().min(1).max(7).nullable().optional(),
   weekdays: z.array(z.number().int().min(1).max(7)).optional(),
   blockId: z.string().uuid().nullable().optional(),
+  /** Vast tijdstip HH:mm (optioneel) */
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Tijd als UU:MM").nullable().optional(),
+  /** Dagdeel zonder vast tijdstip */
+  moment: z.enum(["ochtend", "middag", "avond"]).nullable().optional(),
+  /** Pushmelding op het tijdstip */
+  remind: z.boolean().optional(),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   sortOrder: z.number().int().optional(),
   notes: z.string().nullable().optional(),
@@ -45,13 +51,22 @@ export const habitInput = z.object({
 });
 export type HabitInput = z.infer<typeof habitInput>;
 
+/** Tijdstip en dagdeel netjes houden: met een tijd volgt het dagdeel daaruit; herinnering alleen met een tijd. */
+function normalizeTime<T extends { time?: string | null; moment?: string | null; remind?: boolean }>(d: T, cur?: { time: string | null }): T {
+  const time = d.time !== undefined ? d.time : (cur?.time ?? null);
+  if (d.time !== undefined && d.time) d.moment = momentOfTime(d.time);
+  if (!time && d.remind) d.remind = false;
+  if (d.time === null && d.remind === undefined) d.remind = false;
+  return d;
+}
+
 function validate(h: { frequency?: string; timesPerWeek?: number | null; weekdays?: number[] }) {
   if (h.frequency === "weekly" && !h.timesPerWeek) throw new Error("Hoe vaak per week? Vul een aantal in (1 tot 7).");
   if (h.frequency === "days" && !h.weekdays?.length) throw new Error("Kies op welke dagen.");
 }
 
 export async function createHabit(input: HabitInput) {
-  const data = habitInput.parse(input);
+  const data = normalizeTime(habitInput.parse(input));
   const merged = { frequency: data.frequency ?? "daily", timesPerWeek: data.timesPerWeek ?? null, weekdays: data.weekdays ?? [] };
   validate(merged);
   const [row] = await db
@@ -63,9 +78,9 @@ export async function createHabit(input: HabitInput) {
 }
 
 export async function updateHabit(id: string, patch: Partial<HabitInput>) {
-  const data = habitInput.partial().parse(patch);
   const [cur] = await db.select().from(habits).where(eq(habits.id, id));
   if (!cur) throw new Error("Gewoonte niet gevonden");
+  const data = normalizeTime(habitInput.partial().parse(patch), cur);
   validate({ frequency: data.frequency ?? cur.frequency, timesPerWeek: data.timesPerWeek !== undefined ? data.timesPerWeek : cur.timesPerWeek, weekdays: data.weekdays ?? cur.weekdays });
   if (data.weekdays) data.weekdays = [...new Set(data.weekdays)].sort();
   const [row] = await db.update(habits).set(data).where(eq(habits.id, id)).returning();
@@ -123,6 +138,10 @@ export type HabitStats = Habit & {
   blockTitle: string | null;
   blockStart: string | null;
   frequencyLabel: string;
+  /** Dagen plus tijdstip of dagdeel, bijv. "werkdagen om 07:30" */
+  whenLabel: string;
+  /** Dagdeel voor de groepering (uit tijd, gekozen dagdeel of blok); null = op elk moment */
+  momentKey: HabitMoment | null;
   /** Moet vandaag (daily, days) of nog nodig deze week (weekly) */
   dueToday: boolean;
   doneToday: boolean;
@@ -136,7 +155,7 @@ export type HabitStats = Habit & {
 
 const isDueDay = (h: Habit, date: string) => date >= h.startDate && (h.frequency === "days" ? h.weekdays.includes(isoWeekday(date)) : true);
 
-function statsFor(h: Habit, checked: Set<string>, t: string): Omit<HabitStats, keyof Habit | "blockTitle" | "blockStart"> {
+function statsFor(h: Habit, checked: Set<string>, t: string): Omit<HabitStats, keyof Habit | "blockTitle" | "blockStart" | "whenLabel" | "momentKey"> {
   const doneToday = checked.has(t);
   const monday = weekStart(t);
   const monthStart = `${t.slice(0, 8)}01`;
@@ -224,10 +243,13 @@ export async function listHabits(opts: { includeArchived?: boolean; date?: strin
     .select({ habitId: habitChecks.habitId, date: habitChecks.date })
     .from(habitChecks)
     .where(and(inArray(habitChecks.habitId, list.map((r) => r.habit.id)), gte(habitChecks.date, from), lte(habitChecks.date, t)));
-  return list.map(({ habit, blockTitle, blockStart }) => {
+  const out = list.map(({ habit, blockTitle, blockStart }) => {
     const set = new Set(checks.filter((c) => c.habitId === habit.id).map((c) => c.date));
-    return { ...habit, blockTitle, blockStart, ...statsFor(habit, set, t) };
+    return { ...habit, blockTitle, blockStart, ...statsFor(habit, set, t), whenLabel: habitWhenLabel(habit), momentKey: habitMoment({ ...habit, blockStart }) };
   });
+  // Volgorde van de dag: ochtend, middag, avond, dan "op elk moment"; binnen een dagdeel op tijd
+  const rank = (h: (typeof out)[number]) => (h.momentKey ? HABIT_MOMENT_KEYS.indexOf(h.momentKey) : 3);
+  return out.sort((a, b) => rank(a) - rank(b) || (a.time ?? a.blockStart ?? "99").localeCompare(b.time ?? b.blockStart ?? "99") || a.sortOrder - b.sortOrder);
 }
 
 /** Samenvatting voor de cockpit en meldingen: hoeveel van de gewoontes van vandaag zijn gedaan. */

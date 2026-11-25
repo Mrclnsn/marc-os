@@ -1,6 +1,6 @@
 import { PageHeader, SectionTitle } from "@/components/brand";
 import { PlanningTabs } from "@/components/planning-nav";
-import { HabitAdmin, HabitCheckList, HabitForm, HabitHistory } from "@/components/habit-parts";
+import { HabitAdmin, HabitCheckList, HabitForm, HabitHistory, NewHabit } from "@/components/habit-parts";
 import { listHabits, listRhythms } from "@/lib/data";
 import { today } from "@/lib/dates";
 import { healthRuleLabel } from "@/lib/health-shared";
@@ -22,17 +22,20 @@ export default async function HabitsPage() {
       <PageHeader eyebrow="Planning" title="Gewoontes" />
       <PlanningTabs active="gewoontes" />
 
+      <NewHabit blocks={blocks} startOpen={active.length === 0} />
+
       <section className="space-y-3">
         <SectionTitle aside={<span className="text-xs text-steen">{doneToday} van {todays.length}</span>}>Vandaag</SectionTitle>
         {todays.length ? (
           <div className="card">
             <HabitCheckList
               date={t}
-              habits={todays.map((h) => ({ id: h.id, title: h.title, done: h.doneToday, due: h.dueToday, streak: h.streak, streakUnit: h.streakUnit, weekPct: h.week.pct, frequency: h.frequencyLabel, block: h.blockTitle }))}
+              grouped
+              habits={todays.map((h) => ({ id: h.id, title: h.title, done: h.doneToday, due: h.dueToday, streak: h.streak, streakUnit: h.streakUnit, weekPct: h.week.pct, frequency: h.whenLabel, block: h.blockTitle, time: h.time, moment: h.momentKey }))}
             />
           </div>
         ) : (
-          <p className="text-sm text-steen">{active.length ? "Vandaag staat er geen gewoonte op het programma." : "Nog geen gewoontes. Voeg er hieronder een toe, bijvoorbeeld sporten (3x per week) of de dagafsluiting (werkdagen)."}</p>
+          <p className="text-sm text-steen">{active.length ? "Vandaag staat er geen gewoonte op het programma." : "Nog geen gewoontes. Voeg er hierboven een toe, bijvoorbeeld sporten (3x per week) of de dagafsluiting (werkdagen om 17:15)."}</p>
         )}
       </section>
 
@@ -46,7 +49,7 @@ export default async function HabitsPage() {
                   <div className="min-w-0">
                     <p className="font-bold text-nacht">{h.title}</p>
                     <p className="text-xs text-steen">
-                      {h.frequencyLabel} · {h.area === "prive" ? "privé" : "zakelijk"}
+                      {h.whenLabel} · {h.area === "prive" ? "privé" : "zakelijk"}
                       {h.blockTitle ? ` · bij ${h.blockTitle} (${h.blockStart})` : ""}
                       {h.healthRule ? ` · automatisch ${healthRuleLabel(h.healthRule)}` : ""}
                     </p>
@@ -72,7 +75,7 @@ export default async function HabitsPage() {
                 <details>
                   <summary className="cursor-pointer text-xs text-steen hover:text-nacht">Bewerken</summary>
                   <div className="mt-3 space-y-3">
-                    <HabitForm id={h.id} blocks={blocks} habit={{ title: h.title, area: h.area, frequency: h.frequency, timesPerWeek: h.timesPerWeek, weekdays: h.weekdays, blockId: h.blockId, notes: h.notes, healthRule: h.healthRule }} />
+                    <HabitForm id={h.id} blocks={blocks} habit={{ title: h.title, area: h.area, frequency: h.frequency, timesPerWeek: h.timesPerWeek, weekdays: h.weekdays, blockId: h.blockId, notes: h.notes, healthRule: h.healthRule, time: h.time, moment: h.moment, remind: h.remind }} />
                     <HabitAdmin id={h.id} archived={false} title={h.title} />
                   </div>
                 </details>
@@ -86,12 +89,6 @@ export default async function HabitsPage() {
         </section>
       )}
 
-      <section className="space-y-3">
-        <SectionTitle>Nieuwe gewoonte</SectionTitle>
-        <div className="card p-4">
-          <HabitForm blocks={blocks} />
-        </div>
-      </section>
 
       {archived.length > 0 && (
         <section className="space-y-3">
@@ -99,7 +96,7 @@ export default async function HabitsPage() {
           <ul className="card divide-y divide-lijn">
             {archived.map((h) => (
               <li key={h.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                <span className="text-steen">{h.title} · {h.frequencyLabel}</span>
+                <span className="text-steen">{h.title} · {h.whenLabel}</span>
                 <HabitAdmin id={h.id} archived title={h.title} />
               </li>
             ))}

@@ -723,6 +723,12 @@ export const habits = pgTable("habits", {
   timesPerWeek: integer("times_per_week"),
   weekdays: integer("weekdays").array().notNull().default([]),
   blockId: uuid("block_id").references(() => rhythmBlocks.id, { onDelete: "set null" }),
+  /** Vast tijdstip (HH:mm), optioneel. Bepaalt ook het dagdeel. */
+  time: text("time"),
+  /** Dagdeel zonder vast tijdstip: ochtend, middag, avond; leeg = op elk moment (afgeleid van time als die er is) */
+  moment: text("moment"),
+  /** Pushmelding op het tijdstip (alleen met een vast tijdstip) */
+  remind: boolean("remind").notNull().default(false),
   startDate: date("start_date").notNull(),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   sortOrder: integer("sort_order").notNull().default(0),

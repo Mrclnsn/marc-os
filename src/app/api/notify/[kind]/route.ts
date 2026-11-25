@@ -1,5 +1,5 @@
 import { tokenOk } from "@/lib/mcp";
-import { blockReminderMessages, backupCheckMessages, deadlineMessages, morningMessage, sendPush, type PushMessage, type PushResult } from "@/lib/push";
+import { blockReminderMessages, habitReminderMessages, backupCheckMessages, deadlineMessages, morningMessage, sendPush, type PushMessage, type PushResult } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +43,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ kind: s
       pushKind = "deadlines";
       break;
     case "blocks":
-      messages = await blockReminderMessages();
+      // Dagritmeblokken en gewoontes met een vast tijdstip (beide soort "Dagritme")
+      messages = [...(await blockReminderMessages()), ...(await habitReminderMessages())];
       pushKind = "blocks";
       break;
     case "backupcheck":

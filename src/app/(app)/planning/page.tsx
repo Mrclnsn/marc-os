@@ -183,7 +183,7 @@ async function DayView({ date, t }: { date: string; t: string }) {
         <div className="min-w-0 space-y-5">
           {date === t && todaysHabits.length > 0 && (
             <Panel title="Gewoontes vandaag" aside={<Link href="/planning/gewoontes" className="hover:text-nacht">alle</Link>}>
-              <HabitCheckList date={t} habits={todaysHabits.map((h) => ({ id: h.id, title: h.title, done: h.doneToday, due: h.dueToday, streak: h.streak, streakUnit: h.streakUnit, weekPct: h.week.pct, frequency: h.frequencyLabel, block: h.blockTitle }))} />
+              <HabitCheckList date={t} habits={todaysHabits.map((h) => ({ id: h.id, title: h.title, done: h.doneToday, due: h.dueToday, streak: h.streak, streakUnit: h.streakUnit, weekPct: h.week.pct, frequency: h.whenLabel, block: h.blockTitle, time: h.time, moment: h.momentKey }))} />
             </Panel>
           )}
           {plan.overdue.length > 0 && <TaskPile title="Achterstallig" tasks={plan.overdue} slots={slots} t={t} />}

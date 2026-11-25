@@ -83,3 +83,42 @@ export function weekdaysLabel(days: number[]): string {
   if (s.length > 2 && s.every((d, i) => i === 0 || d === s[i - 1] + 1)) return `${WEEKDAYS[s[0] as Weekday]} t/m ${WEEKDAYS[s[s.length - 1] as Weekday]}`;
   return s.map((d) => WEEKDAYS[d as Weekday]).join(", ");
 }
+
+/* ---------------- Gewoontes: dagdeel en tijdstip (herziening 25 november) ---------------- */
+
+/** Dagdelen om gewoontes te groeperen. Met een vast tijdstip volgt het dagdeel uit de tijd. */
+export const HABIT_MOMENTS = {
+  ochtend: { label: "Ochtend", until: "12:00" },
+  middag: { label: "Middag", until: "18:00" },
+  avond: { label: "Avond", until: "24:00" },
+} as const;
+export type HabitMoment = keyof typeof HABIT_MOMENTS;
+export const HABIT_MOMENT_KEYS = Object.keys(HABIT_MOMENTS) as HabitMoment[];
+
+export function momentOfTime(hhmm: string): HabitMoment {
+  return hhmm < "12:00" ? "ochtend" : hhmm < "18:00" ? "middag" : "avond";
+}
+
+/** Dagdeel van een gewoonte: uit het tijdstip, anders het gekozen dagdeel, anders uit het blok; null = op elk moment. */
+export function habitMoment(h: { time?: string | null; moment?: string | null; blockStart?: string | null }): HabitMoment | null {
+  if (h.time) return momentOfTime(h.time);
+  if (h.moment && h.moment in HABIT_MOMENTS) return h.moment as HabitMoment;
+  if (h.blockStart) return momentOfTime(h.blockStart);
+  return null;
+}
+
+/** Snelkeuzes voor de dagen. */
+export const DAY_PRESETS = {
+  daily: { label: "Elke dag", days: [1, 2, 3, 4, 5, 6, 7] },
+  workdays: { label: "Werkdagen", days: [1, 2, 3, 4, 5] },
+  weekend: { label: "Weekend", days: [6, 7] },
+} as const;
+
+/** Volledige omschrijving: "werkdagen om 07:30", "3x per week, 's avonds", "elke dag". */
+export function habitWhenLabel(h: { frequency: string; timesPerWeek: number | null; weekdays: number[]; time?: string | null; moment?: string | null; remind?: boolean }): string {
+  let when = frequencyLabel(h);
+  if (h.frequency === "days" && [...h.weekdays].sort().join() === "6,7") when = "weekend";
+  const m = h.time ? null : h.moment && h.moment in HABIT_MOMENTS ? (h.moment as HabitMoment) : null;
+  const at = h.time ? ` om ${h.time}` : m ? (m === "ochtend" ? ", 's ochtends" : m === "middag" ? ", 's middags" : ", 's avonds") : "";
+  return `${when}${at}${h.time && h.remind ? " (herinnering)" : ""}`;
+}

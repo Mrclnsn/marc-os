@@ -96,6 +96,10 @@ function slimHabit(h: data.HabitStats) {
     title: h.title,
     area: h.area,
     frequency: h.frequencyLabel,
+    when: h.whenLabel,
+    time: h.time ?? undefined,
+    moment: h.momentKey ?? undefined,
+    remind: h.remind || undefined,
     block: h.blockTitle,
     dueToday: h.dueToday,
     doneToday: h.doneToday,
@@ -1873,7 +1877,7 @@ export function buildServer(modules: Modules, opts: BuildOptions = {}) {
     "create_habit",
     {
       title: "Gewoonte toevoegen",
-      description: "Nieuwe gewoonte. frequency: daily (elke dag), weekly (timesPerWeek keer per week) of days (vaste weekdays, 1 = maandag ... 7 = zondag). Optioneel gekoppeld aan een dagritmeblok (blockId uit list_rhythms). Alleen op verzoek van Marc.",
+      description: "Nieuwe gewoonte. frequency: daily (elke dag), weekly (timesPerWeek keer per week) of days (vaste weekdays, 1 = maandag ... 7 = zondag). Optioneel een vast tijdstip (time, met remind voor een pushmelding) of alleen een dagdeel (moment: ochtend, middag, avond), of een dagritmeblok (blockId uit list_rhythms). Alleen op verzoek van Marc.",
       inputSchema: {
         title: z.string().min(1),
         area: area.optional(),
@@ -1881,6 +1885,9 @@ export function buildServer(modules: Modules, opts: BuildOptions = {}) {
         timesPerWeek: z.number().int().min(1).max(7).optional(),
         weekdays: z.array(z.number().int().min(1).max(7)).optional(),
         blockId: z.string().uuid().nullable().optional(),
+        time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional().describe("Vast tijdstip HH:mm (optioneel); bepaalt ook het dagdeel"),
+        moment: z.enum(["ochtend", "middag", "avond"]).nullable().optional().describe("Dagdeel als er geen vast tijdstip is; leeg = op elk moment"),
+        remind: z.boolean().optional().describe("Pushmelding op het tijdstip (alleen met time)"),
         healthRule: z
           .object({
             metric: z.enum(["workout", "steps", "exercise", "active_energy", "sleep"]),
@@ -1909,6 +1916,9 @@ export function buildServer(modules: Modules, opts: BuildOptions = {}) {
         timesPerWeek: z.number().int().min(1).max(7).nullable().optional(),
         weekdays: z.array(z.number().int().min(1).max(7)).optional(),
         blockId: z.string().uuid().nullable().optional(),
+        time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional().describe("Vast tijdstip HH:mm (optioneel); bepaalt ook het dagdeel"),
+        moment: z.enum(["ochtend", "middag", "avond"]).nullable().optional().describe("Dagdeel als er geen vast tijdstip is; leeg = op elk moment"),
+        remind: z.boolean().optional().describe("Pushmelding op het tijdstip (alleen met time)"),
         healthRule: z
           .object({
             metric: z.enum(["workout", "steps", "exercise", "active_energy", "sleep"]),

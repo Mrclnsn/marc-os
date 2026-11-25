@@ -157,9 +157,20 @@ function habitFromForm(fd: FormData): data.HabitInput {
     timesPerWeek: frequency === "weekly" ? Number(s(fd, "timesPerWeek") ?? 1) : null,
     weekdays: frequency === "days" ? days(fd) : [],
     blockId: s(fd, "blockId"),
+    time: timeFromForm(fd),
+    moment: (["ochtend", "middag", "avond"].includes(s(fd, "moment") ?? "") ? s(fd, "moment") : null) as data.HabitInput["moment"],
+    remind: fd.get("remind") === "on",
     notes: s(fd, "notes"),
     healthRule: healthRuleFromForm(fd),
   };
+}
+
+function timeFromForm(fd: FormData): string | null {
+  const raw = s(fd, "time");
+  if (!raw) return null;
+  const t = parseTime(raw);
+  if (!t) throw new Error(`"${raw}" is geen tijd. Gebruik bijv. 07:30.`);
+  return t;
 }
 
 /** Gezondheidsregel uit het formulier (gesprek 9); leeg = alleen met de hand afvinken. */
